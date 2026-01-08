@@ -45,11 +45,6 @@ except Exception as e:
     
     print(f"❌ 导入 bull_stock_web 失败: {e}")
 
-# Vercel 的 Python serverless 函数需要 handler 函数
-# 这是 Vercel Python 函数的标准格式
-def handler(request):
-    """
-    Vercel Python serverless 函数的 handler
-    request: Vercel 的请求对象
-    """
-    return app(request.environ, lambda status, headers: None)
+# Vercel 的 Python serverless 函数
+# 对于 Flask WSGI 应用，Vercel 会自动识别并处理
+# 直接导出 app 即可
