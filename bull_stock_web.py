@@ -4,16 +4,30 @@
 大牛股分析器Web界面
 提供添加大牛股的功能
 """
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for
 from bull_stock_analyzer import BullStockAnalyzer
 from technical_analysis import TechnicalAnalysis
+# 根据环境选择使用哪个认证模块
+import os
+if os.environ.get('VERCEL'):
+    # Vercel 环境：使用内存存储版本
+    from user_auth_vercel import (
+        register_user, login_user, is_logged_in, get_current_user,
+        require_login, create_invite_code, list_invite_codes, get_user_stats
+    )
+else:
+    # 本地环境：使用文件存储版本
+    from user_auth import (
+        register_user, login_user, is_logged_in, get_current_user,
+        require_login, create_invite_code, list_invite_codes, get_user_stats
+    )
 import json
 import pandas as pd
 import numpy as np
 import time
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'bull-stock-analyzer-secret-key'
+app.config['SECRET_KEY'] = 'bull-stock-analyzer-secret-key-change-in-production'
 
 # 创建全局分析器实例（延迟初始化，先启动Flask服务）
 # 使用延迟初始化，避免阻塞Flask启动
@@ -23,8 +37,18 @@ def init_analyzer():
     """延迟初始化分析器"""
     global analyzer
     if analyzer is None:
-        print("正在初始化分析器（加载默认大牛股并训练模型）...")
-        analyzer = BullStockAnalyzer(auto_load_default_stocks=True, auto_analyze_and_train=True)
+        # 在 Vercel 环境中，禁用自动训练以避免超时
+        is_vercel = os.environ.get('VERCEL') or os.environ.get('VERCEL_ENV')
+        auto_train = not is_vercel  # Vercel 环境不自动训练
+        
+        if is_vercel:
+            print("Vercel 环境：禁用自动训练以避免超时")
+        
+        print("正在初始化分析器...")
+        analyzer = BullStockAnalyzer(
+            auto_load_default_stocks=True, 
+            auto_analyze_and_train=auto_train
+        )
         print("✅ 分析器初始化完成")
     return analyzer
 
@@ -32,9 +56,125 @@ def init_analyzer():
 @app.route('/')
 def index():
     """主页面"""
+    # 检查是否已登录
+    if not is_logged_in():
+        return redirect(url_for('login_page'))
     # 确保分析器已初始化
     init_analyzer()
     return render_template('bull_stock_web.html')
+
+@app.route('/login')
+def login_page():
+    """登录页面"""
+    if is_logged_in():
+        return redirect(url_for('index'))
+    return render_template('login.html')
+
+@app.route('/register')
+def register_page():
+    """注册页面"""
+    if is_logged_in():
+        return redirect(url_for('index'))
+    return render_template('register.html')
+
+# ==================== 认证相关 API ====================
+
+@app.route('/api/register', methods=['POST'])
+def api_register():
+    """用户注册API（需要邀请码）"""
+    try:
+        data = request.get_json() or {}
+        username = data.get('username', '').strip()
+        email = data.get('email', '').strip()
+        password = data.get('password', '')
+        invite_code = data.get('invite_code', '').strip().upper()
+        
+        if not username or not email or not password or not invite_code:
+            return jsonify({
+                'success': False,
+                'message': '请填写所有字段'
+            }), 400
+        
+        result = register_user(username, email, password, invite_code)
+        
+        if result['success']:
+            # 注册成功后自动登录
+            session['username'] = username
+            return jsonify({
+                'success': True,
+                'message': '注册成功',
+                'user': {
+                    'username': username,
+                    'email': email
+                }
+            })
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"注册错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'服务器错误: {str(e)}'
+        }), 500
+
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    """用户登录API"""
+    try:
+        data = request.get_json() or {}
+        username = data.get('username', '').strip()
+        password = data.get('password', '')
+        
+        if not username or not password:
+            return jsonify({
+                'success': False,
+                'message': '请输入用户名和密码'
+            }), 400
+        
+        result = login_user(username, password)
+        
+        if result['success']:
+            session['username'] = username
+            return jsonify(result)
+        else:
+            return jsonify(result), 401
+            
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"登录错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'服务器错误: {str(e)}'
+        }), 500
+
+@app.route('/api/logout', methods=['POST'])
+def api_logout():
+    """用户登出API"""
+    session.clear()
+    return jsonify({
+        'success': True,
+        'message': '已退出登录'
+    })
+
+@app.route('/api/check_login', methods=['GET'])
+def api_check_login():
+    """检查登录状态API"""
+    if is_logged_in():
+        user = get_current_user()
+        return jsonify({
+            'success': True,
+            'logged_in': True,
+            'user': user
+        })
+    else:
+        return jsonify({
+            'success': True,
+            'logged_in': False
+        })
 
 
 @app.route('/api/add_stock', methods=['POST'])

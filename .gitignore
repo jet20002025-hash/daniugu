@@ -6,12 +6,15 @@ __pycache__/
 .Python
 *.log
 *.pid
-*.json
 *.xlsx
 .env
 .venv/
 venv/
 ENV/
+
+# 用户数据文件（不提交到 Git）
+users.json
+invite_codes.json
 
 # IDE
 .vscode/
