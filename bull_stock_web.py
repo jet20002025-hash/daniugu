@@ -9,18 +9,54 @@ from bull_stock_analyzer import BullStockAnalyzer
 from technical_analysis import TechnicalAnalysis
 # 根据环境选择使用哪个认证模块
 import os
-if os.environ.get('VERCEL'):
-    # Vercel 环境：使用内存存储版本
-    from user_auth_vercel import (
-        register_user, login_user, is_logged_in, get_current_user,
-        require_login, create_invite_code, list_invite_codes, get_user_stats
-    )
-else:
-    # 本地环境：使用文件存储版本
-    from user_auth import (
-        register_user, login_user, is_logged_in, get_current_user,
-        require_login, create_invite_code, list_invite_codes, get_user_stats
-    )
+
+# 检测 Vercel 环境（更可靠的方式）
+is_vercel = (
+    os.environ.get('VERCEL') == '1' or 
+    os.environ.get('VERCEL_ENV') is not None or
+    os.environ.get('VERCEL_URL') is not None
+)
+
+try:
+    if is_vercel:
+        # Vercel 环境：使用内存存储版本
+        from user_auth_vercel import (
+            register_user, login_user, is_logged_in, get_current_user,
+            require_login, create_invite_code, list_invite_codes, get_user_stats
+        )
+    else:
+        # 本地环境：使用文件存储版本
+        from user_auth import (
+            register_user, login_user, is_logged_in, get_current_user,
+            require_login, create_invite_code, list_invite_codes, get_user_stats
+        )
+except ImportError as e:
+    # 如果导入失败，尝试使用 Vercel 版本
+    print(f"警告：导入认证模块失败，尝试使用 Vercel 版本: {e}")
+    try:
+        from user_auth_vercel import (
+            register_user, login_user, is_logged_in, get_current_user,
+            require_login, create_invite_code, list_invite_codes, get_user_stats
+        )
+    except ImportError:
+        # 如果都失败，创建简单的占位函数
+        print("错误：无法导入认证模块，使用占位函数")
+        def register_user(*args, **kwargs):
+            return {'success': False, 'message': '认证模块未加载'}
+        def login_user(*args, **kwargs):
+            return {'success': False, 'message': '认证模块未加载'}
+        def is_logged_in():
+            return False
+        def get_current_user():
+            return None
+        def require_login(f):
+            return f
+        def create_invite_code(*args, **kwargs):
+            return {'success': False, 'message': '认证模块未加载'}
+        def list_invite_codes():
+            return {}
+        def get_user_stats():
+            return {}
 import json
 import pandas as pd
 import numpy as np
@@ -37,31 +73,46 @@ def init_analyzer():
     """延迟初始化分析器"""
     global analyzer
     if analyzer is None:
-        # 在 Vercel 环境中，禁用自动训练以避免超时
-        is_vercel = os.environ.get('VERCEL') or os.environ.get('VERCEL_ENV')
-        auto_train = not is_vercel  # Vercel 环境不自动训练
-        
-        if is_vercel:
-            print("Vercel 环境：禁用自动训练以避免超时")
-        
-        print("正在初始化分析器...")
-        analyzer = BullStockAnalyzer(
-            auto_load_default_stocks=True, 
-            auto_analyze_and_train=auto_train
-        )
-        print("✅ 分析器初始化完成")
+        try:
+            # 在 Vercel 环境中，禁用自动训练以避免超时
+            auto_train = not is_vercel  # Vercel 环境不自动训练
+            
+            if is_vercel:
+                print("Vercel 环境：禁用自动训练以避免超时")
+            
+            print("正在初始化分析器...")
+            analyzer = BullStockAnalyzer(
+                auto_load_default_stocks=True, 
+                auto_analyze_and_train=auto_train
+            )
+            print("✅ 分析器初始化完成")
+        except Exception as e:
+            print(f"⚠️ 分析器初始化失败: {e}")
+            import traceback
+            traceback.print_exc()
+            # 创建一个空的分析器对象，避免后续调用失败
+            analyzer = None
     return analyzer
 
 
 @app.route('/')
 def index():
     """主页面"""
-    # 检查是否已登录
-    if not is_logged_in():
-        return redirect(url_for('login_page'))
-    # 确保分析器已初始化
-    init_analyzer()
-    return render_template('bull_stock_web.html')
+    try:
+        # 检查是否已登录
+        if not is_logged_in():
+            return redirect(url_for('login_page'))
+        # 确保分析器已初始化（不阻塞，如果失败也继续）
+        try:
+            init_analyzer()
+        except Exception as e:
+            print(f"分析器初始化警告: {e}")
+        return render_template('bull_stock_web.html')
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"主页错误: {error_detail}")
+        return f"<h1>服务器错误</h1><pre>{error_detail}</pre>", 500
 
 @app.route('/login')
 def login_page():
@@ -73,9 +124,15 @@ def login_page():
 @app.route('/register')
 def register_page():
     """注册页面"""
-    if is_logged_in():
-        return redirect(url_for('index'))
-    return render_template('register.html')
+    try:
+        if is_logged_in():
+            return redirect(url_for('index'))
+        return render_template('register.html')
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"注册页面错误: {error_detail}")
+        return f"<h1>服务器错误</h1><pre>{error_detail}</pre>", 500
 
 # ==================== 认证相关 API ====================
 
@@ -163,18 +220,45 @@ def api_logout():
 @app.route('/api/check_login', methods=['GET'])
 def api_check_login():
     """检查登录状态API"""
-    if is_logged_in():
-        user = get_current_user()
+    try:
+        if is_logged_in():
+            user = get_current_user()
+            return jsonify({
+                'success': True,
+                'logged_in': True,
+                'user': user
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'logged_in': False
+            })
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"检查登录状态错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'logged_in': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/health', methods=['GET'])
+def api_health():
+    """健康检查API"""
+    try:
         return jsonify({
             'success': True,
-            'logged_in': True,
-            'user': user
+            'status': 'ok',
+            'environment': 'vercel' if is_vercel else 'local',
+            'analyzer_initialized': analyzer is not None
         })
-    else:
+    except Exception as e:
         return jsonify({
-            'success': True,
-            'logged_in': False
-        })
+            'success': False,
+            'status': 'error',
+            'error': str(e)
+        }), 500
 
 
 @app.route('/api/add_stock', methods=['POST'])
