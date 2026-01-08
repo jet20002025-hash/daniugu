@@ -1,0 +1,8 @@
+# 最小化依赖版本（用于快速测试部署）
+Flask>=2.3.0
+pandas>=2.0.0
+numpy>=1.24.0
+akshare
+openpyxl>=3.1.0
+Werkzeug>=2.3.0
+
