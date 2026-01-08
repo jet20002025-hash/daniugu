@@ -15,4 +15,7 @@ node_modules/
 test_*.py
 *_test.py
 *_backup.py
+app.py
+surge_analysis_web.py
+weekly_kline_web.py
 

@@ -16,8 +16,12 @@ sys.path.insert(0, parent_dir)
 if not os.environ.get('VERCEL'):
     os.environ['VERCEL'] = '1'
 
+# 确保只导入 bull_stock_web，不导入其他 app.py
 try:
-    from bull_stock_web import app
+    # 明确导入 bull_stock_web，避免导入 app.py
+    import bull_stock_web
+    app = bull_stock_web.app
+    print("✅ 成功导入 bull_stock_web")
 except Exception as e:
     # 如果导入失败，创建一个简单的错误处理应用
     from flask import Flask
@@ -28,6 +32,18 @@ except Exception as e:
         import traceback
         error_detail = traceback.format_exc()
         return f"<h1>导入错误</h1><pre>{str(e)}</pre><pre>{error_detail}</pre>", 500
+    
+    @app.route('/api/health')
+    def health():
+        import traceback
+        error_detail = traceback.format_exc()
+        return {
+            'success': False,
+            'error': str(e),
+            'traceback': error_detail
+        }, 500
+    
+    print(f"❌ 导入 bull_stock_web 失败: {e}")
 
 # Vercel 的 Python serverless 函数需要这个格式
 # 直接导出 app，Vercel 会自动处理

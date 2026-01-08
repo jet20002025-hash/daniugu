@@ -28,5 +28,10 @@
       "maxDuration": 60
     }
   },
-  "regions": ["hkg1"]
+  "regions": ["hkg1"],
+  "ignore": [
+    "app.py",
+    "surge_analysis_web.py",
+    "weekly_kline_web.py"
+  ]
 }
