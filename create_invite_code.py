@@ -6,10 +6,10 @@ import sys
 import secrets
 import string
 
-def generate_random_code(length=16):
+def generate_random_code(length=6):
     """
     生成安全的随机邀请码
-    :param length: 邀请码长度（默认16位）
+    :param length: 邀请码长度（默认6位）
     :return: 随机邀请码字符串
     """
     # 使用安全的字符集（避免容易混淆的字符：0/O, 1/I/l）
@@ -20,7 +20,7 @@ def generate_random_code(length=16):
     # 数字（排除 0, 1）
     digits = '23456789'
     
-    # 组合字符集
+    # 组合字符集（英文字母+数字）
     alphabet = uppercase + lowercase + digits
     
     # 使用 secrets 模块生成安全的随机字符串
@@ -38,8 +38,8 @@ def main():
         print("  创建指定邀请码: python create_invite_code.py <邀请码> [使用次数]")
         print("  查看所有邀请码: python create_invite_code.py list")
         print("\n示例:")
-        print("  python create_invite_code.py generate 10 1 16  # 生成10个16位随机邀请码，每个使用1次")
-        print("  python create_invite_code.py generate 5 10 20  # 生成5个20位随机邀请码，每个使用10次")
+        print("  python create_invite_code.py generate 10 1     # 生成10个6位随机邀请码，每个使用1次（默认6位）")
+        print("  python create_invite_code.py generate 5 10 8   # 生成5个8位随机邀请码，每个使用10次")
         print("  python create_invite_code.py CUSTOM2024 1     # 创建指定邀请码")
         print("  python create_invite_code.py list              # 查看所有邀请码")
         sys.exit(1)
@@ -69,7 +69,7 @@ def main():
         # 生成随机邀请码
         count = int(sys.argv[2]) if len(sys.argv) > 2 else 1
         max_uses = int(sys.argv[3]) if len(sys.argv) > 3 else 1
-        length = int(sys.argv[4]) if len(sys.argv) > 4 else 16
+        length = int(sys.argv[4]) if len(sys.argv) > 4 else 6
         
         print("=" * 60)
         print(f"生成 {count} 个随机邀请码（长度: {length}，每个使用 {max_uses} 次）")
