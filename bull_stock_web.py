@@ -89,6 +89,21 @@ def init_analyzer():
                     auto_load_default_stocks=True, 
                     auto_analyze_and_train=False  # 即使是本地也禁用自动训练，避免阻塞
                 )
+                
+                # 尝试加载已保存的模型
+                print("尝试加载已保存的模型...")
+                if analyzer.load_model('trained_model.json'):
+                    print("✅ 模型加载成功")
+                    # 检查模型完整性
+                    if analyzer.trained_features:
+                        feature_count = len(analyzer.trained_features.get('common_features', {}))
+                        print(f"   - 买点特征数: {feature_count}")
+                    if analyzer.trained_sell_features:
+                        sell_feature_count = len(analyzer.trained_sell_features.get('common_features', {}))
+                        print(f"   - 卖点特征数: {sell_feature_count}")
+                else:
+                    print("⚠️ 未找到已保存的模型，需要重新训练")
+            
             print("✅ 分析器初始化完成")
         except Exception as e:
             print(f"⚠️ 分析器初始化失败: {e}")
@@ -570,6 +585,31 @@ def get_progress():
             'message': f'服务器错误: {str(e)}'
         }), 500
 
+
+@app.route('/api/save_model', methods=['POST'])
+def save_model():
+    """保存模型到文件API"""
+    try:
+        init_analyzer()  # 确保分析器已初始化
+        success = analyzer.save_model('trained_model.json')
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '模型已保存到 trained_model.json'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': '保存模型失败'
+            }), 500
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"保存模型错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'服务器错误: {str(e)}'
+        }), 500
 
 @app.route('/api/get_trained_features', methods=['GET'])
 def get_trained_features():

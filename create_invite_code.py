@@ -34,7 +34,7 @@ def main():
         for code, info in codes.items():
             status = "已使用" if info.get('used', False) else "可用"
             use_count = f"{info.get('use_count', 0)}/{info.get('max_uses', 1)}"
-            used_by = info.get('used_by', 'N/A')
+            used_by = info.get('used_by') or 'N/A'
             
             print(f"{code:<20} {status:<10} {use_count:<12} {used_by:<15}")
         
