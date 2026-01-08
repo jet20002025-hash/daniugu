@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A股量价分析选股软件</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js">        
+        // 条件开关切换时显示/隐藏参数
+        document.addEventListener('DOMContentLoaded', function() {
+            for (let i = 1; i <= 8; i++) {
+                const checkbox = document.getElementById(`cond${i}_enabled`);
+                const params = document.getElementById(`cond${i}_params`);
+                if (checkbox && params) {
+                    checkbox.addEventListener('change', function() {
+                        params.style.display = this.checked ? 'block' : 'none';
+                    });
+                    // 初始化显示状态
+                    params.style.display = checkbox.checked ? 'block' : 'none';
+                }
+            }
+        });
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: bold;
+        }
+        
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+        }
+        
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-right: 10px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .progress-section {
+            display: none;
+        }
+        
+        .progress-section.active {
+            display: block;
+        }
+        
+        .progress-bar-container {
+            background: #e9ecef;
+            border-radius: 10px;
+            height: 30px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        
+        .progress-bar {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            color: #666;
+        }
+        
+        .results-section {
+            display: none;
+        }
+        
+        .results-section.active {
+            display: block;
+        }
+        
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        .results-table th,
+        .results-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .results-table th {
+            background: #667eea;
+            color: white;
+        }
+        
+        .results-table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-connected {
+            background: #28a745;
+        }
+        
+        .status-disconnected {
+            background: #dc3545;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .found-stocks {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+        
+        .stock-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .stock-item strong {
+            color: #667eea;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.2);
+            }
+        }
+        
+        .progress-bar {
+            transition: width 0.2s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📈 A股量价分析选股软件</h1>
+            <p>基于量价分析理论的智能选股系统</p>
+            <div style="margin-top: 10px;">
+                <span class="status-indicator" id="statusIndicator"></span>
+                <span id="statusText">未连接</span>
+            </div>
+        </div>
+        
+        <div class="content">
+            <!-- 条件设置区域 -->
+            <div class="section">
+                <h2>📋 筛选条件设置</h2>
+                
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="exclude_st" checked>
+                        <label for="exclude_st">排除ST股票</label>
+                    </div>
+                </div>
+                
+                <div style="margin: 20px 0; padding: 15px; background: #e9ecef; border-radius: 5px;">
+                    <h3 style="margin-bottom: 15px; color: #667eea;">选股条件配置</h3>
+                    
+                    <!-- 条件1 -->
+                    <div class="condition-item" style="margin-bottom: 15px; padding: 10px; background: white; border-radius: 5px;">
+                        <div class="checkbox-group" style="margin-bottom: 8px;">
+                            <input type="checkbox" id="cond1_enabled" checked>
+                            <label for="cond1_enabled"><strong>条件1：</strong>过去一年内出现过历史最大成交量</label>
+                        </div>
+                        <div style="margin-left: 25px; display: none;" id="cond1_params">
+                            <label>查询天数：</label>
+                            <input type="number" id="cond1_days" value="365" min="30" style="width: 100px;">
+                        </div>
+                    </div>
+                    
+                    <!-- 条件2 -->
+                    <div class="condition-item" style="margin-bottom: 15px; padding: 10px; background: white; border-radius: 5px;">
+                        <div class="checkbox-group" style="margin-bottom: 8px;">
+                            <input type="checkbox" id="cond2_enabled" checked>
+                            <label for="cond2_enabled"><strong>条件2：</strong>股价持续运行在年线之上，重心稳步上移</label>
+                        </div>
+                        <div style="margin-left: 25px; display: none;" id="cond2_params">
+                            <label>年线周期（日均线）：</label>
+                            <input type="number" id="cond2_ma_period" value="250" min="50" style="width: 100px;">
+                            <label style="margin-left: 15px;">重心检查天数：</label>
+                            <input type="number" id="cond2_recent_days" value="30" min="10" style="width: 100px;">
+                        </div>
+                    </div>
+                    
+                    <!-- 条件3 -->
+                    <div class="condition-item" style="margin-bottom: 15px; padding: 10px; background: white; border-radius: 5px;">
+                        <div class="checkbox-group" style="margin-bottom: 8px;">
+                            <input type="checkbox" id="cond3_enabled" checked>
+                            <label for="cond3_enabled"><strong>条件3：</strong>找到启动价（连续下跌不超过2个月，不跌破20月均线，月线反转）</label>
+                        </div>
+                        <div style="margin-left: 25px; display: none;" id="cond3_params">
+                            <label>最大连续下跌月数：</label>
+                            <input type="number" id="cond3_max_decline" value="2" min="1" max="6" style="width: 80px;">
+                            <label style="margin-left: 15px;">月均线周期：</label>
+                            <input type="number" id="cond3_ma_period" value="20" min="5" style="width: 80px;">
+                        </div>
+                    </div>
+                    
+                    <!-- 条件4 -->
+                    <div class="condition-item" style="margin-bottom: 15px; padding: 10px; background: white; border-radius: 5px;">
+                        <div class="checkbox-group" style="margin-bottom: 8px;">
+                            <input type="checkbox" id="cond4_enabled" checked>
+                            <label for="cond4_enabled"><strong>条件4：</strong>当前价在启动价附近，且不跌破反转日最低价</label>
+                        </div>
+                        <div style="margin-left: 25px; display: none;" id="cond4_params">
+                            <label>启动价阈值（%）：</label>
+                            <input type="number" id="cond4_threshold" value="3" min="1" max="10" step="0.5" style="width: 100px;">
+                        </div>
+                    </div>
+                    
+                    <!-- 条件5 -->
+                    <div class="condition-item" style="margin-bottom: 15px; padding: 10px; background: white; border-radius: 5px;">
+                        <div class="checkbox-group" style="margin-bottom: 8px;">
+                            <input type="checkbox" id="cond5_enabled" checked>
+                            <label for="cond5_enabled"><strong>条件5：</strong>最近一个交易日成交量 ≥ 上一个交易日的N倍</label>
+                        </div>
+                        <div style="margin-left: 25px; display: none;" id="cond5_params">
+                            <label>成交量倍数：</label>
+                            <input type="number" id="cond5_multiplier" value="2.0" min="1" max="10" step="0.1" style="width: 100px;">
+                        </div>
+                    </div>
+                    
+                    <!-- 条件6 -->
+                    <div class="condition-item" style="margin-bottom: 15px; padding: 10px; background: white; border-radius: 5px;">
+                        <div class="checkbox-group" style="margin-bottom: 8px;">
+                            <input type="checkbox" id="cond6_enabled" checked>
+                            <label for="cond6_enabled"><strong>条件6：</strong>最近N个交易日内出现过涨停</label>
+                        </div>
+                        <div style="margin-left: 25px; display: none;" id="cond6_params">
+                            <label>查询天数：</label>
+                            <input type="number" id="cond6_days" value="10" min="1" max="30" style="width: 100px;">
+                        </div>
+                    </div>
+                    
+                    <!-- 条件7 -->
+                    <div class="condition-item" style="margin-bottom: 15px; padding: 10px; background: white; border-radius: 5px;">
+                        <div class="checkbox-group" style="margin-bottom: 8px;">
+                            <input type="checkbox" id="cond7_enabled" checked>
+                            <label for="cond7_enabled"><strong>条件7：</strong>过去N个月内有最大月成交量</label>
+                        </div>
+                        <div style="margin-left: 25px; display: none;" id="cond7_params">
+                            <label>查询月数：</label>
+                            <input type="number" id="cond7_months" value="12" min="3" max="24" style="width: 100px;">
+                        </div>
+                    </div>
+                    
+                    <!-- 条件8 -->
+                    <div class="condition-item" style="margin-bottom: 15px; padding: 10px; background: white; border-radius: 5px;">
+                        <div class="checkbox-group" style="margin-bottom: 8px;">
+                            <input type="checkbox" id="cond8_enabled" checked>
+                            <label for="cond8_enabled"><strong>条件8：</strong>月线级别股价稳步上升</label>
+                        </div>
+                        <div style="margin-left: 25px; display: none;" id="cond8_params">
+                            <label>趋势检查月数：</label>
+                            <input type="number" id="cond8_months" value="6" min="3" max="12" style="width: 100px;">
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="btn btn-primary" id="startBtn" onclick="startAnalysis()">🚀 开始分析（分析全部股票）</button>
+                <button class="btn btn-danger" id="stopBtn" onclick="stopAnalysis()" disabled>⏹ 停止分析</button>
+            </div>
+            
+            <!-- 进度显示区域 -->
+            <div class="section progress-section" id="progressSection">
+                <h2>📊 分析进度</h2>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progressBar">0%</div>
+                </div>
+                <div class="progress-info">
+                    <span>已分析: <strong id="currentCount" style="color: #667eea; font-size: 1.2em;">0</strong> / <strong id="totalCount" style="color: #667eea; font-size: 1.2em;">0</strong></span>
+                    <span>已用时: <strong id="elapsedTime">0</strong> 秒</span>
+                    <span>预计剩余: <strong id="remainingTime">0</strong> 秒</span>
+                </div>
+                <div class="progress-info">
+                    <span>找到符合条件的股票: <strong id="foundCount" style="color: #28a745; font-size: 1.2em;">0</strong> 只</span>
+                </div>
+                <div id="currentMessage" style="margin-top: 10px; color: #666; font-weight: bold;"></div>
+                
+                <!-- 实时发现的股票 -->
+                <div class="found-stocks" id="foundStocks" style="display: none;">
+                    <h3 style="margin-bottom: 10px; color: #667eea;">✅ 已发现的股票：</h3>
+                    <div id="foundStocksList"></div>
+                </div>
+            </div>
+            
+            <!-- 结果展示区域 -->
+            <div class="section results-section" id="resultsSection">
+                <h2>📈 选股结果</h2>
+                <div id="resultsSummary"></div>
+                <table class="results-table" id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th>股票代码</th>
+                            <th>股票名称</th>
+                            <th>当前价格</th>
+                            <th>启动价</th>
+                            <th>反转日期</th>
+                            <th>涨停日期</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const socket = io();
+        let analysisRunning = false;
+        let foundStocks = [];
+        
+        // 连接状态
+        socket.on('connect', () => {
+            console.log('WebSocket已连接');
+            document.getElementById('statusIndicator').className = 'status-indicator status-connected';
+            document.getElementById('statusText').textContent = '已连接';
+        });
+        
+        socket.on('disconnect', () => {
+            document.getElementById('statusIndicator').className = 'status-indicator status-disconnected';
+            document.getElementById('statusText').textContent = '未连接';
+        });
+        
+        socket.on('connected', (data) => {
+            console.log('服务器连接:', data);
+        });
+        
+        // 进度更新
+        socket.on('progress', (data) => {
+            console.log('收到进度更新:', data);  // 调试日志
+            updateProgress(data);
+        });
+        
+        // 发现股票
+        socket.on('stock_found', (data) => {
+            foundStocks.push(data);
+            addFoundStock(data);
+        });
+        
+        // 分析完成
+        socket.on('complete', (data) => {
+            analysisRunning = false;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            
+            showResults(data);
+        });
+        
+        // 错误处理
+        socket.on('error', (data) => {
+            console.error('错误:', data);
+            alert('错误: ' + data.message);
+        });
+        
+        // 开始分析
+        function startAnalysis() {
+            const exclude_st = document.getElementById('exclude_st').checked;
+            
+            // 收集条件设置
+            const conditions = {
+                condition1_enabled: document.getElementById('cond1_enabled').checked,
+                condition1_days: parseInt(document.getElementById('cond1_days').value),
+                
+                condition2_enabled: document.getElementById('cond2_enabled').checked,
+                condition2_ma_period: parseInt(document.getElementById('cond2_ma_period').value),
+                condition2_recent_days: parseInt(document.getElementById('cond2_recent_days').value),
+                
+                condition3_enabled: document.getElementById('cond3_enabled').checked,
+                condition3_max_decline_months: parseInt(document.getElementById('cond3_max_decline').value),
+                condition3_ma_monthly_period: parseInt(document.getElementById('cond3_ma_period').value),
+                
+                condition4_enabled: document.getElementById('cond4_enabled').checked,
+                condition4_threshold: parseFloat(document.getElementById('cond4_threshold').value) / 100,
+                
+                condition5_enabled: document.getElementById('cond5_enabled').checked,
+                condition5_multiplier: parseFloat(document.getElementById('cond5_multiplier').value),
+                
+                condition6_enabled: document.getElementById('cond6_enabled').checked,
+                condition6_days: parseInt(document.getElementById('cond6_days').value),
+                
+                condition7_enabled: document.getElementById('cond7_enabled').checked,
+                condition7_months: parseInt(document.getElementById('cond7_months').value),
+                
+                condition8_enabled: document.getElementById('cond8_enabled').checked,
+                condition8_months: parseInt(document.getElementById('cond8_months').value),
+            };
+            
+            analysisRunning = true;
+            foundStocks = [];
+            document.getElementById('foundStocksList').innerHTML = '';
+            document.getElementById('resultsBody').innerHTML = '';
+            
+            // 重置进度显示
+            document.getElementById('progressBar').style.width = '0%';
+            document.getElementById('progressBar').textContent = '0%';
+            document.getElementById('currentCount').textContent = '0';
+            document.getElementById('totalCount').textContent = '等待中...';
+            document.getElementById('foundCount').textContent = '0';
+            document.getElementById('elapsedTime').textContent = '0秒';
+            document.getElementById('remainingTime').textContent = '计算中...';
+            document.getElementById('currentMessage').textContent = '正在获取股票列表...';
+            
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('progressSection').classList.add('active');
+            document.getElementById('resultsSection').classList.remove('active');
+            
+            console.log('开始分析，等待进度更新...');
+            
+            fetch('/api/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    limit: null,  // 不限制数量，分析全部
+                    exclude_st: exclude_st,
+                    conditions: conditions
+                })
+            }).then(response => response.json())
+              .then(data => {
+                  if (data.error) {
+                      alert('错误: ' + data.error);
+                      analysisRunning = false;
+                      document.getElementById('startBtn').disabled = false;
+                      document.getElementById('stopBtn').disabled = true;
+                  }
+              });
+        }
+        
+        // 停止分析
+        function stopAnalysis() {
+            fetch('/api/stop', {
+                method: 'POST'
+            }).then(() => {
+                analysisRunning = false;
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+            });
+        }
+        
+        // 更新进度
+        function updateProgress(data) {
+            console.log('更新进度:', data);  // 调试日志
+            
+            const percentage = data.percentage || 0;
+            const current = data.current || 0;
+            const total = data.total || 0;
+            
+            // 强制更新进度条
+            const progressBar = document.getElementById('progressBar');
+            if (progressBar) {
+                progressBar.style.width = percentage + '%';
+                progressBar.textContent = percentage.toFixed(1) + '%';
+            }
+            
+            // 更新其他信息 - 立即更新，不等待
+            const currentCountEl = document.getElementById('currentCount');
+            const totalCountEl = document.getElementById('totalCount');
+            const elapsedTimeEl = document.getElementById('elapsedTime');
+            const remainingTimeEl = document.getElementById('remainingTime');
+            const foundCountEl = document.getElementById('foundCount');
+            const currentMessageEl = document.getElementById('currentMessage');
+            
+            // 如果total有值，立即更新总数（即使current还是0）
+            if (total > 0 && totalCountEl) {
+                totalCountEl.textContent = total;
+            }
+            
+            // 更新已分析数量
+            if (currentCountEl) {
+                currentCountEl.textContent = current;
+                // 添加动画效果
+                currentCountEl.style.transition = 'all 0.3s';
+                currentCountEl.style.transform = 'scale(1.1)';
+                setTimeout(() => {
+                    currentCountEl.style.transform = 'scale(1)';
+                }, 300);
+            }
+            
+            if (elapsedTimeEl) elapsedTimeEl.textContent = formatTime(data.elapsed || 0);
+            if (remainingTimeEl) remainingTimeEl.textContent = formatTime(data.remaining || 0);
+            if (foundCountEl) {
+                foundCountEl.textContent = data.found_count || 0;
+                // 如果找到股票，添加闪烁效果
+                if (data.found_count > 0) {
+                    foundCountEl.style.animation = 'pulse 0.5s';
+                }
+            }
+            if (currentMessageEl) currentMessageEl.textContent = data.message || '';
+            
+            // 确保进度区域可见
+            const progressSection = document.getElementById('progressSection');
+            if (progressSection && !progressSection.classList.contains('active')) {
+                progressSection.classList.add('active');
+            }
+        }
+        
+        // 添加发现的股票
+        function addFoundStock(data) {
+            const foundStocksDiv = document.getElementById('foundStocks');
+            const foundStocksList = document.getElementById('foundStocksList');
+            
+            // 显示发现股票的容器
+            foundStocksDiv.style.display = 'block';
+            
+            // 创建股票项
+            const stockItem = document.createElement('div');
+            stockItem.className = 'stock-item';
+            stockItem.style.animation = 'fadeIn 0.5s';
+            
+            const price = data.price || data.detail?.当前价格 || 'N/A';
+            const priceStr = typeof price === 'number' ? price.toFixed(2) : price;
+            const startupPrice = data.startup_price || data.detail?.启动价;
+            const startupPriceStr = startupPrice ? startupPrice.toFixed(2) : 'N/A';
+            
+            stockItem.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong style="color: #667eea; font-size: 1.1em;">${data.code}</strong> 
+                        <span style="font-weight: bold;">${data.name}</span>
+                    </div>
+                    <div style="text-align: right;">
+                        <div>当前价格: <strong style="color: #28a745;">${priceStr}</strong></div>
+                        ${startupPrice ? `<div>启动价: <strong>${startupPriceStr}</strong></div>` : ''}
+                    </div>
+                </div>
+            `;
+            
+            // 插入到列表顶部（最新发现的在最上面）
+            foundStocksList.insertBefore(stockItem, foundStocksList.firstChild);
+            
+            // 滚动到顶部，确保新发现的股票可见
+            foundStocksDiv.scrollTop = 0;
+            
+            // 添加闪烁效果提示
+            stockItem.style.backgroundColor = '#fff3cd';
+            setTimeout(() => {
+                stockItem.style.backgroundColor = 'white';
+            }, 2000);
+        }
+        
+        // 显示结果
+        function showResults(data) {
+            document.getElementById('resultsSection').classList.add('active');
+            
+            const summary = `
+                <div class="alert alert-success">
+                    <strong>分析完成！</strong><br>
+                    共分析 ${data.total} 只股票，找到 ${data.found} 只符合条件的股票<br>
+                    总耗时: ${formatTime(data.time)}
+                    <div style="margin-top: 10px;">
+                        <button class="btn btn-primary" onclick="exportResults()">📥 导出到Excel</button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('resultsSummary').innerHTML = summary;
+            
+            const tbody = document.getElementById('resultsBody');
+            tbody.innerHTML = ''; // 清空之前的内容
+            
+            // 先尝试从服务器获取完整结果
+            fetch('/api/results')
+                .then(response => response.json())
+                .then(resultData => {
+                    if (resultData.results && resultData.results.length > 0) {
+                        // 使用服务器返回的完整结果
+                        resultData.results.forEach(stock => {
+                            const row = tbody.insertRow();
+                            row.insertCell(0).textContent = stock.股票代码 || 'N/A';
+                            row.insertCell(1).textContent = stock.股票名称 || 'N/A';
+                            row.insertCell(2).textContent = stock.当前价格?.toFixed(2) || 'N/A';
+                            row.insertCell(3).textContent = stock.启动价?.toFixed(2) || 'N/A';
+                            row.insertCell(4).textContent = stock.反转日期 ? (typeof stock.反转日期 === 'string' ? stock.反转日期 : stock.反转日期.toString()) : 'N/A';
+                            row.insertCell(5).textContent = stock.涨停日期 ? (Array.isArray(stock.涨停日期) ? stock.涨停日期.join(', ') : stock.涨停日期.toString()) : 'N/A';
+                            row.insertCell(6).textContent = stock.历史最大量日期 ? (typeof stock.历史最大量日期 === 'string' ? stock.历史最大量日期 : stock.历史最大量日期.toString()) : 'N/A';
+                            row.insertCell(7).textContent = stock.月成交量最大日期 ? (typeof stock.月成交量最大日期 === 'string' ? stock.月成交量最大日期 : stock.月成交量最大日期.toString()) : 'N/A';
+                        });
+                    } else if (foundStocks.length > 0) {
+                        // 如果没有服务器结果，使用foundStocks数组
+                        foundStocks.forEach(stock => {
+                            const row = tbody.insertRow();
+                            row.insertCell(0).textContent = stock.code;
+                            row.insertCell(1).textContent = stock.name;
+                            row.insertCell(2).textContent = stock.price?.toFixed(2) || stock.detail?.当前价格?.toFixed(2) || 'N/A';
+                            row.insertCell(3).textContent = stock.startup_price?.toFixed(2) || stock.detail?.启动价?.toFixed(2) || 'N/A';
+                            row.insertCell(4).textContent = stock.reversal_date || stock.detail?.反转日期 || 'N/A';
+                            row.insertCell(5).textContent = stock.detail?.涨停日期?.join(', ') || 'N/A';
+                            row.insertCell(6).textContent = stock.detail?.历史最大量日期 || 'N/A';
+                            row.insertCell(7).textContent = stock.detail?.月成交量最大日期 || 'N/A';
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('获取结果失败:', error);
+                    // 如果获取失败，使用foundStocks数组
+                    if (foundStocks.length > 0) {
+                        foundStocks.forEach(stock => {
+                            const row = tbody.insertRow();
+                            row.insertCell(0).textContent = stock.code;
+                            row.insertCell(1).textContent = stock.name;
+                            row.insertCell(2).textContent = stock.price?.toFixed(2) || stock.detail?.当前价格?.toFixed(2) || 'N/A';
+                            row.insertCell(3).textContent = stock.startup_price?.toFixed(2) || stock.detail?.启动价?.toFixed(2) || 'N/A';
+                            row.insertCell(4).textContent = stock.reversal_date || stock.detail?.反转日期 || 'N/A';
+                            row.insertCell(5).textContent = stock.detail?.涨停日期?.join(', ') || 'N/A';
+                            row.insertCell(6).textContent = stock.detail?.历史最大量日期 || 'N/A';
+                            row.insertCell(7).textContent = stock.detail?.月成交量最大日期 || 'N/A';
+                        });
+                    }
+                });
+        }
+        
+        // 导出结果
+        function exportResults() {
+            fetch('/api/export', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert(`✅ ${data.message}\n\n文件已保存到当前目录: ${data.filename}`);
+                    // 可以添加下载链接
+                    window.location.href = `/${data.filename}`;
+                } else {
+                    alert('❌ ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('导出失败: ' + error);
+            });
+        }
+        
+        // 格式化时间
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}分${secs}秒`;
+        }
+            
+        // 条件开关切换时显示/隐藏参数
+        document.addEventListener('DOMContentLoaded', function() {
+            for (let i = 1; i <= 8; i++) {
+                const checkbox = document.getElementById(`cond${i}_enabled`);
+                const params = document.getElementById(`cond${i}_params`);
+                if (checkbox && params) {
+                    checkbox.addEventListener('change', function() {
+                        params.style.display = this.checked ? 'block' : 'none';
+                    });
+                    // 初始化显示状态
+                    params.style.display = checkbox.checked ? 'block' : 'none';
+                }
+            }
+        });
+    </script>
+</body>
+</html>
+

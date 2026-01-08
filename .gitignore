@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.log
+*.pid
+*.json
+*.xlsx
+.env
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 项目特定
+符合条件的股票_*.json
+选股结果_*.xlsx
+test_*.py
+*_test.py
+*_backup.py
+*.sh
+
+# Vercel
+.vercel

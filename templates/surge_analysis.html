@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>暴涨股票特征学习分析系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: bold;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #218838;
+        }
+        
+        .btn-info {
+            background: #17a2b8;
+            color: white;
+        }
+        
+        .btn-info:hover {
+            background: #138496;
+        }
+        
+        .stock-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .stock-item {
+            padding: 10px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .stock-item .remove {
+            color: #dc3545;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .features-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        
+        .features-table th,
+        .features-table td {
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+        
+        .features-table th {
+            background: #667eea;
+            color: white;
+        }
+        
+        .features-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        
+        .buy-points {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .buy-point-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            background: white;
+            border-left: 4px solid #667eea;
+            border-radius: 5px;
+        }
+        
+        .match-score {
+            display: inline-block;
+            padding: 5px 10px;
+            background: #28a745;
+            color: white;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+        
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 暴涨股票特征学习分析系统</h1>
+            <p>分析暴涨股票的共同特征，识别最佳买点</p>
+        </div>
+        
+        <div class="content">
+            <!-- 添加暴涨股票 -->
+            <div class="section">
+                <h2>📊 添加暴涨股票</h2>
+                <div class="form-group">
+                    <label>股票代码：</label>
+                    <input type="text" id="stockCode" placeholder="例如：000001">
+                </div>
+                <div class="form-group">
+                    <label>股票名称：</label>
+                    <input type="text" id="stockName" placeholder="例如：平安银行">
+                </div>
+                <div class="form-group">
+                    <label>暴涨日期（可选）：</label>
+                    <input type="date" id="surgeDate">
+                </div>
+                <button class="btn btn-primary" onclick="addStock()">添加股票</button>
+                
+                <div id="stockList" class="stock-list" style="margin-top: 20px;"></div>
+            </div>
+            
+            <!-- 分析共同特征 -->
+            <div class="section">
+                <h2>🔍 分析共同特征</h2>
+                <p style="margin-bottom: 15px;">添加至少2只暴涨股票后，点击下方按钮分析它们的共同特征</p>
+                <button class="btn btn-success" onclick="analyzeFeatures()">开始分析</button>
+                
+                <div id="featuresResult" style="margin-top: 20px;"></div>
+            </div>
+            
+            <!-- 寻找买点 -->
+            <div class="section">
+                <h2>🎯 寻找最佳买点</h2>
+                <div class="form-group">
+                    <label>股票代码：</label>
+                    <input type="text" id="buyPointCode" placeholder="例如：000001">
+                </div>
+                <div class="form-group">
+                    <label>股票名称：</label>
+                    <input type="text" id="buyPointName" placeholder="例如：平安银行">
+                </div>
+                <button class="btn btn-info" onclick="findBuyPoint()">寻找买点</button>
+                
+                <div id="buyPointsResult" class="buy-points" style="margin-top: 20px;"></div>
+            </div>
+            
+            <!-- 扫描所有股票 -->
+            <div class="section">
+                <h2>🔎 扫描所有股票</h2>
+                <p style="margin-bottom: 15px;">根据学习到的特征，扫描所有股票寻找符合条件的买点</p>
+                <div class="form-group">
+                    <label>扫描数量（留空扫描全部）：</label>
+                    <input type="number" id="scanLimit" placeholder="例如：100">
+                </div>
+                <button class="btn btn-primary" onclick="scanStocks()">开始扫描</button>
+                
+                <div id="scanResult" style="margin-top: 20px;"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let addedStocks = [];
+        
+        // 加载已添加的股票
+        function loadStocks() {
+            fetch('/api/get_stocks')
+                .then(response => response.json())
+                .then(data => {
+                    addedStocks = data.stocks || [];
+                    displayStocks();
+                });
+        }
+        
+        // 显示已添加的股票
+        function displayStocks() {
+            const stockList = document.getElementById('stockList');
+            if (addedStocks.length === 0) {
+                stockList.innerHTML = '<p style="color: #666;">暂无股票，请添加暴涨股票</p>';
+                return;
+            }
+            
+            stockList.innerHTML = addedStocks.map((stock, index) => `
+                <div class="stock-item">
+                    <span><strong>${stock.股票代码}</strong> ${stock.股票名称}</span>
+                    <span class="remove" onclick="removeStock(${index})">×</span>
+                </div>
+            `).join('');
+        }
+        
+        // 添加股票
+        function addStock() {
+            const stockCode = document.getElementById('stockCode').value.trim();
+            const stockName = document.getElementById('stockName').value.trim();
+            const surgeDate = document.getElementById('surgeDate').value;
+            
+            if (!stockCode || !stockName) {
+                alert('请输入股票代码和名称');
+                return;
+            }
+            
+            fetch('/api/add_stock', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    stock_code: stockCode,
+                    stock_name: stockName,
+                    surge_date: surgeDate || null
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('错误: ' + data.error);
+                } else {
+                    alert('✅ ' + data.message);
+                    document.getElementById('stockCode').value = '';
+                    document.getElementById('stockName').value = '';
+                    document.getElementById('surgeDate').value = '';
+                    loadStocks();
+                }
+            })
+            .catch(error => {
+                alert('添加失败: ' + error);
+            });
+        }
+        
+        // 移除股票
+        function removeStock(index) {
+            if (confirm('确定要移除这只股票吗？')) {
+                addedStocks.splice(index, 1);
+                displayStocks();
+            }
+        }
+        
+        // 分析共同特征
+        function analyzeFeatures() {
+            if (addedStocks.length < 2) {
+                alert('请至少添加2只暴涨股票');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('featuresResult');
+            resultDiv.innerHTML = '<p>正在分析...</p>';
+            
+            fetch('/api/analyze', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    resultDiv.innerHTML = `<div class="alert alert-warning">${data.error}</div>`;
+                } else {
+                    const features = data.features;
+                    let html = '<div class="alert alert-success"><strong>✅ 分析完成！</strong></div>';
+                    html += '<table class="features-table"><thead><tr><th>特征</th><th>平均值</th><th>中位数</th><th>最小值</th><th>最大值</th><th>标准差</th></tr></thead><tbody>';
+                    
+                    for (const [key, stats] of Object.entries(features)) {
+                        html += `<tr>
+                            <td><strong>${key}</strong></td>
+                            <td>${stats.平均值.toFixed(2)}</td>
+                            <td>${stats.中位数.toFixed(2)}</td>
+                            <td>${stats.最小值.toFixed(2)}</td>
+                            <td>${stats.最大值.toFixed(2)}</td>
+                            <td>${stats.标准差.toFixed(2)}</td>
+                        </tr>`;
+                    }
+                    
+                    html += '</tbody></table>';
+                    
+                    // 显示每只股票的买点信息
+                    if (data.stocks_with_buy_points && data.stocks_with_buy_points.length > 0) {
+                        html += '<div style="margin-top: 30px;"><h3>📊 各股票买点信息</h3>';
+                        html += '<div style="display: grid; gap: 15px;">';
+                        
+                        data.stocks_with_buy_points.forEach((stock, index) => {
+                            html += `<div class="buy-point-item">
+                                <h4>${index + 1}. ${stock.股票名称} (${stock.股票代码})</h4>
+                                <p><strong>暴涨日期：</strong>${stock.暴涨日期}</p>`;
+                            
+                            if (stock.最佳买点) {
+                                const buyPoint = stock.最佳买点;
+                                const perf = buyPoint.买入后表现 || {};
+                                const gain20 = perf['20日涨幅'] !== undefined ? perf['20日涨幅'] : null;
+                                const maxGain = perf['最高涨幅'] !== undefined ? perf['最高涨幅'] : null;
+                                const isProfit = perf['是否盈利'] !== undefined ? perf['是否盈利'] : null;
+                                const isDoubled = perf['是否翻倍'] !== undefined ? perf['是否翻倍'] : null;
+                                const isBest = isDoubled === true;  // 买入后一个月内翻倍才算最佳买点
+                                
+                                html += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 10px;">
+                                    <div>
+                                        <p><strong>${isBest ? '⭐ 最佳买点' : '潜在买点'}日期：</strong>${buyPoint.日期}</p>
+                                        <p><strong>${isBest ? '⭐ 最佳买点' : '潜在买点'}价格：</strong>${buyPoint.价格.toFixed(2)} 元</p>
+                                        <p><strong>匹配度：</strong><span class="match-score">${(buyPoint.匹配度 * 100).toFixed(1)}%</span></p>
+                                        ${isBest ? '<p style="color: #28a745; font-weight: bold;">✅ 买入后一个月内翻倍</p>' : '<p style="color: #666;">⚠️ 买入后一个月内未翻倍</p>'}
+                                    </div>
+                                    <div style="border-left: 2px solid #667eea; padding-left: 15px; background: #f8f9fa; border-radius: 5px; padding: 10px;">
+                                        <p style="margin-bottom: 10px;"><strong>📊 买入后表现验证：</strong></p>
+                                        ${gain20 !== null || maxGain !== null ? `
+                                            ${gain20 !== null ? `<p>20日涨幅: <span style="color: ${gain20 >= 0 ? '#28a745' : '#dc3545'}; font-weight: bold;">${gain20.toFixed(2)}%</span></p>` : ''}
+                                            ${maxGain !== null ? `<p>最高涨幅: <span style="color: ${maxGain >= 0 ? '#28a745' : '#dc3545'}; font-weight: bold;">${maxGain.toFixed(2)}%</span></p>` : ''}
+                                            ${isProfit !== null ? `<p>是否盈利: <span style="color: ${isProfit ? '#28a745' : '#dc3545'}">${isProfit ? '✅ 是' : '❌ 否'}</span></p>` : ''}
+                                            ${isDoubled !== null ? `<p>是否翻倍: <span style="color: ${isDoubled ? '#28a745' : '#666'}">${isDoubled ? '✅ 是' : '❌ 否'}</span></p>` : ''}
+                                        ` : '<p style="color: #666;">(买入后表现数据不足，无法验证)</p>'}
+                                    </div>
+                                </div>`;
+                            } else {
+                                html += `<p style="color: #666; margin-top: 10px;">未找到符合条件的买点（匹配度可能不足）</p>`;
+                            }
+                            
+                            html += '</div>';
+                        });
+                        
+                        html += '</div></div>';
+                    }
+                    
+                    resultDiv.innerHTML = html;
+                }
+            })
+            .catch(error => {
+                resultDiv.innerHTML = `<div class="alert alert-warning">分析失败: ${error}</div>`;
+            });
+        }
+        
+        // 寻找买点
+        function findBuyPoint() {
+            const stockCode = document.getElementById('buyPointCode').value.trim();
+            const stockName = document.getElementById('buyPointName').value.trim();
+            
+            if (!stockCode || !stockName) {
+                alert('请输入股票代码和名称');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('buyPointsResult');
+            resultDiv.innerHTML = '<p>正在分析...</p>';
+            
+            fetch('/api/find_buy_point', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    stock_code: stockCode,
+                    stock_name: stockName
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    resultDiv.innerHTML = `<div class="alert alert-warning">${data.error}</div>`;
+                } else {
+                    const buyPoints = data.buy_points;
+                    if (buyPoints.length === 0) {
+                        resultDiv.innerHTML = '<div class="alert alert-info">未找到符合条件的买点</div>';
+                    } else {
+                        let html = `<div class="alert alert-success"><strong>✅ 找到 ${buyPoints.length} 个潜在买点</strong></div>`;
+                        buyPoints.forEach((point, index) => {
+                            const perf = point.买入后表现 || {};
+                            const gain20 = perf['20日涨幅'] !== undefined ? perf['20日涨幅'] : null;
+                            const maxGain = perf['最高涨幅'] !== undefined ? perf['最高涨幅'] : null;
+                            const isProfit = perf['是否盈利'] !== undefined ? perf['是否盈利'] : null;
+                            const isDoubled = perf['是否翻倍'] !== undefined ? perf['是否翻倍'] : null;
+                            const hasPerformance = gain20 !== null || maxGain !== null;
+                            
+                            html += `<div class="buy-point-item">
+                                <h4>买点 ${index + 1}</h4>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                    <div>
+                                        <p><strong>买入日期：</strong>${point.日期}</p>
+                                        <p><strong>买入价格：</strong>${point.价格.toFixed(2)} 元</p>
+                                        <p><strong>匹配度：</strong><span class="match-score">${(point.匹配度 * 100).toFixed(1)}%</span></p>
+                                    </div>
+                                    <div style="border-left: 2px solid #667eea; padding-left: 15px; background: #f8f9fa; border-radius: 5px; padding: 10px;">
+                                        <p style="margin-bottom: 10px;"><strong>📊 买入后表现验证：</strong></p>
+                                        ${hasPerformance ? `
+                                            ${gain20 !== null ? `<p>20日涨幅: <span style="color: ${gain20 >= 0 ? '#28a745' : '#dc3545'}; font-weight: bold;">${gain20.toFixed(2)}%</span></p>` : ''}
+                                            ${maxGain !== null ? `<p>最高涨幅: <span style="color: ${maxGain >= 0 ? '#28a745' : '#dc3545'}; font-weight: bold;">${maxGain.toFixed(2)}%</span></p>` : ''}
+                                            ${isProfit !== null ? `<p>是否盈利: <span style="color: ${isProfit ? '#28a745' : '#dc3545'}">${isProfit ? '✅ 是' : '❌ 否'}</span></p>` : ''}
+                                            ${isDoubled !== null ? `<p>是否翻倍: <span style="color: ${isDoubled ? '#28a745' : '#666'}">${isDoubled ? '✅ 是' : '❌ 否'}</span></p>` : ''}
+                                            ${perf['20日后日期'] ? `<p style="font-size: 0.9em; color: #666;">验证日期: ${perf['20日后日期']}</p>` : ''}
+                                        ` : '<p style="color: #666;">(买入后表现数据不足，无法验证)</p>'}
+                                    </div>
+                                </div>
+                            </div>`;
+                        });
+                        resultDiv.innerHTML = html;
+                    }
+                }
+            })
+            .catch(error => {
+                resultDiv.innerHTML = `<div class="alert alert-warning">分析失败: ${error}</div>`;
+            });
+        }
+        
+        // 扫描所有股票
+        function scanStocks() {
+            const limit = document.getElementById('scanLimit').value;
+            
+            const resultDiv = document.getElementById('scanResult');
+            resultDiv.innerHTML = '<div class="alert alert-info">正在扫描，请稍候...</div>';
+            
+            fetch('/api/scan', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    limit: limit ? parseInt(limit) : null
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    resultDiv.innerHTML = `<div class="alert alert-warning">${data.error}</div>`;
+                } else {
+                    resultDiv.innerHTML = '<div class="alert alert-info">扫描已开始，正在获取结果...</div>';
+                    // 轮询获取结果
+                    pollScanResults();
+                }
+            })
+            .catch(error => {
+                resultDiv.innerHTML = `<div class="alert alert-warning">扫描失败: ${error}</div>`;
+            });
+        }
+        
+        // 轮询获取扫描结果
+        function pollScanResults() {
+            const resultDiv = document.getElementById('scanResult');
+            const pollInterval = setInterval(() => {
+                fetch('/api/get_scan_results')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'completed') {
+                            clearInterval(pollInterval);
+                            displayScanResults(data.results);
+                        } else {
+                            resultDiv.innerHTML = `<div class="alert alert-info">正在扫描中... 已找到 ${data.count || 0} 只股票</div>`;
+                        }
+                    })
+                    .catch(error => {
+                        clearInterval(pollInterval);
+                        resultDiv.innerHTML = `<div class="alert alert-warning">获取结果失败: ${error}</div>`;
+                    });
+            }, 2000); // 每2秒轮询一次
+            
+            // 30秒后停止轮询
+            setTimeout(() => {
+                clearInterval(pollInterval);
+                fetch('/api/get_scan_results')
+                    .then(response => response.json())
+                    .then(data => {
+                        displayScanResults(data.results);
+                    });
+            }, 30000);
+        }
+        
+        // 显示扫描结果
+        function displayScanResults(results) {
+            const resultDiv = document.getElementById('scanResult');
+            if (results.length === 0) {
+                resultDiv.innerHTML = '<div class="alert alert-info">未找到符合条件的股票</div>';
+                return;
+            }
+            
+            let html = `<div class="alert alert-success"><strong>✅ 找到 ${results.length} 只符合条件的股票</strong></div>`;
+            html += '<div style="display: grid; gap: 15px;">';
+            
+            results.forEach((stock, index) => {
+                const perf = stock.买入后表现 || {};
+                const gain20 = perf['20日涨幅'] !== undefined ? perf['20日涨幅'] : null;
+                const maxGain = perf['最高涨幅'] !== undefined ? perf['最高涨幅'] : null;
+                const isProfit = perf['是否盈利'] !== undefined ? perf['是否盈利'] : null;
+                const isDoubled = perf['是否翻倍'] !== undefined ? perf['是否翻倍'] : null;
+                
+                html += `<div class="buy-point-item">
+                    <h4>${index + 1}. ${stock.股票名称} (${stock.股票代码})</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div>
+                            <p><strong>最佳买点日期：</strong>${stock.最佳买点日期}</p>
+                            <p><strong>最佳买点价格：</strong>${stock.最佳买点价格.toFixed(2)} 元</p>
+                            <p><strong>匹配度：</strong><span class="match-score">${(stock.匹配度 * 100).toFixed(1)}%</span></p>
+                        </div>
+                        <div style="border-left: 2px solid #667eea; padding-left: 15px; background: #f8f9fa; border-radius: 5px; padding: 10px;">
+                            <p style="margin-bottom: 10px;"><strong>📊 买入后表现验证：</strong></p>
+                            ${gain20 !== null || maxGain !== null ? `
+                                ${gain20 !== null ? `<p>20日涨幅: <span style="color: ${gain20 >= 0 ? '#28a745' : '#dc3545'}; font-weight: bold;">${gain20.toFixed(2)}%</span></p>` : ''}
+                                ${maxGain !== null ? `<p>最高涨幅: <span style="color: ${maxGain >= 0 ? '#28a745' : '#dc3545'}; font-weight: bold;">${maxGain.toFixed(2)}%</span></p>` : ''}
+                                ${isProfit !== null ? `<p>是否盈利: <span style="color: ${isProfit ? '#28a745' : '#dc3545'}">${isProfit ? '✅ 是' : '❌ 否'}</span></p>` : ''}
+                                ${isDoubled !== null ? `<p>是否翻倍: <span style="color: ${isDoubled ? '#28a745' : '#666'}">${isDoubled ? '✅ 是' : '❌ 否'}</span></p>` : ''}
+                            ` : '<p style="color: #666;">(买入后表现数据不足，无法验证)</p>'}
+                        </div>
+                    </div>
+                </div>`;
+            });
+            
+            html += '</div>';
+            resultDiv.innerHTML = html;
+        }
+        
+        // 页面加载时加载股票列表
+        window.onload = function() {
+            loadStocks();
+        };
+    </script>
+</body>
+</html>
+
