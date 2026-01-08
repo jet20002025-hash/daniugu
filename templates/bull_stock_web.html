@@ -1266,13 +1266,10 @@
                 
                 console.log('特征模型检查结果:', featuresResult);
                 
-                // 检查多个可能的字段名
-                const hasFeatures = featuresResult.success && (
-                    featuresResult.features || 
-                    featuresResult.trained_features || 
-                    featuresResult.common_features ||
-                    (featuresResult.trained_features && featuresResult.trained_features.common_features)
-                );
+                // 检查模型是否存在：success 为 true 且 common_features 存在且不为空
+                const hasFeatures = featuresResult.success && 
+                    featuresResult.common_features && 
+                    Object.keys(featuresResult.common_features).length > 0;
                 
                 if (!hasFeatures) {
                     showMessage('请先添加大牛股、分析股票并训练特征模型！', 'error');
