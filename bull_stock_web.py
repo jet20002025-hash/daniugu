@@ -74,17 +74,21 @@ def init_analyzer():
     global analyzer
     if analyzer is None:
         try:
-            # 在 Vercel 环境中，禁用自动训练以避免超时
-            auto_train = not is_vercel  # Vercel 环境不自动训练
-            
+            # 在 Vercel 环境中，完全禁用自动加载和训练
             if is_vercel:
-                print("Vercel 环境：禁用自动训练以避免超时")
-            
-            print("正在初始化分析器...")
-            analyzer = BullStockAnalyzer(
-                auto_load_default_stocks=True, 
-                auto_analyze_and_train=auto_train
-            )
+                print("Vercel 环境：禁用自动加载和训练以避免超时")
+                # Vercel 环境：不自动加载，不自动训练
+                analyzer = BullStockAnalyzer(
+                    auto_load_default_stocks=False, 
+                    auto_analyze_and_train=False
+                )
+            else:
+                # 本地环境：正常初始化
+                print("正在初始化分析器...")
+                analyzer = BullStockAnalyzer(
+                    auto_load_default_stocks=True, 
+                    auto_analyze_and_train=False  # 即使是本地也禁用自动训练，避免阻塞
+                )
             print("✅ 分析器初始化完成")
         except Exception as e:
             print(f"⚠️ 分析器初始化失败: {e}")
