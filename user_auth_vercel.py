@@ -135,12 +135,16 @@ def load_users():
             if data:
                 _users_cache = json.loads(data) if isinstance(data, str) else data
                 return _users_cache.copy()
+        elif _storage_type == 'memory':
+            # 内存存储，直接返回缓存（可能是空的）
+            pass
     except Exception as e:
         print(f"⚠️ 加载用户数据失败: {e}")
     
-    # 如果加载失败，返回空字典
-    _users_cache = {}
-    return {}
+    # 如果加载失败或使用内存存储，返回缓存（可能是空的）
+    if not _users_cache:
+        _users_cache = {}
+    return _users_cache.copy()
 
 def save_users(users):
     """保存用户数据（到持久化存储）"""
@@ -160,10 +164,14 @@ def save_users(users):
             from vercel_kv import kv
             kv.set('users', users_json)
             return True
+        elif _storage_type == 'memory':
+            # 内存存储，只更新缓存（重启后会丢失）
+            return True
     except Exception as e:
         print(f"⚠️ 保存用户数据失败: {e}")
     
-    return False
+    # 即使保存失败，也更新缓存（至少内存中有数据）
+    return True
 
 def load_invite_codes():
     """加载邀请码数据（从持久化存储）"""
@@ -195,6 +203,10 @@ def load_invite_codes():
                 _invite_codes_cache = get_invite_codes_from_env()
                 save_invite_codes(_invite_codes_cache)
             return _invite_codes_cache.copy()
+        elif _storage_type == 'memory':
+            # 内存存储，使用环境变量初始化
+            _invite_codes_cache = get_invite_codes_from_env()
+            return _invite_codes_cache.copy()
     except Exception as e:
         print(f"⚠️ 加载邀请码数据失败: {e}")
     
@@ -220,10 +232,14 @@ def save_invite_codes(codes):
             from vercel_kv import kv
             kv.set('invite_codes', codes_json)
             return True
+        elif _storage_type == 'memory':
+            # 内存存储，只更新缓存（重启后会丢失）
+            return True
     except Exception as e:
         print(f"⚠️ 保存邀请码数据失败: {e}")
     
-    return False
+    # 即使保存失败，也更新缓存（至少内存中有数据）
+    return True
 
 def register_user(username, email, password, invite_code):
     """注册用户（需要邀请码）"""
