@@ -540,27 +540,56 @@
                 const response = await fetch('/api/get_trained_features');
                 const result = await response.json();
                 
-                if (result.success && result.match_score_ready) {
-                    // 匹配度已达标，隐藏分析和训练按钮
-                    const analyzeBtn = document.querySelector('button[onclick="analyzeAllStocks()"]');
-                    const trainBtn = document.querySelector('button[onclick="trainFeatures()"]');
+                console.log('模型检查结果:', result);
+                
+                // 检查模型是否存在：success 为 true 且 common_features 存在且不为空
+                const hasFeatures = result.success && 
+                    result.common_features && 
+                    Object.keys(result.common_features).length > 0;
+                
+                if (hasFeatures) {
+                    // 模型存在，隐藏警告信息
+                    const messageEl = document.getElementById('message');
+                    if (messageEl && messageEl.textContent.includes('请先添加大牛股')) {
+                        messageEl.classList.remove('show');
+                        messageEl.textContent = '';
+                    }
                     
-                    if (analyzeBtn) {
-                        analyzeBtn.style.display = 'none';
+                    // 如果匹配度已达标，隐藏分析和训练按钮
+                    if (result.match_score_ready) {
+                        const analyzeBtn = document.querySelector('button[onclick="analyzeAllStocks()"]');
+                        const trainBtn = document.querySelector('button[onclick="trainFeatures()"]');
+                        
+                        if (analyzeBtn) {
+                            analyzeBtn.style.display = 'none';
+                        }
+                        if (trainBtn) {
+                            trainBtn.style.display = 'none';
+                        }
+                        
+                        // 显示提示信息
+                        const btnGroup = document.querySelector('.btn-group');
+                        if (btnGroup && !document.getElementById('matchScoreReadyMsg')) {
+                            const msg = document.createElement('div');
+                            msg.id = 'matchScoreReadyMsg';
+                            msg.style.cssText = 'padding: 10px; background: #d4edda; color: #155724; border-radius: 6px; margin-top: 10px; font-size: 14px;';
+                            msg.innerHTML = `✅ 匹配度已达标（最高: ${result.max_match_score.toFixed(3)} >= 0.95），可直接测试！`;
+                            btnGroup.appendChild(msg);
+                        }
+                    } else {
+                        // 模型存在但匹配度未达标，显示提示
+                        const btnGroup = document.querySelector('.btn-group');
+                        if (btnGroup && !document.getElementById('modelLoadedMsg')) {
+                            const msg = document.createElement('div');
+                            msg.id = 'modelLoadedMsg';
+                            msg.style.cssText = 'padding: 10px; background: #d1ecf1; color: #0c5460; border-radius: 6px; margin-top: 10px; font-size: 14px;';
+                            msg.innerHTML = `✅ 模型已加载（特征数: ${Object.keys(result.common_features).length}），可以直接扫描全市场！`;
+                            btnGroup.appendChild(msg);
+                        }
                     }
-                    if (trainBtn) {
-                        trainBtn.style.display = 'none';
-                    }
-                    
-                    // 显示提示信息
-                    const btnGroup = document.querySelector('.btn-group');
-                    if (btnGroup && !document.getElementById('matchScoreReadyMsg')) {
-                        const msg = document.createElement('div');
-                        msg.id = 'matchScoreReadyMsg';
-                        msg.style.cssText = 'padding: 10px; background: #d4edda; color: #155724; border-radius: 6px; margin-top: 10px; font-size: 14px;';
-                        msg.innerHTML = `✅ 匹配度已达标（最高: ${result.max_match_score.toFixed(3)} >= 0.95），可直接测试！`;
-                        btnGroup.appendChild(msg);
-                    }
+                } else {
+                    // 模型不存在，显示警告（但只在必要时显示，避免页面加载时闪烁）
+                    console.log('模型不存在，需要训练');
                 }
             } catch (error) {
                 console.error('检查匹配度状态失败:', error);

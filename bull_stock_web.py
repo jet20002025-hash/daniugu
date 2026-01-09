@@ -82,6 +82,20 @@ def init_analyzer():
                     auto_load_default_stocks=False, 
                     auto_analyze_and_train=False
                 )
+                
+                # 在 Vercel 环境中也要尝试加载已保存的模型
+                print("尝试加载已保存的模型...")
+                if analyzer.load_model('trained_model.json'):
+                    print("✅ 模型加载成功")
+                    # 检查模型完整性
+                    if analyzer.trained_features:
+                        feature_count = len(analyzer.trained_features.get('common_features', {}))
+                        print(f"   - 买点特征数: {feature_count}")
+                    if analyzer.trained_sell_features:
+                        sell_feature_count = len(analyzer.trained_sell_features.get('common_features', {}))
+                        print(f"   - 卖点特征数: {sell_feature_count}")
+                else:
+                    print("⚠️ 未找到已保存的模型，需要重新训练")
             else:
                 # 本地环境：正常初始化
                 print("正在初始化分析器...")
