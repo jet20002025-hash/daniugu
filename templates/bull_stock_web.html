@@ -2587,9 +2587,25 @@
             }
             
             try {
+                // 先检查登录状态
+                const loginCheckResponse = await fetch('/api/check_login', {
+                    method: 'GET',
+                    cache: 'no-store'
+                });
+                const loginCheckResult = await loginCheckResponse.json();
+                
+                if (!loginCheckResult.success || !loginCheckResult.logged_in) {
+                    // 未登录，跳转到登录页面
+                    console.log('[displayUserInfo] 用户未登录，跳转到登录页面');
+                    window.location.href = '/login';
+                    return;
+                }
+                
                 const user = await getUserInfo();
                 if (!user) {
-                    userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #999;">未登录</div>';
+                    // 如果获取用户信息失败，也跳转到登录页面
+                    console.log('[displayUserInfo] 获取用户信息失败，跳转到登录页面');
+                    window.location.href = '/login';
                     return;
                 }
                 
