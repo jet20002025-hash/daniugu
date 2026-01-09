@@ -1328,13 +1328,25 @@
                     
                     // 检查是否可以扫描
                     if (!restrictions.can_scan_now) {
-                        showMessage(restrictions.scan_time_error || '当前时间不允许扫描', 'error');
+                        const errorMsg = restrictions.scan_time_error || '当前时间不允许扫描';
+                        // 如果是免费用户，提示系统自动扫描
+                        if (user.tier === 'free') {
+                            showMessage('免费用户由系统每天15:00自动扫描，请直接查看扫描结果', 'info');
+                        } else {
+                            showMessage(errorMsg, 'error');
+                        }
                         return;
                     }
                     
                     // 检查每日扫描次数
                     if (!restrictions.can_scan_daily) {
-                        showMessage(restrictions.daily_error || '已达到每日扫描次数限制', 'error');
+                        const errorMsg = restrictions.daily_error || '已达到每日扫描次数限制';
+                        // 如果是免费用户，提示系统自动扫描
+                        if (user.tier === 'free') {
+                            showMessage('免费用户由系统每天15:00自动扫描，请直接查看扫描结果', 'info');
+                        } else {
+                            showMessage(errorMsg, 'error');
+                        }
                         return;
                     }
                     
@@ -1346,6 +1358,12 @@
                     };
                     const tierName = tierNames[user.tier] || '未知';
                     console.log(`[scanAllStocks] 用户等级: ${tierName}, 当前时间: ${restrictions.current_time}`);
+                    
+                    // 免费用户提示
+                    if (user.tier === 'free') {
+                        showMessage('免费用户由系统每天15:00自动扫描，请直接查看扫描结果', 'info');
+                        return;
+                    }
                 }
             } catch (error) {
                 console.warn('[scanAllStocks] 获取用户信息失败:', error);

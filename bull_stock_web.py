@@ -2013,9 +2013,30 @@ def get_scan_results():
                 'error_code': 'VIEW_TIME_LIMIT',
                 'candidates': []
             }), 403
+        
         # 在 Vercel 环境中，从 Redis 读取结果
         if is_vercel:
+            import scan_progress_store
+            from scan_limit_helper import get_beijing_time
+            
             scan_id = request.args.get('scan_id') or request.args.get('scanId')
+            
+            # 如果没有提供 scan_id，尝试查找最新的自动扫描结果
+            if not scan_id and user_tier in ['free', 'premium']:
+                # 查找今天该用户等级的最新自动扫描任务
+                beijing_now = get_beijing_time()
+                today_str = beijing_now.strftime('%Y-%m-%d')
+                
+                # 自动扫描的 scan_id 格式: auto_{user_tier}_{timestamp}_{uuid}
+                # 我们需要查找所有以 auto_{user_tier}_ 开头的扫描任务
+                # 由于 Redis 不支持模式匹配，我们使用一个固定的键来存储今天的自动扫描ID
+                auto_scan_key = f'auto_scan_{user_tier}_{today_str}'
+                auto_scan_id = scan_progress_store._upstash_redis_get(auto_scan_key) if hasattr(scan_progress_store, '_upstash_redis_get') else None
+                
+                if auto_scan_id:
+                    scan_id = auto_scan_id
+                    print(f"[get_scan_results] 找到今天的自动扫描任务: {scan_id} (用户等级: {user_tier})")
+            
             if scan_id:
                 # 获取当前用户信息，用于验证权限
                 current_user = get_current_user()
