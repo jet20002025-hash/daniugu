@@ -1490,7 +1490,18 @@
                 }
                 
                 if (!response.ok) {
-                    const errorText = await response.text();
+                    let errorText;
+                    try {
+                        errorText = await response.text();
+                    } catch (textError) {
+                        // 如果读取错误响应文本时出错（可能是 AbortError）
+                        if (textError.name === 'AbortError' || textError.message?.includes('aborted')) {
+                            console.warn('[scanAllStocks] 读取错误响应时被中断');
+                            showMessage('请求已中断，但扫描可能已在后台启动。请继续等待进度更新...', 'warning');
+                            return; // 直接返回
+                        }
+                        errorText = `无法读取错误响应: ${textError.message}`;
+                    }
                     console.error('[scanAllStocks] HTTP错误响应:', {
                         status: response.status,
                         statusText: response.statusText,
@@ -1499,8 +1510,19 @@
                     throw new Error(`HTTP错误 ${response.status}: ${response.statusText}\n响应内容: ${errorText.substring(0, 200)}`);
                 }
                 
-                const responseText = await response.text();
-                console.log('[scanAllStocks] API 原始响应:', responseText);
+                let responseText;
+                try {
+                    responseText = await response.text();
+                    console.log('[scanAllStocks] API 原始响应:', responseText);
+                } catch (textError) {
+                    // 如果读取响应文本时出错（可能是 AbortError）
+                    if (textError.name === 'AbortError' || textError.message?.includes('aborted') || textError.message?.includes('signal is aborted')) {
+                        console.warn('[scanAllStocks] 读取响应时被中断，但扫描可能已在后台启动');
+                        showMessage('请求已中断，但扫描可能已在后台启动。请继续等待进度更新...', 'warning');
+                        return; // 直接返回
+                    }
+                    throw textError; // 其他错误继续抛出
+                }
                 
                 let result;
                 try {
