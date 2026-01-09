@@ -347,6 +347,11 @@ def api_login():
         # 本地环境快速登录：如果用户名是 'test' 且密码是 'test123'，直接登录
         if not is_vercel and username == 'test' and password == 'test123':
             # 确保测试用户存在
+            if is_vercel:
+                from user_auth_vercel import load_users, save_users, hash_password
+            else:
+                from user_auth import load_users, save_users, hash_password
+            
             users = load_users()
             if 'test' not in users:
                 # 自动创建测试用户
