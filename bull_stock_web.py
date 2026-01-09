@@ -514,10 +514,10 @@ def get_user_info():
             'message': f'服务器错误: {str(e)}'
         }), 500
 
-@app.route('/admin')
+@app.route('/cs')
 @require_login
 def admin_page():
-    """管理员页面"""
+    """管理员页面（客服页面）"""
     return render_template('admin.html')
 
 @app.route('/api/admin/users')
