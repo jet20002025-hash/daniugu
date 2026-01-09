@@ -1889,9 +1889,26 @@ def get_scan_results():
         if is_vercel:
             scan_id = request.args.get('scan_id') or request.args.get('scanId')
             if scan_id:
+                # 获取当前用户信息，用于验证权限
+                current_user = get_current_user()
+                username = current_user.get('username', 'anonymous') if current_user else 'anonymous'
+                
                 import scan_progress_store
                 results = scan_progress_store.get_scan_results(scan_id)
                 if results:
+                    # 验证结果是否属于当前用户（从进度中获取用户名）
+                    progress = scan_progress_store.get_scan_progress(scan_id)
+                    if progress:
+                        progress_username = progress.get('username', 'anonymous')
+                        if progress_username != username:
+                            print(f"[get_scan_results] ⚠️ 用户 {username} 尝试访问其他用户 {progress_username} 的扫描结果: {scan_id}")
+                            return jsonify({
+                                'success': False,
+                                'message': '无权访问此扫描结果（不属于当前用户）',
+                                'error_code': 'ACCESS_DENIED',
+                                'candidates': []
+                            }), 403
+                    
                     return jsonify({
                         'success': True,
                         'message': results.get('message', '扫描完成'),
@@ -1903,15 +1920,27 @@ def get_scan_results():
                 else:
                     # 如果找不到结果，尝试从进度中获取候选股票
                     progress = scan_progress_store.get_scan_progress(scan_id)
-                    if progress and progress.get('candidates'):
-                        return jsonify({
-                            'success': True,
-                            'message': '扫描进行中，返回当前已找到的股票',
-                            'candidates': progress.get('candidates', []),
-                            'found_count': len(progress.get('candidates', [])),
-                            'total_scanned': progress.get('current', 0),
-                            'scan_id': scan_id
-                        })
+                    if progress:
+                        # 验证进度是否属于当前用户
+                        progress_username = progress.get('username', 'anonymous')
+                        if progress_username != username:
+                            print(f"[get_scan_results] ⚠️ 用户 {username} 尝试访问其他用户 {progress_username} 的扫描进度: {scan_id}")
+                            return jsonify({
+                                'success': False,
+                                'message': '无权访问此扫描进度（不属于当前用户）',
+                                'error_code': 'ACCESS_DENIED',
+                                'candidates': []
+                            }), 403
+                        
+                        if progress.get('candidates'):
+                            return jsonify({
+                                'success': True,
+                                'message': '扫描进行中，返回当前已找到的股票',
+                                'candidates': progress.get('candidates', []),
+                                'found_count': len(progress.get('candidates', [])),
+                                'total_scanned': progress.get('current', 0),
+                                'scan_id': scan_id
+                            })
             
             return jsonify({
                 'success': False,
