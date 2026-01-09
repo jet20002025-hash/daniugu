@@ -1086,7 +1086,22 @@ def find_buy_points():
 def get_scan_progress():
     """获取扫描进度API"""
     try:
-        progress = analyzer.progress.copy()
+        init_analyzer()  # 确保分析器已初始化
+        
+        # 检查 analyzer 是否已初始化
+        if analyzer is None:
+            return jsonify({
+                'type': 'scan',
+                'current': 0,
+                'total': 0,
+                'status': '空闲',
+                'detail': '',
+                'percentage': 0,
+                'found': 0
+            })
+        
+        # 使用 get_progress() 方法，而不是直接访问 progress 属性
+        progress = analyzer.get_progress().copy()
         
         # 添加最后更新时间，用于检测是否卡住
         if 'last_update_time' in progress:
@@ -1103,7 +1118,22 @@ def get_scan_progress():
                 progress['warning'] = f'已超过 {int(time_since_update)} 秒未更新，当前股票: {progress.get("current_stock", "未知")}'
         
         return jsonify(progress)
+    except AttributeError as e:
+        # analyzer 未初始化或方法不存在
+        print(f"获取扫描进度错误 (AttributeError): {e}")
+        return jsonify({
+            'type': 'scan',
+            'current': 0,
+            'total': 0,
+            'status': '空闲',
+            'detail': '',
+            'percentage': 0,
+            'found': 0
+        })
     except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"获取扫描进度错误: {error_detail}")
         return jsonify({
             'type': 'scan',
             'current': 0,
@@ -1111,7 +1141,8 @@ def get_scan_progress():
             'status': '错误',
             'detail': f'获取进度失败: {str(e)}',
             'percentage': 0,
-            'found': 0
+            'found': 0,
+            'error_detail': error_detail if is_vercel else None  # 仅在 Vercel 环境中返回详细错误
         })
 
 @app.route('/api/get_scan_debug_log', methods=['GET'])
