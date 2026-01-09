@@ -447,16 +447,32 @@ def api_version():
         }
         
         try:
-            # 方法1: 从 .git-version 文件读取（部署时生成）
-            version_file = os.path.join(os.path.dirname(__file__), '.git-version')
-            if os.path.exists(version_file):
-                with open(version_file, 'r') as f:
-                    commit_sha = f.read().strip()
-                    if commit_sha and commit_sha != 'unknown':
-                        version_info['commit_sha'] = commit_sha
-                        version_info['commit_short'] = commit_sha[:7]
+            # 方法1: 从 Vercel 环境变量获取（优先，Vercel 自动提供）
+            vercel_commit_sha = os.environ.get('VERCEL_GIT_COMMIT_SHA')
+            if vercel_commit_sha:
+                version_info['commit_sha'] = vercel_commit_sha
+                version_info['commit_short'] = vercel_commit_sha[:7]
+                
+                # Vercel 还可能提供其他 Git 信息
+                vercel_git_commit_message = os.environ.get('VERCEL_GIT_COMMIT_MESSAGE', '')
+                if vercel_git_commit_message:
+                    version_info['commit_message'] = vercel_git_commit_message
+                
+                vercel_git_commit_ref = os.environ.get('VERCEL_GIT_COMMIT_REF', '')
+                if vercel_git_commit_ref:
+                    version_info['branch'] = vercel_git_commit_ref
             
-            # 方法2: 直接从 Git 获取（本地环境）
+            # 方法2: 从 .git-version 文件读取（如果存在，作为备用）
+            if version_info['commit_sha'] == 'unknown':
+                version_file = os.path.join(os.path.dirname(__file__), '.git-version')
+                if os.path.exists(version_file):
+                    with open(version_file, 'r') as f:
+                        commit_sha = f.read().strip()
+                        if commit_sha and commit_sha != 'unknown':
+                            version_info['commit_sha'] = commit_sha
+                            version_info['commit_short'] = commit_sha[:7]
+            
+            # 方法3: 直接从 Git 获取（本地环境，如果前两种方法都失败）
             if version_info['commit_sha'] == 'unknown' and not is_vercel:
                 try:
                     result = subprocess.run(
