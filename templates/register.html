@@ -180,8 +180,8 @@
             
             <div class="form-group">
                 <label for="invite_code">邀请码 *</label>
-                <input type="text" id="invite_code" name="invite_code" required placeholder="请输入邀请码" style="text-transform: uppercase;">
-                <small>必须提供有效的邀请码才能注册</small>
+                <input type="text" id="invite_code" name="invite_code" required placeholder="请输入邀请码" autocomplete="off">
+                <small>必须提供有效的邀请码才能注册（不区分大小写）</small>
             </div>
             
             <button type="submit" class="btn">注册</button>
@@ -196,11 +196,6 @@
         const form = document.getElementById('registerForm');
         const messageDiv = document.getElementById('message');
         const inviteCodeInput = document.getElementById('invite_code');
-        
-        // 自动转换为大写
-        inviteCodeInput.addEventListener('input', (e) => {
-            e.target.value = e.target.value.toUpperCase();
-        });
         
         function showMessage(text, type) {
             messageDiv.textContent = text;
@@ -220,7 +215,7 @@
             const username = document.getElementById('username').value.trim();
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
-            const inviteCode = document.getElementById('invite_code').value.trim().toUpperCase();
+            const inviteCode = document.getElementById('invite_code').value.trim();
             
             if (!username || !email || !password || !inviteCode) {
                 showMessage('请填写所有字段', 'error');
