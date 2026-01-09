@@ -462,6 +462,13 @@ def admin_get_users():
         
         users = load_users()
         
+        # 调试：打印用户数据
+        print(f"[admin_get_users] 当前用户数: {len(users)}")
+        if users:
+            print(f"[admin_get_users] 用户列表: {list(users.keys())}")
+            for username, user_data in users.items():
+                print(f"  - {username}: VIP={user_data.get('is_vip', False)}, Email={user_data.get('email', 'N/A')}")
+        
         # 转换为列表格式，隐藏敏感信息
         users_list = []
         for username, user_data in users.items():
@@ -470,12 +477,15 @@ def admin_get_users():
                 'email': user_data.get('email', ''),
                 'is_vip': user_data.get('is_vip', False),
                 'created_at': user_data.get('created_at', ''),
-                'last_login': user_data.get('last_login', '')
+                'last_login': user_data.get('last_login', ''),
+                'invite_code': user_data.get('invite_code', ''),
+                'is_active': user_data.get('is_active', True)
             })
         
         return jsonify({
             'success': True,
-            'users': users_list
+            'users': users_list,
+            'total': len(users_list)
         })
     except Exception as e:
         import traceback
@@ -527,6 +537,11 @@ def admin_set_vip():
         users[target_username]['is_vip'] = bool(is_vip)
         if is_vip:
             users[target_username]['vip_set_at'] = datetime.now().isoformat()
+        
+        if is_vercel:
+            from user_auth_vercel import save_users
+        else:
+            from user_auth import save_users
         
         save_users(users)
         
