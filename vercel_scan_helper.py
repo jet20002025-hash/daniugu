@@ -39,6 +39,16 @@ def process_scan_batch_vercel(
     :param existing_candidates: 已有候选股票列表
     :return: 扫描结果
     """
+    # 获取扫描配置（如果未提供，使用默认值）
+    if scan_config is None:
+        scan_config = {
+            'stock_timeout': 8,
+            'batch_delay': 3
+        }
+    
+    # 从配置获取超时时间
+    max_stock_time = scan_config.get('stock_timeout', 8)
+    
     batch_size = len(stock_batch)
     candidates = existing_candidates.copy() if existing_candidates else []
     
@@ -67,9 +77,8 @@ def process_scan_batch_vercel(
         current_idx = start_idx + idx + 1
         
         try:
-            # 检查超时（单只股票最多处理10秒，增加时间以提高成功率）
+            # 检查超时（根据用户等级使用不同的超时时间）
             stock_start_time = time.time()
-            max_stock_time = 10
             
             # 获取股票周线数据
             weekly_df = analyzer.fetcher.get_weekly_kline(stock_code, weeks=100)
