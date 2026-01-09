@@ -389,7 +389,40 @@
                 </div>
                 <!-- 功能按钮组（根据环境和用户等级显示） -->
                 <div class="btn-group" id="functionButtonsGroup">
+                    <!-- 本地版本：显示所有功能 -->
+                    <div id="localVersionButtons" style="display: none;">
+                        <button class="btn btn-primary" onclick="addStock()">添加股票</button>
+                        <button class="btn btn-secondary" onclick="clearStocks()">清空所有</button>
+                        <button class="btn btn-primary" onclick="analyzeAllStocks()" style="background: #27ae60;">分析所有股票</button>
+                        <button class="btn btn-primary" onclick="trainFeatures()" style="background: #e67e22;">训练特征模型</button>
+                        <button class="btn btn-primary" onclick="scanAllStocks()" style="background: #e74c3c;" id="scanAllStocksBtn">🔍 扫描全市场</button>
+                        <button class="btn btn-primary" onclick="stopScan()" style="background: #95a5a6;" id="stopScanBtn" disabled>🛑 停止扫描</button>
                     </div>
+                    
+                    <!-- 网络版本：根据用户等级显示 -->
+                    <div id="webVersionButtons" style="display: none;">
+                        <!-- VIP用户：可以扫描全市场（每天一次） -->
+                        <div id="vipUserButtons" style="display: none;">
+                            <button class="btn btn-primary" onclick="scanAllStocks()" style="background: #e74c3c;" id="scanAllStocksBtnWeb">🔍 扫描全市场（VIP每日一次）</button>
+                            <button class="btn btn-primary" onclick="stopScan()" style="background: #95a5a6;" id="stopScanBtnWeb" disabled>🛑 停止扫描</button>
+                        </div>
+                        
+                        <!-- 免费用户：只显示查看结果按钮 -->
+                        <div id="freeUserButtons" style="display: none;">
+                            <button class="btn btn-primary" onclick="viewScanResults()" style="background: #667eea;">📊 查看扫描结果</button>
+                        </div>
+                        
+                        <!-- 超级用户：显示所有功能 -->
+                        <div id="superUserButtons" style="display: none;">
+                            <button class="btn btn-primary" onclick="addStock()">添加股票</button>
+                            <button class="btn btn-secondary" onclick="clearStocks()">清空所有</button>
+                            <button class="btn btn-primary" onclick="analyzeAllStocks()" style="background: #27ae60;">分析所有股票</button>
+                            <button class="btn btn-primary" onclick="trainFeatures()" style="background: #e67e22;">训练特征模型</button>
+                            <button class="btn btn-primary" onclick="scanAllStocks()" style="background: #e74c3c;" id="scanAllStocksBtnSuper">🔍 扫描全市场</button>
+                            <button class="btn btn-primary" onclick="stopScan()" style="background: #95a5a6;" id="stopScanBtnSuper" disabled>🛑 停止扫描</button>
+                        </div>
+                    </div>
+                </div>
                 
                 <div id="reversalResults" style="margin-top: 20px; display: none;"></div>
                 
@@ -2639,58 +2672,107 @@
         
         // 检查是否为本地环境（非Vercel）
         function isLocalEnvironment() {
-            // 网络版：始终返回 false（不显示本地版本功能）
-            return false;
+            // 通过 hostname 判断：localhost 或 127.0.0.1 或本地IP地址
+            const hostname = window.location.hostname;
+            const isLocal = hostname === 'localhost' || 
+                          hostname === '127.0.0.1' || 
+                          hostname.startsWith('192.168.') ||
+                          hostname.startsWith('10.') ||
+                          hostname.startsWith('172.16.') ||
+                          hostname.startsWith('172.17.') ||
+                          hostname.startsWith('172.18.') ||
+                          hostname.startsWith('172.19.') ||
+                          hostname.startsWith('172.20.') ||
+                          hostname.startsWith('172.21.') ||
+                          hostname.startsWith('172.22.') ||
+                          hostname.startsWith('172.23.') ||
+                          hostname.startsWith('172.24.') ||
+                          hostname.startsWith('172.25.') ||
+                          hostname.startsWith('172.26.') ||
+                          hostname.startsWith('172.27.') ||
+                          hostname.startsWith('172.28.') ||
+                          hostname.startsWith('172.29.') ||
+                          hostname.startsWith('172.30.') ||
+                          hostname.startsWith('172.31.');
+            
+            // 如果不是本地，检查是否是 Vercel 域名
+            if (!isLocal) {
+                const isVercel = hostname.includes('vercel.app') || 
+                               hostname.includes('daniugu.online') ||
+                               hostname.includes('netlify.app') ||
+                               hostname.includes('github.io');
+                return !isVercel; // 如果不是 Vercel 域名，可能是本地网络环境
+            }
+            
+            return isLocal;
         }
         
         // 根据环境和用户等级显示/隐藏功能按钮
-                // 根据环境和用户等级显示/隐藏功能按钮（网络版）
         async function updateFunctionButtonsVisibility() {
-            // 网络环境：根据用户等级显示
+            const isLocal = isLocalEnvironment();
+            const localButtons = document.getElementById('localVersionButtons');
             const webButtons = document.getElementById('webVersionButtons');
             const vipButtons = document.getElementById('vipUserButtons');
             const freeButtons = document.getElementById('freeUserButtons');
             const superButtons = document.getElementById('superUserButtons');
             
-            if (webButtons) webButtons.style.display = 'block';
-            
-            // 获取用户信息
-            try {
-                const user = await getUserInfo();
-                if (user) {
-                    const tier = user.tier || 'free';
-                    const isSuper = user.is_super || false;
-                    
-                    if (isSuper || tier === 'super') {
-                        // 超级用户：显示所有功能
-                        if (superButtons) superButtons.style.display = 'block';
-                        if (vipButtons) vipButtons.style.display = 'none';
-                        if (freeButtons) freeButtons.style.display = 'none';
-                    } else if (tier === 'premium') {
-                        // VIP用户：显示扫描全市场（每天一次）
-                        if (vipButtons) vipButtons.style.display = 'block';
-                        if (freeButtons) freeButtons.style.display = 'none';
-                        if (superButtons) superButtons.style.display = 'none';
+            if (isLocal) {
+                // 本地环境：显示所有功能
+                if (localButtons) localButtons.style.display = 'block';
+                if (webButtons) webButtons.style.display = 'none';
+                
+                // 显示反转个股功能
+                const reversalSection = document.getElementById('reversalStockSection');
+                if (reversalSection) reversalSection.style.display = 'block';
+            } else {
+                // 网络环境：根据用户等级显示
+                if (localButtons) localButtons.style.display = 'none';
+                if (webButtons) webButtons.style.display = 'block';
+                
+                // 隐藏反转个股功能
+                const reversalSection = document.getElementById('reversalStockSection');
+                if (reversalSection) reversalSection.style.display = 'none';
+                
+                // 获取用户信息
+                try {
+                    const user = await getUserInfo();
+                    if (user) {
+                        const tier = user.tier || 'free';
+                        const isSuper = user.is_super || false;
+                        
+                        if (isSuper || tier === 'super') {
+                            // 超级用户：显示所有功能
+                            if (superButtons) superButtons.style.display = 'block';
+                            if (vipButtons) vipButtons.style.display = 'none';
+                            if (freeButtons) freeButtons.style.display = 'none';
+                        } else if (tier === 'premium') {
+                            // VIP用户：显示扫描全市场（每天一次）
+                            if (vipButtons) vipButtons.style.display = 'block';
+                            if (freeButtons) freeButtons.style.display = 'none';
+                            if (superButtons) superButtons.style.display = 'none';
+                        } else {
+                            // 免费用户：只显示查看结果按钮
+                            if (freeButtons) freeButtons.style.display = 'block';
+                            if (vipButtons) vipButtons.style.display = 'none';
+                            if (superButtons) superButtons.style.display = 'none';
+                        }
                     } else {
-                        // 免费用户：只显示查看结果按钮
+                        // 无法获取用户信息，默认显示免费用户按钮
                         if (freeButtons) freeButtons.style.display = 'block';
                         if (vipButtons) vipButtons.style.display = 'none';
                         if (superButtons) superButtons.style.display = 'none';
                     }
-                } else {
-                    // 无法获取用户信息，默认显示免费用户按钮
+                } catch (error) {
+                    console.error('获取用户信息失败:', error);
+                    // 出错时默认显示免费用户按钮
                     if (freeButtons) freeButtons.style.display = 'block';
                     if (vipButtons) vipButtons.style.display = 'none';
                     if (superButtons) superButtons.style.display = 'none';
                 }
-            } catch (error) {
-                console.error('获取用户信息失败:', error);
-                // 出错时默认显示免费用户按钮
-                if (freeButtons) freeButtons.style.display = 'block';
-                if (vipButtons) vipButtons.style.display = 'none';
-                if (superButtons) superButtons.style.display = 'none';
             }
-        }async function viewScanResults() {
+        }
+        
+        async function viewScanResults() {
             try {
                 showMessage('正在加载扫描结果...', 'success');
                 
