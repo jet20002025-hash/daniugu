@@ -1317,6 +1317,41 @@
         async function scanAllStocks() {
             console.log('[scanAllStocks] 开始执行扫描函数');
             
+            // 先检查用户扫描权限
+            try {
+                const userInfoResponse = await fetch('/api/user_info');
+                const userInfoResult = await userInfoResponse.json();
+                
+                if (userInfoResult.success && userInfoResult.user) {
+                    const user = userInfoResult.user;
+                    const restrictions = user.scan_restrictions || {};
+                    
+                    // 检查是否可以扫描
+                    if (!restrictions.can_scan_now) {
+                        showMessage(restrictions.scan_time_error || '当前时间不允许扫描', 'error');
+                        return;
+                    }
+                    
+                    // 检查每日扫描次数
+                    if (!restrictions.can_scan_daily) {
+                        showMessage(restrictions.daily_error || '已达到每日扫描次数限制', 'error');
+                        return;
+                    }
+                    
+                    // 显示用户等级和限制信息
+                    const tierNames = {
+                        'free': '免费版',
+                        'premium': 'VIP会员',
+                        'super': '超级用户'
+                    };
+                    const tierName = tierNames[user.tier] || '未知';
+                    console.log(`[scanAllStocks] 用户等级: ${tierName}, 当前时间: ${restrictions.current_time}`);
+                }
+            } catch (error) {
+                console.warn('[scanAllStocks] 获取用户信息失败:', error);
+                // 继续执行，不阻止扫描
+            }
+            
             // 检查是否有未完成的扫描
             try {
                 console.log('[scanAllStocks] 检查当前进度状态...');
@@ -2387,6 +2422,21 @@
             console.log('[定时刷新] 自动刷新股票列表...');
             loadStocks();
         }, 5000);
+        
+        // 获取用户信息
+        async function getUserInfo() {
+            try {
+                const response = await fetch('/api/user_info');
+                const result = await response.json();
+                if (result.success && result.user) {
+                    return result.user;
+                }
+                return null;
+            } catch (error) {
+                console.error('获取用户信息失败:', error);
+                return null;
+            }
+        }
         
         // Vercel 分批扫描：自动继续处理下一批次
         async function autoContinueScan(scanId, currentBatch, totalBatches) {

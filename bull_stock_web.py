@@ -88,27 +88,44 @@ def get_user_tier():
 
 def get_scan_config():
     """根据用户等级返回扫描配置"""
-    is_premium = is_premium_user()
+    tier = get_user_tier()
     
-    if is_premium:
-        # 收费版（VIP）：快速扫描
+    if tier == 'super':
+        # 超级用户：最快扫描，无限制
         return {
             'batch_size': 50,      # 50只/批
             'batch_delay': 1,      # 延迟1秒
             'stock_timeout': 10,   # 单股票10秒
             'retry_delay': 2,      # 重试延迟2秒
             'daily_limit': None,   # 无限制
-            'scan_interval': 0     # 无间隔
+            'scan_interval': 0,    # 无间隔
+            'scan_start_hour': 0,  # 0点后即可扫描
+            'result_view_hour': 0  # 0点后即可查看结果
+        }
+    elif tier == 'premium':
+        # 收费版（VIP）：快速扫描，中午12点后可查看结果
+        return {
+            'batch_size': 50,      # 50只/批
+            'batch_delay': 1,      # 延迟1秒
+            'stock_timeout': 10,   # 单股票10秒
+            'retry_delay': 2,      # 重试延迟2秒
+            'daily_limit': None,   # 无限制
+            'scan_interval': 0,    # 无间隔
+            'scan_start_hour': 0,  # 0点后即可扫描
+            'result_view_hour': 12  # 中午12点后可查看结果
         }
     else:
-        # 免费版：慢速扫描
+        # 免费版：慢速扫描，下午3点后可扫描，3:30后可查看结果
         return {
             'batch_size': 20,      # 20只/批（更慢）
             'batch_delay': 3,      # 延迟3秒（更慢）
             'stock_timeout': 8,    # 单股票8秒
             'retry_delay': 5,      # 重试延迟5秒
             'daily_limit': 2000,   # 每日2000只
-            'scan_interval': 180   # 间隔3分钟
+            'scan_interval': 180,  # 间隔3分钟
+            'scan_start_hour': 15,  # 下午3点（15:00）后可扫描
+            'result_view_hour': 15,  # 下午3点后可查看结果
+            'result_view_minute': 30  # 下午3:30后可查看结果
         }
 
 def init_analyzer():
@@ -1202,10 +1219,44 @@ def find_sell_points():
 
 
 @app.route('/api/scan_all_stocks', methods=['POST'])
+@require_login
 def scan_all_stocks():
     """扫描所有A股API"""
     init_analyzer()  # 确保分析器已初始化
     try:
+        # 获取用户信息和等级
+        user = get_current_user()
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': '请先登录'
+            }), 401
+        
+        username = user.get('username', 'anonymous')
+        user_tier = get_user_tier()
+        scan_config = get_scan_config()
+        
+        # 检查扫描时间限制
+        from scan_limit_helper import check_scan_time_limit
+        can_scan, time_error = check_scan_time_limit(user_tier, scan_config)
+        if not can_scan:
+            return jsonify({
+                'success': False,
+                'message': time_error,
+                'error_code': 'TIME_LIMIT'
+            }), 403
+        
+        # 检查每日扫描次数限制
+        from scan_limit_helper import check_daily_scan_limit
+        can_scan_daily, daily_error, today_count = check_daily_scan_limit(username, user_tier, scan_config, is_vercel)
+        if not can_scan_daily:
+            return jsonify({
+                'success': False,
+                'message': daily_error,
+                'error_code': 'DAILY_LIMIT',
+                'today_scan_count': today_count
+            }), 403
+        
         data = request.get_json() or {}
         min_match_score = float(data.get('min_match_score', 0.97))
         max_market_cap = float(data.get('max_market_cap', 100.0))
@@ -1882,9 +1933,32 @@ def get_scan_debug_log():
         }), 500
 
 @app.route('/api/get_scan_results', methods=['GET'])
+@require_login
 def get_scan_results():
     """获取扫描结果API"""
     try:
+        # 获取用户信息和等级
+        user = get_current_user()
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': '请先登录',
+                'candidates': []
+            }), 401
+        
+        user_tier = get_user_tier()
+        scan_config = get_scan_config()
+        
+        # 检查结果查看时间限制
+        from scan_limit_helper import check_result_view_time
+        can_view, view_error = check_result_view_time(user_tier, scan_config)
+        if not can_view:
+            return jsonify({
+                'success': False,
+                'message': view_error,
+                'error_code': 'VIEW_TIME_LIMIT',
+                'candidates': []
+            }), 403
         # 在 Vercel 环境中，从 Redis 读取结果
         if is_vercel:
             scan_id = request.args.get('scan_id') or request.args.get('scanId')
