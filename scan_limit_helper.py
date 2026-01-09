@@ -218,20 +218,20 @@ def check_result_view_time(user_tier: str, scan_config: Dict) -> Tuple[bool, Opt
     current_minute = beijing_now.minute
     
     if user_tier == 'premium':
-        # VIP用户：中午12点后可查看结果
+        # VIP用户：中午12点后可查看结果（系统11:30自动扫描）
         result_view_hour = scan_config.get('result_view_hour', 12)
         if current_hour < result_view_hour:
-            return False, f'VIP用户可在中午{result_view_hour}点后查看结果，当前时间：{beijing_now.strftime("%H:%M")}'
+            return False, f'VIP用户可在中午{result_view_hour}点后查看结果（系统11:30自动扫描），当前时间：{beijing_now.strftime("%H:%M")}'
         return True, None
     else:
-        # 免费用户：下午3:30后可查看结果
+        # 免费用户：下午3:00后可查看结果（系统3:00自动扫描）
         result_view_hour = scan_config.get('result_view_hour', 15)
-        result_view_minute = scan_config.get('result_view_minute', 30)
+        result_view_minute = scan_config.get('result_view_minute', 0)
         
         current_time_minutes = current_hour * 60 + current_minute
         view_time_minutes = result_view_hour * 60 + result_view_minute
         
         if current_time_minutes < view_time_minutes:
-            return False, f'免费用户可在下午{result_view_hour}:{result_view_minute:02d}后查看结果，当前时间：{beijing_now.strftime("%H:%M")}'
+            return False, f'免费用户可在下午{result_view_hour}:{result_view_minute:02d}后查看结果（系统{result_view_hour}:00自动扫描），当前时间：{beijing_now.strftime("%H:%M")}'
         return True, None
 

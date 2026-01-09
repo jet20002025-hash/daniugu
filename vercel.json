@@ -1,17 +1,12 @@
 {
-  "version": 2,
-  "rewrites": [
+  "crons": [
     {
-      "source": "/api/:path*",
-      "destination": "/api/index.py"
+      "path": "/api/auto_scan",
+      "schedule": "0 15 * * *"
     },
     {
-      "source": "/static/:path*",
-      "destination": "/static/:path*"
-    },
-    {
-      "source": "/:path*",
-      "destination": "/api/index.py"
+      "path": "/api/auto_scan",
+      "schedule": "30 11 * * *"
     }
   ]
 }

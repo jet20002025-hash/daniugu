@@ -1276,28 +1276,30 @@ def scan_all_stocks():
         
         username = user.get('username', 'anonymous')
         user_tier = get_user_tier()
+        
+        # 免费用户不允许手动扫描，只能查看自动扫描的结果
+        if user_tier == 'free':
+            return jsonify({
+                'success': False,
+                'message': '免费用户无需手动扫描，系统每天下午3:00自动扫描，您可以直接查看结果。',
+                'error_code': 'AUTO_SCAN_ONLY'
+            }), 403
+        
+        # VIP用户和超级用户可以手动扫描
         scan_config = get_scan_config()
         
-        # 检查扫描时间限制
-        from scan_limit_helper import check_scan_time_limit
-        can_scan, time_error = check_scan_time_limit(user_tier, scan_config)
-        if not can_scan:
-            return jsonify({
-                'success': False,
-                'message': time_error,
-                'error_code': 'TIME_LIMIT'
-            }), 403
+        # 检查扫描时间限制（仅对VIP用户，超级用户无限制）
+        if user_tier == 'premium':
+            from scan_limit_helper import check_scan_time_limit
+            can_scan, time_error = check_scan_time_limit(user_tier, scan_config)
+            if not can_scan:
+                return jsonify({
+                    'success': False,
+                    'message': time_error,
+                    'error_code': 'TIME_LIMIT'
+                }), 403
         
-        # 检查每日扫描次数限制
-        from scan_limit_helper import check_daily_scan_limit
-        can_scan_daily, daily_error, today_count = check_daily_scan_limit(username, user_tier, scan_config, is_vercel)
-        if not can_scan_daily:
-            return jsonify({
-                'success': False,
-                'message': daily_error,
-                'error_code': 'DAILY_LIMIT',
-                'today_scan_count': today_count
-            }), 403
+        # VIP用户和超级用户无每日扫描次数限制（已在get_scan_config中设置）
         
         data = request.get_json() or {}
         min_match_score = float(data.get('min_match_score', 0.97))
