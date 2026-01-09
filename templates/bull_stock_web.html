@@ -2209,11 +2209,11 @@
                     return; // 停止继续处理
                 }
                 
-                showMessage(`处理第 ${currentBatch + 1} 批失败: ${error.message}`, 'error');
-                // 尝试继续下一批次（如果可能，且不是 404 错误）
-                if (currentBatch + 1 < totalBatches && !error.message.includes('404')) {
-                    console.log(`2秒后重试第 ${currentBatch + 2} 批...`);
-                    setTimeout(() => autoContinueScan(scanId, currentBatch + 1, totalBatches), 2000);
+                    showMessage(`处理第 ${currentBatch + 1} 批失败: ${error.message}`, 'error');
+                    // 尝试继续下一批次（如果可能，且不是 404 错误），增加重试延迟以提高稳定性
+                    if (currentBatch + 1 < totalBatches && !error.message.includes('404')) {
+                        console.log(`5秒后重试第 ${currentBatch + 2} 批...`);
+                        setTimeout(() => autoContinueScan(scanId, currentBatch + 1, totalBatches), 5000);
                 } else {
                     // 如果是最后一批或 404 错误，停止处理
                     console.error('无法继续处理，停止扫描');
