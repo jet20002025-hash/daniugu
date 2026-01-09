@@ -653,7 +653,7 @@
                 const stockCount = result.count !== undefined ? result.count : (result.stocks ? result.stocks.length : 0);
                 const stocks = result.stocks || [];
                 
-                console.log('[loadStocks] 股票数量:', stockCount, '股票列表长度:', stocks.length, '股票列表:', stocks);
+                // console.log('[loadStocks] 股票数量:', stockCount, '股票列表长度:', stocks.length, '股票列表:', stocks); // 已隐藏：避免控制台输出过多日志
                 
                 // 更新计数
                 countEl.textContent = stockCount;
@@ -677,7 +677,7 @@
                         const addTime = stock['添加时间'] || stock.添加时间 || '';
                         const dataCount = stock['数据条数'] || stock.数据条数 || 0;
                         
-                        console.log('[loadStocks] 渲染股票:', code, name);
+                        // console.log('[loadStocks] 渲染股票:', code, name); // 已隐藏：避免控制台输出过多日志
                         
                         return `
                             <div class="stock-item" id="stock-${code}">
