@@ -1205,20 +1205,24 @@ def scan_all_stocks():
                 }), 500
             
             try:
-                stock_list = analyzer.fetcher.get_all_stocks()
+                print("[scan_all_stocks] 开始获取股票列表...")
+                # 在 Vercel 环境中，使用更长的超时时间和重试机制
+                stock_list = analyzer.fetcher.get_all_stocks(timeout=15, max_retries=3)
+                print(f"[scan_all_stocks] 获取股票列表结果: {stock_list is not None}, 数量: {len(stock_list) if stock_list is not None else 0}")
             except Exception as e:
                 import traceback
                 error_detail = traceback.format_exc()
-                print(f"获取股票列表失败: {error_detail}")
+                print(f"[scan_all_stocks] ❌ 获取股票列表失败: {error_detail}")
                 return jsonify({
                     'success': False,
-                    'message': f'获取股票列表失败: {str(e)}'
+                    'message': f'获取股票列表失败: {str(e)}\n\n可能的原因：\n1. 网络连接问题\n2. akshare 服务暂时不可用\n3. Vercel 环境网络限制\n\n请稍后重试或检查网络连接。'
                 }), 500
             
             if stock_list is None or len(stock_list) == 0:
+                print(f"[scan_all_stocks] ❌ 股票列表为空: stock_list={stock_list}, len={len(stock_list) if stock_list is not None else 0}")
                 return jsonify({
                     'success': False,
-                    'message': '无法获取股票列表'
+                    'message': '无法获取股票列表\n\n可能的原因：\n1. 网络连接问题\n2. akshare 服务暂时不可用\n3. Vercel 环境网络限制\n\n请稍后重试或检查网络连接。'
                 }), 500
             
             total_stocks = len(stock_list)

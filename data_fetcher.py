@@ -17,20 +17,85 @@ class DataFetcher:
         self.stock_list = None
         self._market_cap_cache = None  # 缓存市值数据，避免重复获取
         
-    def get_all_stocks(self):
+    def get_all_stocks(self, timeout=10, max_retries=3):
         """
         获取所有A股股票列表
         返回: DataFrame，包含股票代码、名称等信息
+        :param timeout: 超时时间（秒），默认10秒
+        :param max_retries: 最大重试次数，默认3次
         """
-        try:
-            # 获取沪深A股列表
-            stock_info = ak.stock_info_a_code_name()
-            self.stock_list = stock_info
-            print(f"成功获取 {len(stock_info)} 只A股股票")
-            return stock_info
-        except Exception as e:
-            print(f"获取股票列表失败: {e}")
-            return None
+        import signal
+        import threading
+        
+        for attempt in range(max_retries):
+            try:
+                print(f"[get_all_stocks] 尝试获取股票列表（第 {attempt + 1}/{max_retries} 次）...")
+                
+                # 使用线程和超时机制
+                result = [None]
+                error = [None]
+                
+                def fetch_stocks():
+                    try:
+                        result[0] = ak.stock_info_a_code_name()
+                    except Exception as e:
+                        error[0] = e
+                        import traceback
+                        print(f"[get_all_stocks] 获取失败: {e}")
+                        print(f"[get_all_stocks] 错误堆栈: {traceback.format_exc()}")
+                
+                fetch_thread = threading.Thread(target=fetch_stocks)
+                fetch_thread.daemon = True
+                fetch_thread.start()
+                fetch_thread.join(timeout=timeout)
+                
+                if fetch_thread.is_alive():
+                    print(f"[get_all_stocks] 获取超时（{timeout}秒），尝试重试...")
+                    continue  # 重试
+                
+                if error[0]:
+                    print(f"[get_all_stocks] 获取出错: {error[0]}")
+                    if attempt < max_retries - 1:
+                        print(f"[get_all_stocks] 等待 2 秒后重试...")
+                        import time
+                        time.sleep(2)
+                        continue  # 重试
+                    else:
+                        raise error[0]
+                
+                if result[0] is not None and len(result[0]) > 0:
+                    stock_info = result[0]
+                    self.stock_list = stock_info
+                    print(f"[get_all_stocks] ✅ 成功获取 {len(stock_info)} 只A股股票")
+                    return stock_info
+                else:
+                    print(f"[get_all_stocks] ⚠️ 返回结果为空")
+                    if attempt < max_retries - 1:
+                        print(f"[get_all_stocks] 等待 2 秒后重试...")
+                        import time
+                        time.sleep(2)
+                        continue  # 重试
+                    else:
+                        print(f"[get_all_stocks] ❌ 所有重试都失败，返回 None")
+                        return None
+                        
+            except Exception as e:
+                import traceback
+                error_detail = traceback.format_exc()
+                print(f"[get_all_stocks] ❌ 获取股票列表失败（第 {attempt + 1} 次尝试）: {e}")
+                print(f"[get_all_stocks] 错误详情: {error_detail}")
+                
+                if attempt < max_retries - 1:
+                    print(f"[get_all_stocks] 等待 2 秒后重试...")
+                    import time
+                    time.sleep(2)
+                    continue  # 重试
+                else:
+                    print(f"[get_all_stocks] ❌ 所有重试都失败")
+                    return None
+        
+        print(f"[get_all_stocks] ❌ 所有重试都失败，返回 None")
+        return None
     
     def get_market_cap(self, stock_code, timeout=5):
         """
