@@ -1454,18 +1454,34 @@
                         signal: controller.signal
                     });
                 } catch (fetchError) {
-                    // 如果是因为 signal 被 abort，清除超时并重新抛出
+                    // 清除超时
                     if (timeoutId) {
                         clearTimeout(timeoutId);
+                        timeoutId = null;
                     }
+                    
                     // 检查是否是 AbortError
-                    if (fetchError.name === 'AbortError') {
-                        console.warn('[scanAllStocks] 请求被中断，可能是超时或其他设备启动了扫描');
-                        // 不抛出错误，而是继续等待进度更新
+                    if (fetchError.name === 'AbortError' || fetchError.message?.includes('aborted')) {
+                        console.warn('[scanAllStocks] 请求被中断（AbortError），可能原因：');
+                        console.warn('  1. 请求超时（30秒）');
+                        console.warn('  2. 用户在其他设备/标签页启动了扫描');
+                        console.warn('  3. 网络连接中断');
+                        console.warn('[scanAllStocks] 继续等待进度更新，扫描可能在后台继续...');
+                        
+                        // 不显示错误提示框，只显示警告消息
+                        const errorDiv = document.getElementById('scanErrorDisplay');
+                        if (errorDiv) {
+                            errorDiv.remove();
+                        }
+                        
                         showMessage('请求已中断，但扫描可能已在后台启动。请继续等待进度更新...', 'warning');
-                        return; // 直接返回，不执行后续代码
+                        // 不停止进度轮询，因为扫描可能在后台继续
+                        return; // 直接返回，不执行后续代码，也不抛出错误
                     }
-                    throw fetchError; // 其他错误继续抛出
+                    
+                    // 其他错误继续抛出
+                    console.error('[scanAllStocks] fetch 请求失败（非 AbortError）:', fetchError);
+                    throw fetchError;
                 }
                 
                 // 请求成功，清除超时
