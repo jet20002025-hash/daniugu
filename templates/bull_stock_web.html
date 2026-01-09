@@ -387,13 +387,41 @@
                         <input type="text" id="stockName" placeholder="例如：平安银行（不填将自动获取）">
                     </div>
                 </div>
-                <div class="btn-group">
-                    <button class="btn btn-primary" onclick="addStock()">添加股票</button>
-                    <button class="btn btn-secondary" onclick="clearStocks()">清空所有</button>
-                    <button class="btn btn-primary" onclick="analyzeAllStocks()" style="background: #27ae60;">分析所有股票</button>
-                    <button class="btn btn-primary" onclick="trainFeatures()" style="background: #e67e22;">训练特征模型</button>
-                    <button class="btn btn-primary" onclick="scanAllStocks()" style="background: #e74c3c;" id="scanAllStocksBtn">🔍 扫描全市场</button>
-                    <button class="btn btn-primary" onclick="stopScan()" style="background: #95a5a6;" id="stopScanBtn" disabled>🛑 停止扫描</button>
+                <!-- 功能按钮组（根据环境和用户等级显示） -->
+                <div class="btn-group" id="functionButtonsGroup">
+                    <!-- 本地版本：显示所有功能 -->
+                    <div id="localVersionButtons" style="display: none;">
+                        <button class="btn btn-primary" onclick="addStock()">添加股票</button>
+                        <button class="btn btn-secondary" onclick="clearStocks()">清空所有</button>
+                        <button class="btn btn-primary" onclick="analyzeAllStocks()" style="background: #27ae60;">分析所有股票</button>
+                        <button class="btn btn-primary" onclick="trainFeatures()" style="background: #e67e22;">训练特征模型</button>
+                        <button class="btn btn-primary" onclick="scanAllStocks()" style="background: #e74c3c;" id="scanAllStocksBtn">🔍 扫描全市场</button>
+                        <button class="btn btn-primary" onclick="stopScan()" style="background: #95a5a6;" id="stopScanBtn" disabled>🛑 停止扫描</button>
+                    </div>
+                    
+                    <!-- 网络版本：根据用户等级显示 -->
+                    <div id="webVersionButtons" style="display: none;">
+                        <!-- VIP用户：可以扫描全市场（每天一次） -->
+                        <div id="vipUserButtons" style="display: none;">
+                            <button class="btn btn-primary" onclick="scanAllStocks()" style="background: #e74c3c;" id="scanAllStocksBtnWeb">🔍 扫描全市场（VIP每日一次）</button>
+                            <button class="btn btn-primary" onclick="stopScan()" style="background: #95a5a6;" id="stopScanBtnWeb" disabled>🛑 停止扫描</button>
+                        </div>
+                        
+                        <!-- 免费用户：只显示查看结果按钮 -->
+                        <div id="freeUserButtons" style="display: none;">
+                            <button class="btn btn-primary" onclick="viewScanResults()" style="background: #667eea;">📊 查看扫描结果</button>
+                        </div>
+                        
+                        <!-- 超级用户：显示所有功能 -->
+                        <div id="superUserButtons" style="display: none;">
+                            <button class="btn btn-primary" onclick="addStock()">添加股票</button>
+                            <button class="btn btn-secondary" onclick="clearStocks()">清空所有</button>
+                            <button class="btn btn-primary" onclick="analyzeAllStocks()" style="background: #27ae60;">分析所有股票</button>
+                            <button class="btn btn-primary" onclick="trainFeatures()" style="background: #e67e22;">训练特征模型</button>
+                            <button class="btn btn-primary" onclick="scanAllStocks()" style="background: #e74c3c;" id="scanAllStocksBtnSuper">🔍 扫描全市场</button>
+                            <button class="btn btn-primary" onclick="stopScan()" style="background: #95a5a6;" id="stopScanBtnSuper" disabled>🛑 停止扫描</button>
+                        </div>
+                    </div>
                 </div>
                 <!-- 反转个股筛选条件（仅本地版本显示） -->
                 <div id="reversalStockSection" style="margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #9b59b6; display: none;">
@@ -2663,6 +2691,105 @@
             return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
         }
         
+        // 根据环境和用户等级显示/隐藏功能按钮
+        async function updateFunctionButtonsVisibility() {
+            const isLocal = isLocalEnvironment();
+            const localButtons = document.getElementById('localVersionButtons');
+            const webButtons = document.getElementById('webVersionButtons');
+            const vipButtons = document.getElementById('vipUserButtons');
+            const freeButtons = document.getElementById('freeUserButtons');
+            const superButtons = document.getElementById('superUserButtons');
+            
+            if (isLocal) {
+                // 本地环境：显示所有功能
+                if (localButtons) localButtons.style.display = 'block';
+                if (webButtons) webButtons.style.display = 'none';
+            } else {
+                // 网络环境：根据用户等级显示
+                if (localButtons) localButtons.style.display = 'none';
+                if (webButtons) webButtons.style.display = 'block';
+                
+                // 获取用户信息
+                try {
+                    const user = await getUserInfo();
+                    if (user) {
+                        const tier = user.tier || 'free';
+                        const isSuper = user.is_super || false;
+                        
+                        if (isSuper || tier === 'super') {
+                            // 超级用户：显示所有功能
+                            if (superButtons) superButtons.style.display = 'block';
+                            if (vipButtons) vipButtons.style.display = 'none';
+                            if (freeButtons) freeButtons.style.display = 'none';
+                        } else if (tier === 'premium') {
+                            // VIP用户：显示扫描全市场（每天一次）
+                            if (vipButtons) vipButtons.style.display = 'block';
+                            if (freeButtons) freeButtons.style.display = 'none';
+                            if (superButtons) superButtons.style.display = 'none';
+                        } else {
+                            // 免费用户：只显示查看结果按钮
+                            if (freeButtons) freeButtons.style.display = 'block';
+                            if (vipButtons) vipButtons.style.display = 'none';
+                            if (superButtons) superButtons.style.display = 'none';
+                        }
+                    } else {
+                        // 无法获取用户信息，默认显示免费用户按钮
+                        if (freeButtons) freeButtons.style.display = 'block';
+                        if (vipButtons) vipButtons.style.display = 'none';
+                        if (superButtons) superButtons.style.display = 'none';
+                    }
+                } catch (error) {
+                    console.error('获取用户信息失败:', error);
+                    // 出错时默认显示免费用户按钮
+                    if (freeButtons) freeButtons.style.display = 'block';
+                    if (vipButtons) vipButtons.style.display = 'none';
+                    if (superButtons) superButtons.style.display = 'none';
+                }
+            }
+        }
+        
+        // 查看扫描结果（免费用户专用）
+        async function viewScanResults() {
+            try {
+                showMessage('正在加载扫描结果...', 'success');
+                
+                const response = await fetch('/api/get_scan_results', {
+                    method: 'GET',
+                    cache: 'no-store'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success && result.stocks && result.stocks.length > 0) {
+                    // 显示扫描结果（使用现有的显示函数）
+                    if (typeof displayScanResults === 'function') {
+                        displayScanResults({
+                            candidates: result.stocks,
+                            found_count: result.found_count || result.stocks.length,
+                            total_scanned: result.total_scanned || 0
+                        });
+                    } else {
+                        // 如果没有displayScanResults函数，使用简单显示
+                        const container = document.getElementById('buyPointsResult');
+                        if (container) {
+                            container.style.display = 'block';
+                            container.innerHTML = `<h3>扫描结果（找到 ${result.stocks.length} 只股票）</h3>`;
+                        }
+                    }
+                    showMessage(`成功加载 ${result.stocks.length} 只符合条件的股票`, 'success');
+                } else {
+                    showMessage(result.message || '暂无扫描结果，请等待系统自动扫描（中午和盘后各一次）', 'info');
+                }
+            } catch (error) {
+                console.error('查看扫描结果失败:', error);
+                showMessage('加载扫描结果失败: ' + error.message, 'error');
+            }
+        }
+        
         // 页面加载时获取股票列表
         async function initPageLoad() {
             // 首先检查登录状态
@@ -2670,6 +2797,9 @@
             if (!isLoggedIn) {
                 return; // 未登录，已跳转，不再继续执行
             }
+            
+            // 根据环境和用户等级显示/隐藏功能按钮
+            await updateFunctionButtonsVisibility();
             
             // 根据环境显示/隐藏"搜索反转个股"功能
             const isLocal = isLocalEnvironment();
@@ -2685,8 +2815,11 @@
             // 显示用户信息
             displayUserInfo();
             
-            // 每30秒刷新一次用户信息
-            setInterval(displayUserInfo, 30000);
+            // 每30秒刷新一次用户信息和按钮显示
+            setInterval(async () => {
+                await displayUserInfo();
+                await updateFunctionButtonsVisibility();
+            }, 30000);
             
             try {
                 console.log('[initPageLoad] 初始化页面加载...');

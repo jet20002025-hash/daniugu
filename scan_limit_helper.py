@@ -60,8 +60,63 @@ def check_daily_scan_limit(username: str, user_tier: str, scan_config: Dict, is_
         return True, None, 0
     
     if user_tier == 'premium':
-        # VIP用户：无限制（可以手动扫描）
-        return True, None, 0
+        # VIP用户：每天只能扫描一次
+        beijing_now = get_beijing_time()
+        today_str = beijing_now.strftime('%Y-%m-%d')
+        scan_key = f'vip_scan_count_{username}_{today_str}'
+        
+        try:
+            if is_vercel:
+                # Vercel 环境：从 Redis 读取
+                try:
+                    import scan_progress_store
+                    if hasattr(scan_progress_store, '_upstash_redis_get'):
+                        scan_count_data = scan_progress_store._upstash_redis_get(scan_key)
+                        today_scan_count = int(scan_count_data) if scan_count_data else 0
+                    else:
+                        # 直接使用 Upstash Redis REST API
+                        import os
+                        import requests
+                        redis_url = os.environ.get('UPSTASH_REDIS_REST_URL')
+                        redis_token = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
+                        if redis_url and redis_token:
+                            response = requests.get(
+                                f"{redis_url}/get/{scan_key}",
+                                headers={"Authorization": f"Bearer {redis_token}"},
+                                timeout=5
+                            )
+                            if response.status_code == 200:
+                                result = response.json()
+                                scan_count_data = result.get('result')
+                                today_scan_count = int(scan_count_data) if scan_count_data else 0
+                            else:
+                                today_scan_count = 0
+                        else:
+                            today_scan_count = 0
+                except Exception as e:
+                    print(f"[check_daily_scan_limit] 从 Redis 读取VIP扫描次数失败: {e}")
+                    today_scan_count = 0
+            else:
+                # 本地环境：从文件读取
+                import json
+                import os
+                scan_limit_file = 'scan_limit.json'
+                if os.path.exists(scan_limit_file):
+                    with open(scan_limit_file, 'r', encoding='utf-8') as f:
+                        scan_limits = json.load(f)
+                        today_scan_count = scan_limits.get(scan_key, 0)
+                else:
+                    today_scan_count = 0
+            
+            # VIP用户每天只能扫描一次
+            if today_scan_count >= 1:
+                return False, f'VIP用户每天只能扫描一次，今日已扫描 {today_scan_count} 次。请明天再试。', today_scan_count
+            
+            return True, None, today_scan_count
+        except Exception as e:
+            print(f"[check_daily_scan_limit] 检查VIP扫描限制失败: {e}")
+            # 出错时允许扫描（避免影响用户体验）
+            return True, None, 0
     
     # 免费用户：不允许手动扫描（系统自动扫描）
     manual_scan_allowed = scan_config.get('manual_scan_allowed', False)
@@ -135,7 +190,7 @@ def check_daily_scan_limit(username: str, user_tier: str, scan_config: Dict, is_
 
 def record_scan_count(username: str, is_vercel: bool = False):
     """
-    记录用户今日扫描次数
+    记录用户今日扫描次数（免费用户）
     :param username: 用户名
     :param is_vercel: 是否在Vercel环境
     """
@@ -211,6 +266,84 @@ def record_scan_count(username: str, is_vercel: bool = False):
         print(f"[record_scan_count] 记录扫描次数失败: {e}")
 
 
+def record_vip_scan_count(username: str, is_vercel: bool = False):
+    """
+    记录VIP用户今日扫描次数
+    :param username: 用户名
+    :param is_vercel: 是否在Vercel环境
+    """
+    beijing_now = get_beijing_time()
+    today_str = beijing_now.strftime('%Y-%m-%d')
+    scan_key = f'vip_scan_count_{username}_{today_str}'
+    
+    try:
+        if is_vercel:
+            # Vercel 环境：保存到 Redis
+            try:
+                import scan_progress_store
+                if hasattr(scan_progress_store, '_upstash_redis_get') and hasattr(scan_progress_store, '_upstash_redis_set'):
+                    # 获取当前计数
+                    current_count = scan_progress_store._upstash_redis_get(scan_key)
+                    new_count = int(current_count) + 1 if current_count else 1
+                    # 保存到 Redis
+                    scan_progress_store._upstash_redis_set(scan_key, str(new_count))
+                else:
+                    # 直接使用 Upstash Redis REST API
+                    import os
+                    import requests
+                    redis_url = os.environ.get('UPSTASH_REDIS_REST_URL')
+                    redis_token = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
+                    if redis_url and redis_token:
+                        # 获取当前计数
+                        response = requests.get(
+                            f"{redis_url}/get/{scan_key}",
+                            headers={"Authorization": f"Bearer {redis_token}"},
+                            timeout=5
+                        )
+                        current_count = 0
+                        if response.status_code == 200:
+                            result = response.json()
+                            count_data = result.get('result')
+                            current_count = int(count_data) if count_data else 0
+                        
+                        new_count = current_count + 1
+                        # 保存到 Redis，TTL 设置为 25 小时（86400 + 3600 秒）
+                        requests.post(
+                            f"{redis_url}/setex/{scan_key}/90000/{new_count}",
+                            headers={
+                                "Authorization": f"Bearer {redis_token}",
+                                "Content-Type": "application/json"
+                            },
+                            timeout=5
+                        )
+            except Exception as e:
+                print(f"[record_vip_scan_count] 保存到 Redis 失败: {e}")
+        else:
+            # 本地环境：保存到文件
+            import json
+            import os
+            scan_limit_file = 'scan_limit.json'
+            if os.path.exists(scan_limit_file):
+                with open(scan_limit_file, 'r', encoding='utf-8') as f:
+                    scan_limits = json.load(f)
+            else:
+                scan_limits = {}
+            
+            current_count = scan_limits.get(scan_key, 0)
+            scan_limits[scan_key] = current_count + 1
+            
+            # 清理7天前的记录
+            seven_days_ago = (beijing_now - timedelta(days=7)).strftime('%Y-%m-%d')
+            keys_to_remove = [k for k in scan_limits.keys() if k.endswith(seven_days_ago)]
+            for k in keys_to_remove:
+                del scan_limits[k]
+            
+            with open(scan_limit_file, 'w', encoding='utf-8') as f:
+                json.dump(scan_limits, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[record_vip_scan_count] 记录VIP扫描次数失败: {e}")
+
+
 def check_result_view_time(user_tier: str, scan_config: Dict) -> Tuple[bool, Optional[str]]:
     """
     检查用户是否可以在当前时间查看扫描结果
@@ -243,4 +376,3 @@ def check_result_view_time(user_tier: str, scan_config: Dict) -> Tuple[bool, Opt
         if current_time_minutes < view_time_minutes:
             return False, f'免费用户可在下午{result_view_hour}:{result_view_minute:02d}后查看结果（系统{result_view_hour}:00自动扫描），当前时间：{beijing_now.strftime("%H:%M")}'
         return True, None
-

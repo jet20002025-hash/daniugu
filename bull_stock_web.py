@@ -1342,7 +1342,7 @@ def scan_all_stocks():
         
         # 检查扫描时间限制（仅对VIP用户，超级用户无限制）
         if user_tier == 'premium':
-            from scan_limit_helper import check_scan_time_limit
+            from scan_limit_helper import check_scan_time_limit, check_daily_scan_limit
             can_scan, time_error = check_scan_time_limit(user_tier, scan_config)
             if not can_scan:
                 return jsonify({
@@ -1350,8 +1350,17 @@ def scan_all_stocks():
                     'message': time_error,
                     'error_code': 'TIME_LIMIT'
                 }), 403
+            
+            # VIP用户每天只能扫描一次
+            can_scan_daily, daily_error, today_count = check_daily_scan_limit(username, user_tier, scan_config, is_vercel)
+            if not can_scan_daily:
+                return jsonify({
+                    'success': False,
+                    'message': daily_error or f'VIP用户每天只能扫描一次，今日已扫描 {today_count} 次。请明天再试。',
+                    'error_code': 'DAILY_LIMIT'
+                }), 403
         
-        # VIP用户和超级用户无每日扫描次数限制（已在get_scan_config中设置）
+        # 超级用户无每日扫描次数限制
         
         data = request.get_json() or {}
         min_match_score = float(data.get('min_match_score', 0.97))
@@ -1443,11 +1452,15 @@ def scan_all_stocks():
             }
             scan_progress_store.save_scan_progress(scan_id, initial_progress)
             
-            # 记录扫描次数（免费用户）
-            if user_tier == 'free':
-                from scan_limit_helper import record_scan_count
-                record_scan_count(username, is_vercel)
-                print(f"[scan_all_stocks] 记录免费用户 {username} 的扫描次数")
+            # 记录扫描次数（免费用户和VIP用户都需要记录）
+            if user_tier in ['free', 'premium']:
+                from scan_limit_helper import record_scan_count, record_vip_scan_count
+                if user_tier == 'free':
+                    record_scan_count(username, is_vercel)
+                    print(f"[scan_all_stocks] 记录免费用户 {username} 的扫描次数")
+                else:  # premium
+                    record_vip_scan_count(username, is_vercel)
+                    print(f"[scan_all_stocks] 记录VIP用户 {username} 的扫描次数")
             
             # 处理第一批（在请求中同步处理，避免超时）
             try:
