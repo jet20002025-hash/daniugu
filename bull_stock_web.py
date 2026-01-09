@@ -1190,9 +1190,16 @@ def continue_scan():
         # 获取当前进度
         progress = scan_progress_store.get_scan_progress(scan_id)
         if not progress:
+            # 提供更详细的错误信息
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"⚠️ 找不到扫描任务 scan_id={scan_id}")
+            print(f"   可能原因：1) Redis 数据过期（TTL 24小时） 2) scan_id 错误 3) Redis 连接问题")
             return jsonify({
                 'success': False,
-                'message': '找不到扫描任务'
+                'message': f'找不到扫描任务（scan_id: {scan_id}）。可能原因：数据已过期（超过24小时）或任务已删除。',
+                'error_code': 'SCAN_NOT_FOUND',
+                'scan_id': scan_id
             }), 404
         
         # 检查是否已完成

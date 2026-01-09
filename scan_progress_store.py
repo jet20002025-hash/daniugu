@@ -129,7 +129,7 @@ def save_scan_progress(scan_id: str, progress: Dict) -> bool:
         progress['saved_at'] = datetime.now().isoformat()
         
         if _storage_type == 'upstash_redis':
-            return _upstash_redis_set(f'scan_progress:{scan_id}', progress, ttl=7200)  # 2小时TTL
+            return _upstash_redis_set(f'scan_progress:{scan_id}', progress, ttl=86400)  # 24小时TTL（避免长时间扫描时数据过期）
         elif _storage_type == 'vercel_kv':
             from vercel_kv import kv
             kv.set(f'scan_progress:{scan_id}', json.dumps(progress, default=str), ex=7200)

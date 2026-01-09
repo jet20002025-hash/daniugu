@@ -2198,10 +2198,29 @@
                 }
             } catch (error) {
                 console.error(`处理第 ${currentBatch + 1} 批失败:`, error);
+                
+                // 检查是否是 404 错误（扫描任务丢失）
+                if (error.message && error.message.includes('404')) {
+                    showMessage(`扫描任务已丢失（可能数据已过期）。已处理 ${currentBatch}/${totalBatches} 批。`, 'error');
+                    hideProgress();
+                    stopProgressPolling();
+                    const stopBtn = document.getElementById('stopScanBtn');
+                    if (stopBtn) stopBtn.disabled = true;
+                    return; // 停止继续处理
+                }
+                
                 showMessage(`处理第 ${currentBatch + 1} 批失败: ${error.message}`, 'error');
-                // 尝试继续下一批次（如果可能）
-                if (currentBatch + 1 < totalBatches) {
+                // 尝试继续下一批次（如果可能，且不是 404 错误）
+                if (currentBatch + 1 < totalBatches && !error.message.includes('404')) {
+                    console.log(`2秒后重试第 ${currentBatch + 2} 批...`);
                     setTimeout(() => autoContinueScan(scanId, currentBatch + 1, totalBatches), 2000);
+                } else {
+                    // 如果是最后一批或 404 错误，停止处理
+                    console.error('无法继续处理，停止扫描');
+                    hideProgress();
+                    stopProgressPolling();
+                    const stopBtn = document.getElementById('stopScanBtn');
+                    if (stopBtn) stopBtn.disabled = true;
                 }
             }
         }
