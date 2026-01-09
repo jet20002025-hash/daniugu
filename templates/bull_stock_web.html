@@ -1427,132 +1427,124 @@
                                     }
                                 });
                                 const progressResult = await progressResponse.json();
-                            
-                            if (progressResult.success && progressResult.progress) {
-                                const progress = progressResult.progress;
                                 
-                                // 检查进度是否长时间未更新（可能卡住了）
-                                if (progress.last_update_time) {
-                                    const timeSinceUpdate = (Date.now() / 1000) - progress.last_update_time;
+                                if (progressResult.success && progressResult.progress) {
+                                    const progress = progressResult.progress;
                                     
-                                    // 如果进度有更新，重置计数器
-                                    if (progress.percentage > 0 || progress.current > 0) {
-                                        const currentProgress = progress.percentage || 0;
-                                        const currentTime = Date.now();
-                                        if (currentProgress > 0 || currentTime - lastProgressTime > 1000) {
-                                            lastProgressTime = currentTime;
-                                            noUpdateCount = 0; // 重置未更新计数
-                                        }
-                                    }
-                                    
-                                    // 如果超过10分钟未更新，才认为可能卡住了（全市场扫描需要很长时间）
-                                    if (timeSinceUpdate > 600) {  // 10分钟未更新，可能卡住了
-                                        noUpdateCount++;
-                                        console.warn(`⚠️ 进度已 ${timeSinceUpdate.toFixed(0)} 秒未更新，可能卡在: ${progress.current_stock || '未知股票'}`);
+                                    // 检查进度是否长时间未更新（可能卡住了）
+                                    if (progress.last_update_time) {
+                                        const timeSinceUpdate = (Date.now() / 1000) - progress.last_update_time;
                                         
-                                        // 如果连续5次检查都超过10分钟未更新，才真正认为卡住了
-                                        if (noUpdateCount >= 5) {
-                                            clearInterval(scanCheckInterval);
-                                            scanCheckInterval = null;
-                                            stopProgressPolling();
-                                            showMessage(`扫描可能已卡住（已超过 ${Math.floor(timeSinceUpdate / 60)} 分钟未更新），请检查服务器日志或手动停止扫描`, 'error');
-                                            return;
-                                        }
-                                    } else {
-                                        noUpdateCount = 0; // 有更新，重置计数
-                                    }
-                                }
-                                
-                                updateProgress(
-                                    progress.percentage || 0,
-                                    progress.status || '进行中',
-                                    progress.detail || '扫描中...'
-                                );
-                                
-                                // 如果状态是"进行中"，继续等待，不设置超时
-                                if (progress.status === '进行中') {
-                                    // 继续等待，不设置超时限制
-                                    // 每100次检查输出一次日志（约100秒）
-                                    if (checkCount % 100 === 0) {
-                                        console.log(`扫描进行中... 已检查 ${checkCount} 次，当前进度: ${progress.percentage}%`);
-                                    }
-                                } else if (progress.status === '完成') {
-                                    clearInterval(scanCheckInterval);
-                                    scanCheckInterval = null;
-                                    stopProgressPolling();
-                                    
-                                    // 禁用停止按钮
-                                    if (stopBtn) {
-                                        stopBtn.disabled = true;
-                                    }
-                                    
-                                    // 获取扫描结果
-                                    const resultsResponse = await fetch('/api/get_scan_results');
-                                    const resultsResult = await resultsResponse.json();
-                                    
-                                    if (resultsResult.success && resultsResult.candidates) {
-                                        displayScanResults(resultsResult);
-                                        showMessage(`扫描完成！找到 ${resultsResult.found_count || 0} 只符合条件的股票`, 'success');
-                                    } else {
-                                        showMessage(resultsResult.message || '扫描完成，但未找到符合条件的股票', 'error');
-                                    }
-                                } else if (progress.status === '失败' || progress.status === '已停止') {
-                                    clearInterval(scanCheckInterval);
-                                    scanCheckInterval = null;
-                                    stopProgressPolling();
-                                    
-                                    // 禁用停止按钮
-                                    if (stopBtn) {
-                                        stopBtn.disabled = true;
-                                    }
-                                    
-                                    if (progress.status === '已停止') {
-                                        showMessage('扫描已停止', 'warning');
-                                        // 如果已停止，立即获取已扫描的结果
-                                        try {
-                                            const resultsResponse = await fetch('/api/get_scan_results');
-                                            const resultsResult = await resultsResponse.json();
-                                            console.log('停止后的扫描结果:', resultsResult);
-                                            
-                                            if (resultsResult.success) {
-                                                if (resultsResult.candidates && resultsResult.candidates.length > 0) {
-                                                    displayScanResults(resultsResult);
-                                                    showMessage(`扫描已停止，已找到 ${resultsResult.found_count || resultsResult.candidates.length || 0} 只符合条件的股票`, 'success');
-                                                } else {
-                                                    showMessage('扫描已停止，但未找到符合条件的股票', 'warning');
-                                                }
-                                            } else {
-                                                showMessage('扫描已停止，但无法获取结果: ' + (resultsResult.message || '未知错误'), 'warning');
+                                        // 如果进度有更新，重置计数器
+                                        if (progress.percentage > 0 || progress.current > 0) {
+                                            const currentProgress = progress.percentage || 0;
+                                            const currentTime = Date.now();
+                                            if (currentProgress > 0 || currentTime - lastProgressTime > 1000) {
+                                                lastProgressTime = currentTime;
+                                                noUpdateCount = 0; // 重置未更新计数
                                             }
-                                        } catch (error) {
-                                            console.error('获取停止后的扫描结果失败:', error);
-                                            showMessage('扫描已停止，但获取结果时出错: ' + error.message, 'warning');
                                         }
-                                    } else {
-                                        showMessage(progress.detail || '扫描失败', 'error');
+                                        
+                                        // 如果超过10分钟未更新，才认为可能卡住了（全市场扫描需要很长时间）
+                                        if (timeSinceUpdate > 600) {  // 10分钟未更新，可能卡住了
+                                            noUpdateCount++;
+                                            console.warn(`⚠️ 进度已 ${timeSinceUpdate.toFixed(0)} 秒未更新，可能卡在: ${progress.current_stock || '未知股票'}`);
+                                            
+                                            // 如果连续5次检查都超过10分钟未更新，才真正认为卡住了
+                                            if (noUpdateCount >= 5) {
+                                                clearInterval(scanCheckInterval);
+                                                scanCheckInterval = null;
+                                                stopProgressPolling();
+                                                showMessage(`扫描可能已卡住（已超过 ${Math.floor(timeSinceUpdate / 60)} 分钟未更新），请检查服务器日志或手动停止扫描`, 'error');
+                                                return;
+                                            }
+                                        } else {
+                                            noUpdateCount = 0; // 有更新，重置计数
+                                        }
                                     }
+                                    
+                                    updateProgress(
+                                        progress.percentage || 0,
+                                        progress.status || '进行中',
+                                        progress.detail || '扫描中...'
+                                    );
+                                    
+                                    // 如果状态是"进行中"，继续等待，不设置超时
+                                    if (progress.status === '进行中') {
+                                        // 继续等待，不设置超时限制
+                                        // 每100次检查输出一次日志（约100秒）
+                                        if (checkCount % 100 === 0) {
+                                            console.log(`扫描进行中... 已检查 ${checkCount} 次，当前进度: ${progress.percentage}%`);
+                                        }
+                                    } else if (progress.status === '完成') {
+                                        clearInterval(scanCheckInterval);
+                                        scanCheckInterval = null;
+                                        stopProgressPolling();
+                                        
+                                        // 禁用停止按钮
+                                        if (stopBtn) {
+                                            stopBtn.disabled = true;
+                                        }
+                                        
+                                        // 获取扫描结果
+                                        const resultsResponse = await fetch('/api/get_scan_results');
+                                        const resultsResult = await resultsResponse.json();
+                                        
+                                        if (resultsResult.success && resultsResult.candidates) {
+                                            displayScanResults(resultsResult);
+                                            showMessage(`扫描完成！找到 ${resultsResult.found_count || 0} 只符合条件的股票`, 'success');
+                                        } else {
+                                            showMessage(resultsResult.message || '扫描完成，但未找到符合条件的股票', 'error');
+                                        }
+                                    } else if (progress.status === '失败' || progress.status === '已停止') {
+                                        clearInterval(scanCheckInterval);
+                                        scanCheckInterval = null;
+                                        stopProgressPolling();
+                                        
+                                        // 禁用停止按钮
+                                        if (stopBtn) {
+                                            stopBtn.disabled = true;
+                                        }
+                                        
+                                        if (progress.status === '已停止') {
+                                            showMessage('扫描已停止', 'warning');
+                                            // 如果已停止，立即获取已扫描的结果
+                                            try {
+                                                const resultsResponse = await fetch('/api/get_scan_results');
+                                                const resultsResult = await resultsResponse.json();
+                                                console.log('停止后的扫描结果:', resultsResult);
+                                                
+                                                if (resultsResult.success) {
+                                                    if (resultsResult.candidates && resultsResult.candidates.length > 0) {
+                                                        displayScanResults(resultsResult);
+                                                        showMessage(`扫描已停止，已找到 ${resultsResult.found_count || resultsResult.candidates.length || 0} 只符合条件的股票`, 'success');
+                                                    } else {
+                                                        showMessage('扫描已停止，但未找到符合条件的股票', 'warning');
+                                                    }
+                                                } else {
+                                                    showMessage('扫描已停止，但无法获取结果: ' + (resultsResult.message || '未知错误'), 'warning');
+                                                }
+                                            } catch (error) {
+                                                console.error('获取停止后的扫描结果失败:', error);
+                                                showMessage('扫描已停止，但获取结果时出错: ' + error.message, 'warning');
+                                            }
+                                        } else {
+                                            showMessage(progress.detail || '扫描失败', 'error');
+                                        }
+                                    }
+                                } else {
+                                    // 如果获取进度失败，可能是服务重启了
+                                    console.warn('无法获取进度信息，扫描可能已停止');
                                 }
-                            } else {
-                                // 如果获取进度失败，可能是服务重启了
-                                console.warn('无法获取进度信息，扫描可能已停止');
+                            } catch (error) {
+                                console.error('检查扫描结果失败:', error);
+                                // 如果连续多次失败，可能是服务问题
+                                if (checkCount > 10 && checkCount % 10 === 0) {
+                                    console.warn(`⚠️ 已连续 ${checkCount} 次无法获取进度，扫描可能已停止`);
+                                }
                             }
-                        } catch (error) {
-                            console.error('检查扫描结果失败:', error);
-                            // 如果连续多次失败，可能是服务问题
-                            if (checkCount > 10 && checkCount % 10 === 0) {
-                                console.warn(`⚠️ 已连续 ${checkCount} 次无法获取进度，扫描可能已停止`);
-                            }
-                        }
-                    }, 1000); // 每1秒检查一次
-                } else {
-                    // 禁用停止按钮
-                    if (stopBtn) {
-                        stopBtn.disabled = true;
+                        }, 1000); // 每1秒检查一次
                     }
-                    stopProgressPolling();
-                    hideProgress();
-                    showMessage(result.message || '扫描启动失败', 'error');
-                }
             } catch (error) {
                 if (error.name === 'AbortError') {
                     // 请求超时，但扫描可能已在后台启动
