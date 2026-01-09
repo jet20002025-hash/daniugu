@@ -1207,14 +1207,39 @@
             }
             
             try {
+                // 获取当前扫描的 scan_id（如果有）
+                const scanId = window.currentScanId || null;
+                console.log('[stopScan] 停止扫描，scan_id:', scanId);
+                
+                const requestBody = {};
+                if (scanId) {
+                    requestBody.scan_id = scanId;
+                }
+                
                 const response = await fetch('/api/stop_scan', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
-                    }
+                    },
+                    body: JSON.stringify(requestBody)
                 });
                 
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('[stopScan] HTTP错误:', response.status, errorText);
+                    let errorMsg = `停止扫描失败: HTTP ${response.status}`;
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        errorMsg = errorJson.message || errorMsg;
+                    } catch (e) {
+                        errorMsg += ` - ${errorText.substring(0, 100)}`;
+                    }
+                    showMessage(errorMsg, 'error');
+                    return;
+                }
+                
                 const result = await response.json();
+                console.log('[stopScan] 停止扫描响应:', result);
                 
                 if (result.success) {
                     showMessage('已发送停止扫描请求，正在停止...', 'success');
@@ -1280,7 +1305,11 @@
                     showMessage('停止扫描失败: ' + result.message, 'error');
                 }
             } catch (error) {
-                showMessage('停止扫描失败: ' + error.message, 'error');
+                console.error('[stopScan] 停止扫描异常:', error);
+                const errorMsg = error.name === 'AbortError' 
+                    ? '停止扫描请求超时，但可能已发送。请等待几秒后查看状态。'
+                    : `停止扫描失败: ${error.message || '未知错误'}`;
+                showMessage(errorMsg, 'error');
             }
         }
         

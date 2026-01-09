@@ -1527,21 +1527,66 @@ def stop_scan():
         if is_vercel:
             data = request.get_json() or {}
             scan_id = data.get('scan_id')
+            
+            print(f"[stop_scan] Vercel 环境，收到停止请求，scan_id: {scan_id}")
+            
             if scan_id:
-                import scan_progress_store
-                progress = scan_progress_store.get_scan_progress(scan_id)
-                if progress:
-                    progress['status'] = '已停止'
-                    progress['detail'] = '扫描已停止（用户请求）'
-                    scan_progress_store.save_scan_progress(scan_id, progress)
+                try:
+                    import scan_progress_store
+                    progress = scan_progress_store.get_scan_progress(scan_id)
+                    if progress:
+                        progress['status'] = '已停止'
+                        progress['detail'] = '扫描已停止（用户请求）'
+                        import time
+                        progress['last_update_time'] = time.time()
+                        scan_progress_store.save_scan_progress(scan_id, progress)
+                        print(f"[stop_scan] ✅ 成功停止扫描任务: {scan_id}")
+                        return jsonify({
+                            'success': True,
+                            'message': '停止扫描请求已发送',
+                            'scan_id': scan_id
+                        })
+                    else:
+                        print(f"[stop_scan] ⚠️ 找不到扫描任务: {scan_id}")
+                        return jsonify({
+                            'success': False,
+                            'message': f'找不到扫描任务（scan_id: {scan_id}），可能已过期或已完成'
+                        }), 404
+                except Exception as e:
+                    import traceback
+                    error_detail = traceback.format_exc()
+                    print(f"[stop_scan] ❌ 停止扫描时出错: {error_detail}")
                     return jsonify({
-                        'success': True,
-                        'message': '停止扫描请求已发送'
-                    })
+                        'success': False,
+                        'message': f'停止扫描失败: {str(e)}'
+                    }), 500
+            else:
+                # 如果没有提供 scan_id，尝试从当前窗口的全局变量获取
+                print(f"[stop_scan] ⚠️ 未提供 scan_id，尝试查找当前扫描任务...")
+                # 在 Vercel 环境中，如果没有 scan_id，无法停止特定的扫描
+                # 但我们可以返回一个友好的错误消息
+                return jsonify({
+                    'success': False,
+                    'message': '未提供扫描任务ID（scan_id），无法停止扫描。请刷新页面后重试。'
+                }), 400
         
         # 本地环境
         init_analyzer()  # 确保分析器已初始化
+        
+        if analyzer is None:
+            return jsonify({
+                'success': False,
+                'message': '分析器未初始化'
+            }), 500
+        
+        if not hasattr(analyzer, 'stop_scanning'):
+            return jsonify({
+                'success': False,
+                'message': '分析器不支持停止扫描功能'
+            }), 500
+        
         analyzer.stop_scanning()
+        print(f"[stop_scan] ✅ 本地环境，已发送停止扫描请求")
         return jsonify({
             'success': True,
             'message': '停止扫描请求已发送'
@@ -1549,10 +1594,11 @@ def stop_scan():
     except Exception as e:
         import traceback
         error_detail = traceback.format_exc()
-        print(f"停止扫描错误: {error_detail}")
+        print(f"[stop_scan] ❌ 停止扫描错误: {error_detail}")
         return jsonify({
             'success': False,
-            'message': f'服务器错误: {str(e)}'
+            'message': f'服务器错误: {str(e)}',
+            'error_detail': error_detail if not is_vercel else None  # Vercel 环境不返回详细错误
         }), 500
 
 
