@@ -1400,23 +1400,49 @@
                 // 确保 stopBtn 在作用域内
                 const stopBtn = document.getElementById('stopScanBtn');
                 // 使用AbortController设置超时（30秒）
+                // 每个请求使用独立的 controller，避免多设备/多标签页冲突
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 30000);
+                let timeoutId = null;
                 
-                const response = await fetch('/api/scan_all_stocks', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        min_match_score: minMatch,
-                        max_market_cap: maxCap,
-                        limit: scanLimit
-                    }),
-                    signal: controller.signal
-                });
+                // 设置超时，但只在请求真正超时时才中断
+                timeoutId = setTimeout(() => {
+                    console.warn('[scanAllStocks] 请求超时（30秒），中断请求');
+                    controller.abort();
+                }, 30000);
                 
-                clearTimeout(timeoutId);
+                let response;
+                try {
+                    response = await fetch('/api/scan_all_stocks', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            min_match_score: minMatch,
+                            max_market_cap: maxCap,
+                            limit: scanLimit
+                        }),
+                        signal: controller.signal
+                    });
+                } catch (fetchError) {
+                    // 如果是因为 signal 被 abort，清除超时并重新抛出
+                    if (timeoutId) {
+                        clearTimeout(timeoutId);
+                    }
+                    // 检查是否是 AbortError
+                    if (fetchError.name === 'AbortError') {
+                        console.warn('[scanAllStocks] 请求被中断，可能是超时或其他设备启动了扫描');
+                        // 不抛出错误，而是继续等待进度更新
+                        showMessage('请求已中断，但扫描可能已在后台启动。请继续等待进度更新...', 'warning');
+                        return; // 直接返回，不执行后续代码
+                    }
+                    throw fetchError; // 其他错误继续抛出
+                }
+                
+                // 请求成功，清除超时
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                }
                 
                 if (!response.ok) {
                     const errorText = await response.text();
@@ -1672,10 +1698,22 @@
                 }, 10000);
                 
                 if (error.name === 'AbortError') {
-                    // 请求超时，但扫描可能已在后台启动
-                    console.warn('[scanAllStocks] 请求超时，但扫描可能已在后台启动');
-                    showMessage('请求超时，但扫描可能已在后台启动，请继续等待进度更新...', 'warning');
+                    // 请求超时或被中断，但扫描可能已在后台启动
+                    console.warn('[scanAllStocks] 请求被中断（AbortError），可能原因：');
+                    console.warn('  1. 请求超时（30秒）');
+                    console.warn('  2. 用户在其他设备/标签页启动了扫描');
+                    console.warn('  3. 网络连接中断');
+                    console.warn('[scanAllStocks] 继续等待进度更新，扫描可能在后台继续...');
+                    
+                    // 不显示错误提示框，只显示警告消息
+                    const errorDiv = document.getElementById('scanErrorDisplay');
+                    if (errorDiv) {
+                        errorDiv.remove();
+                    }
+                    
+                    showMessage('请求已中断，但扫描可能已在后台启动。请继续等待进度更新...', 'warning');
                     // 不停止进度轮询，因为扫描可能在后台继续
+                    return; // 直接返回，不执行后续的错误处理
                 } else {
                     // 禁用停止按钮
                     const stopBtn = document.getElementById('stopScanBtn');
