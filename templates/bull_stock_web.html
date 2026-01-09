@@ -292,6 +292,31 @@
             color: #667eea;
         }
     </style>
+    <script>
+        // 页面加载前立即检查登录状态（在HTML渲染之前）
+        (async function() {
+            try {
+                const response = await fetch('/api/check_login', {
+                    method: 'GET',
+                    cache: 'no-store',
+                    credentials: 'same-origin'
+                });
+                const result = await response.json();
+                
+                if (!result.success || !result.logged_in) {
+                    // 未登录，立即跳转到登录页面（不渲染当前页面）
+                    console.log('[页面加载前检查] 用户未登录，立即跳转到登录页面');
+                    window.location.replace('/login');
+                    return;
+                }
+                console.log('[页面加载前检查] 用户已登录，继续加载页面');
+            } catch (error) {
+                console.error('[页面加载前检查] 检查登录状态失败:', error);
+                // 出错时也跳转到登录页面
+                window.location.replace('/login');
+            }
+        })();
+    </script>
 </head>
 <body>
     <div class="container">
