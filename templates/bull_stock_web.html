@@ -541,11 +541,19 @@
                 const result = await response.json();
                 
                 console.log('模型检查结果:', result);
+                console.log('模型检查详情:', {
+                    success: result.success,
+                    hasCommonFeatures: !!result.common_features,
+                    commonFeaturesLength: result.common_features ? Object.keys(result.common_features).length : 0,
+                    commonFeaturesKeys: result.common_features ? Object.keys(result.common_features).slice(0, 5) : []
+                });
                 
                 // 检查模型是否存在：success 为 true 且 common_features 存在且不为空
                 const hasFeatures = result.success && 
                     result.common_features && 
                     Object.keys(result.common_features).length > 0;
+                
+                console.log('hasFeatures:', hasFeatures);
                 
                 if (hasFeatures) {
                     // 模型存在，隐藏警告信息
@@ -1294,11 +1302,19 @@
                 const featuresResult = await featuresResponse.json();
                 
                 console.log('特征模型检查结果:', featuresResult);
+                console.log('特征模型检查详情:', {
+                    success: featuresResult.success,
+                    hasCommonFeatures: !!featuresResult.common_features,
+                    commonFeaturesLength: featuresResult.common_features ? Object.keys(featuresResult.common_features).length : 0,
+                    message: featuresResult.message
+                });
                 
                 // 检查模型是否存在：success 为 true 且 common_features 存在且不为空
                 const hasFeatures = featuresResult.success && 
                     featuresResult.common_features && 
                     Object.keys(featuresResult.common_features).length > 0;
+                
+                console.log('hasFeatures (scanAllStocks):', hasFeatures);
                 
                 if (!hasFeatures) {
                     showMessage('请先添加大牛股、分析股票并训练特征模型！', 'error');

@@ -629,13 +629,21 @@ def save_model():
 def get_trained_features():
     """获取训练好的特征模板API"""
     try:
+        init_analyzer()  # 确保分析器已初始化
         trained = analyzer.get_trained_features()
         
+        print(f"[get_trained_features] trained 是否为 None: {trained is None}")
+        if trained is not None:
+            print(f"[get_trained_features] trained 有 common_features: {trained.get('common_features') is not None}")
+            if trained.get('common_features'):
+                print(f"[get_trained_features] common_features 数量: {len(trained.get('common_features', {}))}")
+        
         if trained is None:
+            print("[get_trained_features] 返回：模型不存在")
             return jsonify({
                 'success': False,
                 'message': '尚未训练特征模型',
-                'trained_features': None,
+                'common_features': None,
                 'match_score_ready': False,
                 'max_match_score': 0.0
             })
@@ -660,10 +668,17 @@ def get_trained_features():
                     '样本数': int(stats['样本数'])
                 }
         
+        print(f"[get_trained_features] 返回 common_features 数量: {len(result['common_features'])}")
+        
         # 检查匹配度状态
-        is_ready, max_score = analyzer._check_match_score()
-        result['match_score_ready'] = is_ready
-        result['max_match_score'] = max_score
+        try:
+            is_ready, max_score = analyzer._check_match_score()
+            result['match_score_ready'] = is_ready
+            result['max_match_score'] = max_score
+        except Exception as e:
+            print(f"[get_trained_features] 检查匹配度状态失败: {e}")
+            result['match_score_ready'] = False
+            result['max_match_score'] = 0.0
         
         return jsonify(result)
         
@@ -674,6 +689,7 @@ def get_trained_features():
         return jsonify({
             'success': False,
             'message': f'服务器错误: {str(e)}',
+            'common_features': None,
             'match_score_ready': False,
             'max_match_score': 0.0
         }), 500
