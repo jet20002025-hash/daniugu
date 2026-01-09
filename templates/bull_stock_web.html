@@ -2143,8 +2143,10 @@
                 return;
             }
             
-            // 等待一小段时间，让上一批次完成（增加延迟以提高稳定性）
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // 根据用户等级获取延迟时间
+            const userInfo = await getUserInfo();
+            const batchDelay = userInfo?.scan_config?.batch_delay || 3; // 默认3秒（免费版）
+            await new Promise(resolve => setTimeout(resolve, batchDelay * 1000));
             
             try {
                 console.log(`开始处理第 ${currentBatch + 1}/${totalBatches} 批...`);

@@ -70,6 +70,47 @@ app.config['SECRET_KEY'] = 'bull-stock-analyzer-secret-key-change-in-production'
 # 使用延迟初始化，避免阻塞Flask启动
 analyzer = None
 
+def is_premium_user():
+    """检查用户是否为付费用户（VIP）"""
+    try:
+        user = get_current_user()
+        if not user:
+            return False
+        return user.get('is_vip', False) or user.get('is_premium', False)
+    except:
+        return False
+
+def get_user_tier():
+    """获取用户等级：'free' 或 'premium'"""
+    if is_premium_user():
+        return 'premium'
+    return 'free'
+
+def get_scan_config():
+    """根据用户等级返回扫描配置"""
+    is_premium = is_premium_user()
+    
+    if is_premium:
+        # 收费版（VIP）：快速扫描
+        return {
+            'batch_size': 50,      # 50只/批
+            'batch_delay': 1,      # 延迟1秒
+            'stock_timeout': 10,   # 单股票10秒
+            'retry_delay': 2,      # 重试延迟2秒
+            'daily_limit': None,   # 无限制
+            'scan_interval': 0     # 无间隔
+        }
+    else:
+        # 免费版：慢速扫描
+        return {
+            'batch_size': 20,      # 20只/批（更慢）
+            'batch_delay': 3,      # 延迟3秒（更慢）
+            'stock_timeout': 8,    # 单股票8秒
+            'retry_delay': 5,      # 重试延迟5秒
+            'daily_limit': 2000,   # 每日2000只
+            'scan_interval': 180   # 间隔3分钟
+        }
+
 def init_analyzer():
     """延迟初始化分析器"""
     global analyzer
@@ -367,6 +408,102 @@ def add_stock():
             'message': f'服务器错误: {str(e)}'
         }), 500
 
+
+@app.route('/api/user_info')
+@require_login
+def get_user_info():
+    """获取当前用户信息（包括等级）"""
+    try:
+        user = get_current_user()
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': '未登录'
+            }), 401
+        
+        is_premium = user.get('is_vip', False) or user.get('is_premium', False)
+        tier = 'premium' if is_premium else 'free'
+        scan_config = get_scan_config()
+        
+        return jsonify({
+            'success': True,
+            'user': {
+                'username': user.get('username'),
+                'email': user.get('email'),
+                'tier': tier,
+                'is_premium': is_premium,
+                'scan_config': scan_config
+            }
+        })
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"获取用户信息错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'服务器错误: {str(e)}'
+        }), 500
+
+@app.route('/api/admin/set_vip', methods=['POST'])
+@require_login
+def admin_set_vip():
+    """管理员设置用户VIP状态（手动收费）"""
+    try:
+        # 检查是否为管理员（可以根据需要添加管理员判断）
+        user = get_current_user()
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': '未登录'
+            }), 401
+        
+        data = request.get_json() or {}
+        target_username = data.get('username')
+        is_vip = data.get('is_vip', False)
+        
+        if not target_username:
+            return jsonify({
+                'success': False,
+                'message': '缺少用户名参数'
+            }), 400
+        
+        # 加载用户数据
+        if is_vercel:
+            from user_auth_vercel import load_users, save_users
+        else:
+            from user_auth import load_users, save_users
+        
+        users = load_users()
+        
+        if target_username not in users:
+            return jsonify({
+                'success': False,
+                'message': '用户不存在'
+            }), 404
+        
+        # 更新VIP状态
+        users[target_username]['is_vip'] = bool(is_vip)
+        if is_vip:
+            users[target_username]['vip_set_at'] = datetime.now().isoformat()
+        
+        save_users(users)
+        
+        return jsonify({
+            'success': True,
+            'message': f'已{"设置" if is_vip else "取消"}用户 {target_username} 的VIP状态',
+            'user': {
+                'username': target_username,
+                'is_vip': is_vip
+            }
+        })
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"设置VIP状态错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'服务器错误: {str(e)}'
+        }), 500
 
 @app.route('/api/get_stocks', methods=['GET'])
 def get_stocks():
@@ -1016,9 +1153,9 @@ def scan_all_stocks():
                 stock_list = stock_list.head(limit)
                 total_stocks = min(total_stocks, limit)
             
-            # 计算批次大小（每批约30只股票，降低速度以提高稳定性）
-            # 估算：每只股票约0.1-0.2秒，30只股票约3-6秒，留出更多缓冲时间
-            batch_size = 30
+            # 根据用户等级获取扫描配置
+            scan_config = get_scan_config()
+            batch_size = scan_config['batch_size']
             total_batches = (total_stocks + batch_size - 1) // batch_size  # 向上取整
             
             # 初始化扫描进度并保存到 Redis
@@ -1254,8 +1391,9 @@ def continue_scan():
                 'message': '特征模板为空'
             }), 400
         
-        # 计算批次（与初始扫描保持一致）
-        batch_size = 30
+        # 根据用户等级获取扫描配置
+        scan_config = get_scan_config()
+        batch_size = scan_config['batch_size']
         start_idx = (batch_num - 1) * batch_size
         end_idx = min(start_idx + batch_size, total_stocks)
         
