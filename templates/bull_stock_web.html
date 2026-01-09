@@ -2480,18 +2480,22 @@
         // 检查登录状态
         async function checkLoginStatus() {
             try {
-                const response = await fetch('/api/check_login');
+                const response = await fetch('/api/check_login', {
+                    method: 'GET',
+                    cache: 'no-store'
+                });
                 const result = await response.json();
+                
                 if (!result.success || !result.logged_in) {
-                    // 未登录，跳转到登录页
-                    console.log('[checkLoginStatus] 用户未登录，跳转到登录页');
+                    // 未登录，跳转到登录页面
+                    console.log('[checkLoginStatus] 用户未登录，跳转到登录页面');
                     window.location.href = '/login';
                     return false;
                 }
                 return true;
             } catch (error) {
                 console.error('[checkLoginStatus] 检查登录状态失败:', error);
-                // 检查失败也跳转到登录页
+                // 出错时也跳转到登录页面
                 window.location.href = '/login';
                 return false;
             }
@@ -2583,19 +2587,9 @@
             }
             
             try {
-                // 先检查登录状态
-                const loginCheck = await fetch('/api/check_login');
-                const loginResult = await loginCheck.json();
-                if (!loginResult.success || !loginResult.logged_in) {
-                    // 未登录，跳转到登录页
-                    window.location.href = '/login';
-                    return;
-                }
-                
                 const user = await getUserInfo();
                 if (!user) {
-                    // 获取用户信息失败，也跳转到登录页
-                    window.location.href = '/login';
+                    userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #999;">未登录</div>';
                     return;
                 }
                 
