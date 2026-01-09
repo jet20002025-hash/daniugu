@@ -757,35 +757,77 @@ class BullStockAnalyzer:
         获取当前进度
         :return: 进度信息
         """
-        if not self.progress:
+        try:
+            # 确保 progress 是字典类型
+            if not isinstance(self.progress, dict) or not self.progress:
+                return {
+                    'type': None,
+                    'current': 0,
+                    'total': 0,
+                    'status': '空闲',
+                    'detail': '',
+                    'percentage': 0,
+                    'found': 0
+                }
+            
+            # 创建副本，避免修改原始数据
+            progress = self.progress.copy()
+            
+            # 确保包含所有必要的字段
+            if 'type' not in progress:
+                progress['type'] = None
+            if 'current' not in progress:
+                progress['current'] = 0
+            if 'total' not in progress:
+                progress['total'] = 0
+            if 'status' not in progress:
+                progress['status'] = '空闲'
+            if 'detail' not in progress:
+                progress['detail'] = ''
+            if 'found' not in progress:
+                progress['found'] = 0
+            
+            # 计算百分比
+            try:
+                total = float(progress.get('total', 0))
+                current = float(progress.get('current', 0))
+                if total > 0:
+                    progress['percentage'] = round(current / total * 100, 1)
+                else:
+                    progress['percentage'] = 0.0
+            except (ValueError, TypeError, ZeroDivisionError):
+                progress['percentage'] = 0.0
+            
+            # 确保包含最后更新时间
+            import time as time_module
+            if 'last_update_time' not in progress:
+                progress['last_update_time'] = time_module.time()
+            
+            # 如果进度长时间未更新，添加警告
+            try:
+                last_update = progress.get('last_update_time', time_module.time())
+                if isinstance(last_update, (int, float)):
+                    time_since_update = time_module.time() - last_update
+                    if time_since_update > 30 and progress.get('status') == '进行中':
+                        progress['warning'] = f'已超过 {int(time_since_update)} 秒未更新，可能卡在: {progress.get("current_stock", "未知股票")}'
+            except (ValueError, TypeError):
+                pass  # 忽略时间计算错误
+            
+            return progress
+        except Exception as e:
+            # 如果出现任何错误，返回默认值
+            import time as time_module
+            print(f"[get_progress] 错误: {e}")
             return {
                 'type': None,
                 'current': 0,
                 'total': 0,
                 'status': '空闲',
-                'detail': '',
-                'percentage': 0
+                'detail': f'获取进度时出错: {str(e)}',
+                'percentage': 0,
+                'found': 0,
+                'last_update_time': time_module.time()
             }
-        
-        progress = self.progress.copy()
-        if progress['total'] > 0:
-            progress['percentage'] = round(progress['current'] / progress['total'] * 100, 1)
-        else:
-            progress['percentage'] = 0
-        
-        # 确保包含所有必要的字段
-        if 'last_update_time' not in progress:
-            import time as time_module
-            progress['last_update_time'] = time_module.time()
-        
-        # 如果进度长时间未更新，添加警告
-        if 'last_update_time' in progress:
-            import time as time_module
-            time_since_update = time_module.time() - progress['last_update_time']
-            if time_since_update > 30 and progress.get('status') == '进行中':
-                progress['warning'] = f'已超过 {int(time_since_update)} 秒未更新，可能卡在: {progress.get("current_stock", "未知股票")}'
-        
-        return progress
     
     def get_analysis_result(self, stock_code: str) -> Optional[Dict]:
         """

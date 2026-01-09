@@ -659,6 +659,7 @@ def get_progress():
         
         # 检查 analyzer 是否已初始化
         if analyzer is None:
+            print("[get_progress] analyzer 未初始化，返回默认值")
             return jsonify({
                 'success': True,
                 'progress': {
@@ -672,35 +673,77 @@ def get_progress():
                 }
             })
         
-        progress = analyzer.get_progress()
-        return jsonify({
-            'success': True,
-            'progress': progress
-        })
-    except AttributeError as e:
-        # analyzer 未初始化或 get_progress 方法不存在
-        print(f"获取进度错误 (AttributeError): {e}")
+        # 获取进度信息
+        try:
+            progress = analyzer.get_progress()
+            # 确保 progress 是字典类型且可以被序列化
+            if not isinstance(progress, dict):
+                print(f"[get_progress] progress 不是字典类型: {type(progress)}")
+                progress = {
+                    'type': None,
+                    'current': 0,
+                    'total': 0,
+                    'status': '空闲',
+                    'detail': '',
+                    'percentage': 0,
+                    'found': 0
+                }
+            
+            # 移除任何不能序列化的对象
+            import json
+            try:
+                # 测试是否可以序列化
+                json.dumps(progress, default=str)
+            except (TypeError, ValueError) as e:
+                print(f"[get_progress] 序列化测试失败: {e}")
+                # 如果序列化失败，返回默认值
+                progress = {
+                    'type': None,
+                    'current': 0,
+                    'total': 0,
+                    'status': '空闲',
+                    'detail': '',
+                    'percentage': 0,
+                    'found': 0
+                }
+            
+            return jsonify({
+                'success': True,
+                'progress': progress
+            })
+        except AttributeError as e:
+            # analyzer 未初始化或 get_progress 方法不存在
+            print(f"[get_progress] AttributeError: {e}")
+            return jsonify({
+                'success': True,
+                'progress': {
+                    'type': None,
+                    'current': 0,
+                    'total': 0,
+                    'status': '空闲',
+                    'detail': '',
+                    'percentage': 0,
+                    'found': 0
+                }
+            })
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"[get_progress] 错误: {error_detail}")
+        # 即使出错，也返回成功响应（但带错误状态），避免前端不断重试
         return jsonify({
             'success': True,
             'progress': {
                 'type': None,
                 'current': 0,
                 'total': 0,
-                'status': '空闲',
-                'detail': '',
+                'status': '错误',
+                'detail': f'获取进度失败: {str(e)}',
                 'percentage': 0,
                 'found': 0
-            }
+            },
+            'error': str(e) if is_vercel else None  # 仅在 Vercel 环境中返回错误详情
         })
-    except Exception as e:
-        import traceback
-        error_detail = traceback.format_exc()
-        print(f"获取进度错误: {error_detail}")
-        return jsonify({
-            'success': False,
-            'message': f'服务器错误: {str(e)}',
-            'error_detail': error_detail if is_vercel else None  # 仅在 Vercel 环境中返回详细错误
-        }), 500
 
 
 @app.route('/api/save_model', methods=['POST'])
