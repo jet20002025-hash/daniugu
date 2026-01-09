@@ -415,6 +415,7 @@ def api_health():
 
 
 @app.route('/api/add_stock', methods=['POST'])
+@require_login
 def add_stock():
     """添加大牛股API"""
     try:
@@ -631,6 +632,7 @@ def admin_set_vip():
         }), 500
 
 @app.route('/api/get_stocks', methods=['GET'])
+@require_login
 def get_stocks():
     """获取所有已添加的大牛股API"""
     try:
@@ -695,6 +697,7 @@ def get_stocks():
 
 
 @app.route('/api/remove_stock', methods=['POST'])
+@require_login
 def remove_stock():
     init_analyzer()  # 确保分析器已初始化
     """移除大牛股API"""
@@ -734,6 +737,7 @@ def remove_stock():
 
 
 @app.route('/api/clear_stocks', methods=['POST'])
+@require_login
 def clear_stocks():
     """清空所有大牛股API"""
     try:
@@ -751,6 +755,7 @@ def clear_stocks():
 
 
 @app.route('/api/analyze_stock', methods=['POST'])
+@require_login
 def analyze_stock():
     """分析单只大牛股API"""
     try:
@@ -802,6 +807,7 @@ def analyze_stock():
 
 
 @app.route('/api/analyze_all', methods=['POST'])
+@require_login
 def analyze_all():
     init_analyzer()  # 确保分析器已初始化
     """分析所有大牛股API"""
@@ -842,6 +848,7 @@ def analyze_all():
 
 
 @app.route('/api/get_analysis/<stock_code>', methods=['GET'])
+@require_login
 def get_analysis(stock_code):
     """获取指定股票的分析结果API"""
     try:
@@ -881,6 +888,7 @@ def get_analysis(stock_code):
 
 
 @app.route('/api/train_features', methods=['POST'])
+@require_login
 def train_features():
     init_analyzer()  # 确保分析器已初始化
     """训练特征模型API"""
@@ -914,6 +922,7 @@ def train_features():
 
 
 @app.route('/api/get_progress', methods=['GET'])
+@require_login
 def get_progress():
     """获取当前进度API"""
     # 添加 CORS 和缓存控制头
@@ -1104,6 +1113,7 @@ def save_model():
         }), 500
 
 @app.route('/api/get_trained_features', methods=['GET'])
+@require_login
 def get_trained_features():
     """获取训练好的特征模板API"""
     try:
@@ -1174,6 +1184,7 @@ def get_trained_features():
 
 
 @app.route('/api/find_sell_points', methods=['POST'])
+@require_login
 def find_sell_points():
     init_analyzer()  # 确保分析器已初始化
     """查找卖点API"""
@@ -1530,6 +1541,7 @@ def scan_all_stocks():
 
 
 @app.route('/api/continue_scan', methods=['POST'])
+@require_login
 def continue_scan():
     """继续扫描下一批次（Vercel 环境）"""
     if not is_vercel:
@@ -1676,6 +1688,7 @@ def continue_scan():
 
 
 @app.route('/api/stop_scan', methods=['POST'])
+@require_login
 def stop_scan():
     """停止扫描API"""
     try:
@@ -1774,6 +1787,7 @@ def stop_scan():
 
 
 @app.route('/api/find_buy_points', methods=['POST'])
+@require_login
 def find_buy_points():
     init_analyzer()  # 确保分析器已初始化
     """查找买点API"""
@@ -1893,6 +1907,7 @@ def find_buy_points():
 
 
 @app.route('/api/get_scan_progress', methods=['GET'])
+@require_login
 def get_scan_progress():
     """获取扫描进度API"""
     try:
@@ -1956,6 +1971,7 @@ def get_scan_progress():
         })
 
 @app.route('/api/get_scan_debug_log', methods=['GET'])
+@require_login
 def get_scan_debug_log():
     """获取扫描调试日志API"""
     try:
@@ -2144,6 +2160,7 @@ def get_scan_results():
 
 
 @app.route('/api/scan_reversal_stocks', methods=['POST'])
+@require_login
 def scan_reversal_stocks():
     """搜索上周阴线+本周阳线的反转个股API"""
     init_analyzer()  # 确保分析器已初始化
@@ -2366,6 +2383,7 @@ def scan_reversal_stocks():
 
 
 @app.route('/api/get_reversal_scan_results', methods=['GET'])
+@require_login
 def get_reversal_scan_results():
     """获取反转个股扫描结果API"""
     try:
@@ -2392,6 +2410,7 @@ def get_reversal_scan_results():
         }), 500
 
 @app.route('/api/get_weekly_kline_for_stock', methods=['POST'])
+@require_login
 def get_weekly_kline_for_stock():
     """获取指定股票的周K线数据（用于在反转个股结果中显示）"""
     init_analyzer()
