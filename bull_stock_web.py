@@ -344,6 +344,36 @@ def api_login():
                 'message': '请输入用户名和密码'
             }), 400
         
+        # 本地环境快速登录：如果用户名是 'test' 且密码是 'test123'，直接登录
+        if not is_vercel and username == 'test' and password == 'test123':
+            # 确保测试用户存在
+            users = load_users()
+            if 'test' not in users:
+                # 自动创建测试用户
+                users['test'] = {
+                    'username': 'test',
+                    'email': 'test@local.com',
+                    'password': hash_password('test123'),
+                    'created_at': datetime.now().isoformat(),
+                    'last_login': datetime.now().isoformat(),
+                    'invite_code': 'LOCAL_TEST',
+                    'is_active': True,
+                    'is_vip': True,
+                    'is_super': False
+                }
+                save_users(users)
+            
+            session['username'] = 'test'
+            return jsonify({
+                'success': True,
+                'message': '快速登录成功（本地测试模式）',
+                'user': {
+                    'username': 'test',
+                    'email': 'test@local.com',
+                    'is_vip': True
+                }
+            })
+        
         result = login_user(username, password)
         
         if result['success']:
