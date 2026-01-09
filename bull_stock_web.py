@@ -848,6 +848,13 @@ def train_features():
 @app.route('/api/get_progress', methods=['GET'])
 def get_progress():
     """获取当前进度API"""
+    # 添加 CORS 和缓存控制头
+    response_headers = {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+    }
+    
     # 在 Vercel serverless 环境中，从 Redis 读取进度
     if is_vercel:
         scan_id = request.args.get('scan_id')
@@ -856,15 +863,18 @@ def get_progress():
                 import scan_progress_store
                 progress = scan_progress_store.get_scan_progress(scan_id)
                 if progress:
-                    return jsonify({
+                    response = jsonify({
                         'success': True,
                         'progress': progress
                     })
+                    for key, value in response_headers.items():
+                        response.headers[key] = value
+                    return response
             except Exception as e:
                 print(f"[get_progress] 从 Redis 读取进度失败: {e}")
         
         # 如果没有提供 scan_id 或找不到进度，返回空闲状态
-        return jsonify({
+        response = jsonify({
             'success': True,
             'progress': {
                 'type': None,
@@ -876,6 +886,9 @@ def get_progress():
                 'found': 0
             }
         })
+        for key, value in response_headers.items():
+            response.headers[key] = value
+        return response
     
     try:
         init_analyzer()  # 确保分析器已初始化
