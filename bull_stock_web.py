@@ -654,6 +654,21 @@ def train_features():
 @app.route('/api/get_progress', methods=['GET'])
 def get_progress():
     """获取当前进度API"""
+    # 在 Vercel serverless 环境中，扫描功能不可用，始终返回空闲状态
+    if is_vercel:
+        return jsonify({
+            'success': True,
+            'progress': {
+                'type': None,
+                'current': 0,
+                'total': 0,
+                'status': '空闲',
+                'detail': '扫描功能在 Vercel 环境中不可用',
+                'percentage': 0,
+                'found': 0
+            }
+        })
+    
     try:
         init_analyzer()  # 确保分析器已初始化
         
@@ -934,8 +949,15 @@ def find_sell_points():
 
 @app.route('/api/scan_all_stocks', methods=['POST'])
 def scan_all_stocks():
-    init_analyzer()  # 确保分析器已初始化
     """扫描所有A股API"""
+    # 在 Vercel serverless 环境中，扫描功能不可用（执行时间限制和状态共享问题）
+    if is_vercel:
+        return jsonify({
+            'success': False,
+            'message': '⚠️ 扫描功能在 Vercel 免费计划中不可用。\n\n原因：\n1. Vercel 免费计划有 10 秒执行时间限制\n2. Serverless 环境中无法保持扫描状态\n\n建议：\n- 使用"查找买点"功能分析单个股票\n- 或升级到 Vercel Pro 计划（60 秒限制）\n- 或使用本地部署进行全市场扫描'
+        }), 400
+    
+    init_analyzer()  # 确保分析器已初始化
     try:
         data = request.get_json() or {}
         min_match_score = float(data.get('min_match_score', 0.97))  # 默认匹配度阈值改为0.97（进一步提高准确性）
