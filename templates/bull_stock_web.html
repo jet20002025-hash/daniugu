@@ -1319,7 +1319,33 @@
             
             // 先检查用户扫描权限
             try {
-                const userInfoResponse = await fetch('/api/user_info');
+                // 使用独立的 AbortController，避免与其他请求冲突
+                const userInfoController = new AbortController();
+                const userInfoTimeoutId = setTimeout(() => {
+                    console.warn('[scanAllStocks] 获取用户信息请求超时（5秒），中断请求');
+                    userInfoController.abort();
+                }, 5000); // 5秒超时
+                
+                let userInfoResponse;
+                try {
+                    userInfoResponse = await fetch('/api/user_info', {
+                        signal: userInfoController.signal,
+                        cache: 'no-store'
+                    });
+                    clearTimeout(userInfoTimeoutId);
+                } catch (fetchError) {
+                    clearTimeout(userInfoTimeoutId);
+                    // 检查是否是 AbortError
+                    if (fetchError && (fetchError.name === 'AbortError' || fetchError.message?.includes('aborted') || fetchError.message?.includes('signal is aborted'))) {
+                        console.warn('[scanAllStocks] 获取用户信息请求被中断（AbortError），继续执行');
+                        // 不显示错误，继续执行
+                        // 跳出 try-catch，继续执行后续代码
+                        throw fetchError; // 重新抛出，让外层 catch 处理
+                    } else {
+                        throw fetchError; // 重新抛出非 AbortError 的错误
+                    }
+                }
+                
                 const userInfoResult = await userInfoResponse.json();
                 
                 if (userInfoResult.success && userInfoResult.user) {
@@ -1366,7 +1392,12 @@
                     }
                 }
             } catch (error) {
-                console.warn('[scanAllStocks] 获取用户信息失败:', error);
+                // 检查是否是 AbortError
+                if (error && (error.name === 'AbortError' || error.message?.includes('aborted') || error.message?.includes('signal is aborted'))) {
+                    console.warn('[scanAllStocks] 获取用户信息时请求被中断（AbortError），继续执行');
+                } else {
+                    console.warn('[scanAllStocks] 获取用户信息失败:', error);
+                }
                 // 继续执行，不阻止扫描
             }
             
@@ -1399,17 +1430,53 @@
                     }
                 }
             } catch (error) {
-                console.error('❌ [scanAllStocks] 检查扫描状态失败:', error);
-                console.error('❌ [scanAllStocks] 错误详情:', {
-                    name: error.name,
-                    message: error.message,
-                    stack: error.stack
-                });
+                // 检查是否是 AbortError
+                if (error && (error.name === 'AbortError' || error.message?.includes('aborted') || error.message?.includes('signal is aborted'))) {
+                    console.warn('[scanAllStocks] 检查扫描状态时请求被中断（AbortError），继续执行');
+                    // 不显示错误，继续执行
+                } else {
+                    console.error('❌ [scanAllStocks] 检查扫描状态失败:', error);
+                    // 安全地访问错误属性
+                    try {
+                        console.error('❌ [scanAllStocks] 错误详情:', {
+                            name: error?.name || 'Unknown',
+                            message: error?.message || 'Unknown error',
+                            stack: error?.stack || 'No stack trace'
+                        });
+                    } catch (e) {
+                        console.error('❌ [scanAllStocks] 无法获取错误详情:', e);
+                    }
+                }
             }
             
             // 先检查是否已训练特征模型
             try {
-                const featuresResponse = await fetch('/api/get_trained_features');
+                // 使用独立的 AbortController，避免与其他请求冲突
+                const featuresController = new AbortController();
+                const featuresTimeoutId = setTimeout(() => {
+                    console.warn('[scanAllStocks] 检查特征模型请求超时（5秒），中断请求');
+                    featuresController.abort();
+                }, 5000); // 5秒超时
+                
+                let featuresResponse;
+                try {
+                    featuresResponse = await fetch('/api/get_trained_features', {
+                        signal: featuresController.signal,
+                        cache: 'no-store'
+                    });
+                    clearTimeout(featuresTimeoutId);
+                } catch (fetchError) {
+                    clearTimeout(featuresTimeoutId);
+                    // 检查是否是 AbortError
+                    if (fetchError && (fetchError.name === 'AbortError' || fetchError.message?.includes('aborted') || fetchError.message?.includes('signal is aborted'))) {
+                        console.warn('[scanAllStocks] 检查特征模型请求被中断（AbortError），继续执行');
+                        // 不显示错误，继续执行（可能是网络问题，但扫描可能仍然可以继续）
+                        return; // 直接返回，避免后续错误
+                    } else {
+                        throw fetchError; // 重新抛出非 AbortError 的错误
+                    }
+                }
+                
                 const featuresResult = await featuresResponse.json();
                 
                 console.log('特征模型检查结果:', featuresResult);
@@ -1432,14 +1499,25 @@
                     return;
                 }
             } catch (error) {
-                console.error('❌ [scanAllStocks] 检查特征模型失败:', error);
-                console.error('❌ [scanAllStocks] 错误详情:', {
-                    name: error.name,
-                    message: error.message,
-                    stack: error.stack
-                });
-                showMessage('无法检查特征模型状态: ' + (error.message || '未知错误'), 'error');
-                return;
+                // 检查是否是 AbortError
+                if (error && (error.name === 'AbortError' || error.message?.includes('aborted') || error.message?.includes('signal is aborted'))) {
+                    console.warn('[scanAllStocks] 检查特征模型时请求被中断（AbortError），继续执行');
+                    // 不显示错误，继续执行（可能是网络问题，但扫描可能仍然可以继续）
+                } else {
+                    console.error('❌ [scanAllStocks] 检查特征模型失败:', error);
+                    // 安全地访问错误属性
+                    try {
+                        console.error('❌ [scanAllStocks] 错误详情:', {
+                            name: error?.name || 'Unknown',
+                            message: error?.message || 'Unknown error',
+                            stack: error?.stack || 'No stack trace'
+                        });
+                    } catch (e) {
+                        console.error('❌ [scanAllStocks] 无法获取错误详情:', e);
+                    }
+                    showMessage('无法检查特征模型状态: ' + (error?.message || '未知错误'), 'error');
+                    return;
+                }
             }
             
             if (!confirm('确定要扫描所有A股吗？这可能需要较长时间（约5000只股票）。')) {
