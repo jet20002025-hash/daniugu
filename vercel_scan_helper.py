@@ -21,7 +21,8 @@ def process_scan_batch_vercel(
     min_match_score: float,
     max_market_cap: float,
     start_idx: int,
-    existing_candidates: List[Dict]
+    existing_candidates: List[Dict],
+    scan_config: Dict = None
 ) -> Dict:
     """
     处理一批股票的扫描（Vercel 环境）

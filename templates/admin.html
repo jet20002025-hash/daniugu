@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>会员管理 - 手动设置VIP</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 15px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .message {
+            padding: 12px 20px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .message.show {
+            display: block;
+        }
+        
+        .users-list {
+            margin-top: 30px;
+        }
+        
+        .users-list h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .user-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .user-info {
+            flex: 1;
+        }
+        
+        .user-name {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .user-email {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .user-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .badge-vip {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        
+        .badge-free {
+            background: #e0e0e0;
+            color: #666;
+        }
+        
+        .user-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💎 会员管理</h1>
+            <p>手动设置用户VIP状态（手动收费）</p>
+        </div>
+        
+        <div class="content">
+            <div id="message" class="message"></div>
+            
+            <div class="form-group">
+                <h2>设置用户VIP状态</h2>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label>用户名</label>
+                    <input type="text" id="username" placeholder="输入要设置的用户名">
+                </div>
+                <div class="form-group">
+                    <label>VIP状态</label>
+                    <select id="isVip" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;">
+                        <option value="true">设置为VIP（会员）</option>
+                        <option value="false">取消VIP（免费版）</option>
+                    </select>
+                </div>
+            </div>
+            
+            <button class="btn btn-primary" onclick="setVip()">设置VIP状态</button>
+            <button class="btn btn-secondary" onclick="loadUsers()" style="margin-left: 10px;">刷新用户列表</button>
+            
+            <div class="users-list">
+                <h2>用户列表</h2>
+                <div id="usersList">
+                    <p style="color: #999;">点击"刷新用户列表"加载用户</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function showMessage(text, type = 'success') {
+            const messageEl = document.getElementById('message');
+            messageEl.textContent = text;
+            messageEl.className = `message ${type} show`;
+            setTimeout(() => {
+                messageEl.classList.remove('show');
+            }, 3000);
+        }
+        
+        async function setVip() {
+            const username = document.getElementById('username').value.trim();
+            const isVip = document.getElementById('isVip').value === 'true';
+            
+            if (!username) {
+                showMessage('请输入用户名', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/set_vip', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        is_vip: isVip
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage(result.message, 'success');
+                    document.getElementById('username').value = '';
+                    loadUsers(); // 刷新用户列表
+                } else {
+                    showMessage(result.message || '设置失败', 'error');
+                }
+            } catch (error) {
+                showMessage('设置失败: ' + error.message, 'error');
+            }
+        }
+        
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/admin/users');
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayUsers(result.users || []);
+                } else {
+                    showMessage('加载用户列表失败: ' + result.message, 'error');
+                }
+            } catch (error) {
+                showMessage('加载用户列表失败: ' + error.message, 'error');
+            }
+        }
+        
+        function displayUsers(users) {
+            const listEl = document.getElementById('usersList');
+            
+            if (users.length === 0) {
+                listEl.innerHTML = '<p style="color: #999;">暂无用户</p>';
+                return;
+            }
+            
+            let html = '';
+            for (const user of users) {
+                const isVip = user.is_vip || false;
+                html += `
+                    <div class="user-item">
+                        <div class="user-info">
+                            <div class="user-name">
+                                ${user.username}
+                                <span class="user-badge ${isVip ? 'badge-vip' : 'badge-free'}">
+                                    ${isVip ? '💎 VIP' : '🆓 免费版'}
+                                </span>
+                            </div>
+                            <div class="user-email">${user.email || '无邮箱'}</div>
+                        </div>
+                        <div class="user-actions">
+                            <button class="btn btn-primary btn-small" onclick="quickSetVip('${user.username}', true)">
+                                设为VIP
+                            </button>
+                            <button class="btn btn-secondary btn-small" onclick="quickSetVip('${user.username}', false)">
+                                取消VIP
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            listEl.innerHTML = html;
+        }
+        
+        async function quickSetVip(username, isVip) {
+            try {
+                const response = await fetch('/api/admin/set_vip', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        is_vip: isVip
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage(result.message, 'success');
+                    loadUsers(); // 刷新用户列表
+                } else {
+                    showMessage(result.message || '设置失败', 'error');
+                }
+            } catch (error) {
+                showMessage('设置失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 页面加载时自动加载用户列表
+        loadUsers();
+    </script>
+</body>
+</html>
+

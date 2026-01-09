@@ -444,6 +444,48 @@ def get_user_info():
             'message': f'服务器错误: {str(e)}'
         }), 500
 
+@app.route('/admin')
+@require_login
+def admin_page():
+    """管理员页面"""
+    return render_template('admin.html')
+
+@app.route('/api/admin/users')
+@require_login
+def admin_get_users():
+    """获取所有用户列表（管理员）"""
+    try:
+        if is_vercel:
+            from user_auth_vercel import load_users
+        else:
+            from user_auth import load_users
+        
+        users = load_users()
+        
+        # 转换为列表格式，隐藏敏感信息
+        users_list = []
+        for username, user_data in users.items():
+            users_list.append({
+                'username': username,
+                'email': user_data.get('email', ''),
+                'is_vip': user_data.get('is_vip', False),
+                'created_at': user_data.get('created_at', ''),
+                'last_login': user_data.get('last_login', '')
+            })
+        
+        return jsonify({
+            'success': True,
+            'users': users_list
+        })
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"获取用户列表错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'服务器错误: {str(e)}'
+        }), 500
+
 @app.route('/api/admin/set_vip', methods=['POST'])
 @require_login
 def admin_set_vip():
@@ -1194,12 +1236,12 @@ def scan_all_stocks():
                         'message': '特征模板为空'
                     }), 400
                 
-                # 处理第一批股票（50只）
+                # 处理第一批股票
                 from vercel_scan_helper import process_scan_batch_vercel
                 first_batch = stock_list.head(batch_size)
                 batch_result = process_scan_batch_vercel(
                     analyzer, first_batch, common_features, scan_id, 1, total_batches, 
-                    total_stocks, min_match_score, max_market_cap, 0, []
+                    total_stocks, min_match_score, max_market_cap, 0, [], scan_config
                 )
                 
                 return jsonify({
