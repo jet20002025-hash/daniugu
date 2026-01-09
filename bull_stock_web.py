@@ -654,8 +654,22 @@ def train_features():
 @app.route('/api/get_progress', methods=['GET'])
 def get_progress():
     """获取当前进度API"""
-    # 在 Vercel serverless 环境中，扫描功能不可用，始终返回空闲状态
+    # 在 Vercel serverless 环境中，从 Redis 读取进度
     if is_vercel:
+        scan_id = request.args.get('scan_id')
+        if scan_id:
+            try:
+                import scan_progress_store
+                progress = scan_progress_store.get_scan_progress(scan_id)
+                if progress:
+                    return jsonify({
+                        'success': True,
+                        'progress': progress
+                    })
+            except Exception as e:
+                print(f"[get_progress] 从 Redis 读取进度失败: {e}")
+        
+        # 如果没有提供 scan_id 或找不到进度，返回空闲状态
         return jsonify({
             'success': True,
             'progress': {
@@ -663,7 +677,7 @@ def get_progress():
                 'current': 0,
                 'total': 0,
                 'status': '空闲',
-                'detail': '扫描功能在 Vercel 环境中不可用',
+                'detail': '',
                 'percentage': 0,
                 'found': 0
             }
@@ -950,22 +964,108 @@ def find_sell_points():
 @app.route('/api/scan_all_stocks', methods=['POST'])
 def scan_all_stocks():
     """扫描所有A股API"""
-    # 在 Vercel serverless 环境中，扫描功能不可用（执行时间限制和状态共享问题）
-    if is_vercel:
-        return jsonify({
-            'success': False,
-            'message': '⚠️ 扫描功能在 Vercel 免费计划中不可用。\n\n原因：\n1. Vercel 免费计划有 10 秒执行时间限制\n2. Serverless 环境中无法保持扫描状态\n\n建议：\n- 使用"查找买点"功能分析单个股票\n- 或升级到 Vercel Pro 计划（60 秒限制）\n- 或使用本地部署进行全市场扫描'
-        }), 400
-    
     init_analyzer()  # 确保分析器已初始化
     try:
         data = request.get_json() or {}
-        min_match_score = float(data.get('min_match_score', 0.97))  # 默认匹配度阈值改为0.97（进一步提高准确性）
-        max_market_cap = float(data.get('max_market_cap', 100.0))  # 默认最大市值改为100亿
+        min_match_score = float(data.get('min_match_score', 0.97))
+        max_market_cap = float(data.get('max_market_cap', 100.0))
         limit = data.get('limit')
         if limit:
             limit = int(limit)
         
+        # 在 Vercel 环境中，使用分批处理方案
+        if is_vercel:
+            import uuid
+            import scan_progress_store
+            
+            # 生成扫描任务ID
+            scan_id = str(uuid.uuid4())
+            
+            # 获取股票列表，计算批次
+            stock_list = analyzer.fetcher.get_all_stocks()
+            if stock_list is None or len(stock_list) == 0:
+                return jsonify({
+                    'success': False,
+                    'message': '无法获取股票列表'
+                }), 500
+            
+            total_stocks = len(stock_list)
+            if limit:
+                stock_list = stock_list.head(limit)
+                total_stocks = min(total_stocks, limit)
+            
+            # 计算批次大小（每批约50只股票，确保在10秒内完成）
+            # 估算：每只股票约0.1-0.2秒，50只股票约5-10秒
+            batch_size = 50
+            total_batches = (total_stocks + batch_size - 1) // batch_size  # 向上取整
+            
+            # 初始化扫描进度并保存到 Redis
+            initial_progress = {
+                'type': 'scan',
+                'scan_id': scan_id,
+                'current': 0,
+                'total': total_stocks,
+                'status': '准备中',
+                'detail': f'准备扫描 {total_stocks} 只股票（分 {total_batches} 批）...',
+                'percentage': 0,
+                'found': 0,
+                'batch': 0,
+                'total_batches': total_batches,
+                'min_match_score': min_match_score,
+                'max_market_cap': max_market_cap,
+                'candidates': [],
+                'start_time': time.time()
+            }
+            scan_progress_store.save_scan_progress(scan_id, initial_progress)
+            
+            # 处理第一批（在请求中同步处理，避免超时）
+            try:
+                # 获取特征模板
+                if analyzer.trained_features is None:
+                    return jsonify({
+                        'success': False,
+                        'message': '尚未训练特征模型，请先训练'
+                    }), 400
+                
+                common_features = analyzer.trained_features.get('common_features', {})
+                if len(common_features) == 0:
+                    return jsonify({
+                        'success': False,
+                        'message': '特征模板为空'
+                    }), 400
+                
+                # 处理第一批股票（50只）
+                from vercel_scan_helper import process_scan_batch_vercel
+                first_batch = stock_list.head(batch_size)
+                batch_result = process_scan_batch_vercel(
+                    analyzer, first_batch, common_features, scan_id, 1, total_batches, 
+                    total_stocks, min_match_score, max_market_cap, 0, []
+                )
+                
+                return jsonify({
+                    'success': True,
+                    'scan_id': scan_id,
+                    'message': f'扫描已开始（共 {total_batches} 批），已处理第 1 批',
+                    'progress': batch_result.get('progress', {}),
+                    'batch': 1,
+                    'total_batches': total_batches,
+                    'has_more': total_batches > 1
+                })
+            except Exception as e:
+                import traceback
+                error_detail = traceback.format_exc()
+                print(f"处理第一批失败: {error_detail}")
+                # 更新进度为失败状态
+                error_progress = initial_progress.copy()
+                error_progress['status'] = '失败'
+                error_progress['detail'] = f'扫描失败: {str(e)[:100]}'
+                scan_progress_store.save_scan_progress(scan_id, error_progress)
+                return jsonify({
+                    'success': False,
+                    'message': f'扫描启动失败: {str(e)}'
+                }), 500
+        
+        # 本地环境：使用原来的方式（后台线程）
         # 在后台线程中执行扫描（避免阻塞）
         import threading
         
@@ -1043,10 +1143,150 @@ def scan_all_stocks():
         }), 500
 
 
+@app.route('/api/continue_scan', methods=['POST'])
+def continue_scan():
+    """继续扫描下一批次（Vercel 环境）"""
+    if not is_vercel:
+        return jsonify({
+            'success': False,
+            'message': '此API仅在 Vercel 环境中可用'
+        }), 400
+    
+    try:
+        data = request.get_json() or {}
+        scan_id = data.get('scan_id')
+        if not scan_id:
+            return jsonify({
+                'success': False,
+                'message': '缺少 scan_id 参数'
+            }), 400
+        
+        import scan_progress_store
+        from vercel_scan_helper import process_scan_batch_vercel
+        
+        # 获取当前进度
+        progress = scan_progress_store.get_scan_progress(scan_id)
+        if not progress:
+            return jsonify({
+                'success': False,
+                'message': '找不到扫描任务'
+            }), 404
+        
+        # 检查是否已完成
+        if progress.get('status') == '完成':
+            results = scan_progress_store.get_scan_results(scan_id)
+            return jsonify({
+                'success': True,
+                'message': '扫描已完成',
+                'progress': progress,
+                'results': results,
+                'is_complete': True
+            })
+        
+        # 获取参数
+        batch_num = progress.get('batch', 0) + 1
+        total_batches = progress.get('total_batches', 1)
+        total_stocks = progress.get('total', 0)
+        min_match_score = progress.get('min_match_score', 0.97)
+        max_market_cap = progress.get('max_market_cap', 100.0)
+        current_idx = progress.get('current', 0)
+        existing_candidates = progress.get('candidates', [])
+        
+        # 检查是否还有更多批次
+        if batch_num > total_batches:
+            return jsonify({
+                'success': True,
+                'message': '所有批次已完成',
+                'progress': progress,
+                'is_complete': True
+            })
+        
+        # 获取股票列表
+        init_analyzer()
+        stock_list = analyzer.fetcher.get_all_stocks()
+        if stock_list is None or len(stock_list) == 0:
+            return jsonify({
+                'success': False,
+                'message': '无法获取股票列表'
+            }), 500
+        
+        # 获取特征模板
+        if analyzer.trained_features is None:
+            return jsonify({
+                'success': False,
+                'message': '尚未训练特征模型，请先训练'
+            }), 400
+        
+        common_features = analyzer.trained_features.get('common_features', {})
+        if len(common_features) == 0:
+            return jsonify({
+                'success': False,
+                'message': '特征模板为空'
+            }), 400
+        
+        # 计算批次
+        batch_size = 50
+        start_idx = (batch_num - 1) * batch_size
+        end_idx = min(start_idx + batch_size, total_stocks)
+        
+        if start_idx >= total_stocks:
+            return jsonify({
+                'success': True,
+                'message': '所有批次已完成',
+                'progress': progress,
+                'is_complete': True
+            })
+        
+        # 获取当前批次股票
+        current_batch = stock_list.iloc[start_idx:end_idx]
+        
+        # 处理批次
+        batch_result = process_scan_batch_vercel(
+            analyzer, current_batch, common_features, scan_id, batch_num, total_batches,
+            total_stocks, min_match_score, max_market_cap, start_idx, existing_candidates
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': f'第 {batch_num}/{total_batches} 批处理完成',
+            'progress': batch_result.get('progress', {}),
+            'batch': batch_num,
+            'total_batches': total_batches,
+            'has_more': not batch_result.get('is_complete', False),
+            'is_complete': batch_result.get('is_complete', False)
+        })
+        
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"继续扫描错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'服务器错误: {str(e)}'
+        }), 500
+
+
 @app.route('/api/stop_scan', methods=['POST'])
 def stop_scan():
     """停止扫描API"""
     try:
+        # 在 Vercel 环境中，更新 Redis 中的进度状态
+        if is_vercel:
+            data = request.get_json() or {}
+            scan_id = data.get('scan_id')
+            if scan_id:
+                import scan_progress_store
+                progress = scan_progress_store.get_scan_progress(scan_id)
+                if progress:
+                    progress['status'] = '已停止'
+                    progress['detail'] = '扫描已停止（用户请求）'
+                    scan_progress_store.save_scan_progress(scan_id, progress)
+                    return jsonify({
+                        'success': True,
+                        'message': '停止扫描请求已发送'
+                    })
+        
+        # 本地环境
         init_analyzer()  # 确保分析器已初始化
         analyzer.stop_scanning()
         return jsonify({
@@ -1280,6 +1520,41 @@ def get_scan_debug_log():
 def get_scan_results():
     """获取扫描结果API"""
     try:
+        # 在 Vercel 环境中，从 Redis 读取结果
+        if is_vercel:
+            scan_id = request.args.get('scan_id') or request.args.get('scanId')
+            if scan_id:
+                import scan_progress_store
+                results = scan_progress_store.get_scan_results(scan_id)
+                if results:
+                    return jsonify({
+                        'success': True,
+                        'message': results.get('message', '扫描完成'),
+                        'candidates': results.get('candidates', []),
+                        'found_count': results.get('found_count', 0),
+                        'total_scanned': results.get('total_scanned', 0),
+                        'scan_id': scan_id
+                    })
+                else:
+                    # 如果找不到结果，尝试从进度中获取候选股票
+                    progress = scan_progress_store.get_scan_progress(scan_id)
+                    if progress and progress.get('candidates'):
+                        return jsonify({
+                            'success': True,
+                            'message': '扫描进行中，返回当前已找到的股票',
+                            'candidates': progress.get('candidates', []),
+                            'found_count': len(progress.get('candidates', [])),
+                            'total_scanned': progress.get('current', 0),
+                            'scan_id': scan_id
+                        })
+            
+            return jsonify({
+                'success': False,
+                'message': '未提供 scan_id 或找不到扫描结果',
+                'candidates': []
+            })
+        
+        # 本地环境：从 analyzer 获取结果
         scan_results = getattr(analyzer, 'scan_results', None)
         
         if scan_results is None:

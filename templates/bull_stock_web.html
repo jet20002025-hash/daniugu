@@ -1392,23 +1392,41 @@
                 console.log('扫描API响应:', result);
                 
                 if (result.success) {
-                    showMessage('扫描已开始，请等待完成...', 'success');
+                    // 检查是否是 Vercel 分批扫描模式
+                    const scanId = result.scan_id;
+                    const hasMore = result.has_more;
+                    const totalBatches = result.total_batches;
                     
-                    // 轮询扫描结果（移除固定超时，只要扫描在进行中就继续等待）
-                    let checkCount = 0;
-                    let lastProgressTime = Date.now(); // 记录最后进度更新时间
-                    let noUpdateCount = 0; // 连续未更新次数
-                    scanCheckInterval = setInterval(async () => {
-                        checkCount++;
+                    if (scanId && hasMore !== undefined) {
+                        // Vercel 分批扫描模式
+                        showMessage(`扫描已开始（共 ${totalBatches} 批），正在处理第 1 批...`, 'success');
                         
-                        try {
-                            const progressResponse = await fetch('/api/get_progress', {
-                                cache: 'no-store',
-                                headers: {
-                                    'Cache-Control': 'no-cache'
-                                }
-                            });
-                            const progressResult = await progressResponse.json();
+                        // 保存 scan_id 到全局变量
+                        window.currentScanId = scanId;
+                        window.currentScanBatches = totalBatches;
+                        window.currentScanBatch = 1;
+                        
+                        // 开始自动处理下一批次
+                        autoContinueScan(scanId, 1, totalBatches);
+                    } else {
+                        // 本地环境：传统轮询模式
+                        showMessage('扫描已开始，请等待完成...', 'success');
+                        
+                        // 轮询扫描结果（移除固定超时，只要扫描在进行中就继续等待）
+                        let checkCount = 0;
+                        let lastProgressTime = Date.now(); // 记录最后进度更新时间
+                        let noUpdateCount = 0; // 连续未更新次数
+                        scanCheckInterval = setInterval(async () => {
+                            checkCount++;
+                            
+                            try {
+                                const progressResponse = await fetch('/api/get_progress', {
+                                    cache: 'no-store',
+                                    headers: {
+                                        'Cache-Control': 'no-cache'
+                                    }
+                                });
+                                const progressResult = await progressResponse.json();
                             
                             if (progressResult.success && progressResult.progress) {
                                 const progress = progressResult.progress;
@@ -2124,6 +2142,76 @@
             console.log('[定时刷新] 自动刷新股票列表...');
             loadStocks();
         }, 5000);
+        
+        // Vercel 分批扫描：自动继续处理下一批次
+        async function autoContinueScan(scanId, currentBatch, totalBatches) {
+            if (!scanId || currentBatch >= totalBatches) {
+                console.log('所有批次已完成');
+                return;
+            }
+            
+            // 等待一小段时间，让上一批次完成
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            try {
+                console.log(`开始处理第 ${currentBatch + 1}/${totalBatches} 批...`);
+                
+                const response = await fetch('/api/continue_scan', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        scan_id: scanId
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                console.log(`第 ${currentBatch + 1} 批处理结果:`, result);
+                
+                if (result.success) {
+                    // 更新进度显示
+                    if (result.progress) {
+                        updateProgress(
+                            result.progress.percentage || 0,
+                            result.progress.status || '进行中',
+                            result.progress.detail || `正在处理第 ${currentBatch + 1}/${totalBatches} 批...`
+                        );
+                    }
+                    
+                    // 检查是否还有更多批次
+                    if (result.has_more && !result.is_complete) {
+                        // 继续处理下一批次
+                        window.currentScanBatch = currentBatch + 1;
+                        autoContinueScan(scanId, currentBatch + 1, totalBatches);
+                    } else if (result.is_complete) {
+                        // 所有批次完成
+                        console.log('所有批次处理完成！');
+                        showMessage(`扫描完成！共找到 ${result.progress?.found || 0} 只符合条件的股票`, 'success');
+                        hideProgress();
+                        stopProgressPolling();
+                        const stopBtn = document.getElementById('stopScanBtn');
+                        if (stopBtn) stopBtn.disabled = true;
+                        
+                        // 刷新股票列表
+                        loadStocks();
+                    }
+                } else {
+                    throw new Error(result.message || '处理批次失败');
+                }
+            } catch (error) {
+                console.error(`处理第 ${currentBatch + 1} 批失败:`, error);
+                showMessage(`处理第 ${currentBatch + 1} 批失败: ${error.message}`, 'error');
+                // 尝试继续下一批次（如果可能）
+                if (currentBatch + 1 < totalBatches) {
+                    setTimeout(() => autoContinueScan(scanId, currentBatch + 1, totalBatches), 2000);
+                }
+            }
+        }
     </script>
 </body>
 </html>
