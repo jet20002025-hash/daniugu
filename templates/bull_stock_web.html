@@ -424,6 +424,21 @@
                     </div>
                 </div>
                 
+                <!-- 反转个股筛选条件（仅本地版本显示） -->
+                <div id="reversalStockSection" style="margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #9b59b6; display: none;">
+                    <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px;">📈 搜索反转个股（上周阴线+本周阳线）</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="display: block; margin-bottom: 5px; color: #555; font-size: 13px; font-weight: 500;">市值上限（亿元）</label>
+                            <input type="number" id="reversalMarketCapMax" placeholder="例如: 100" value="100" min="0" step="0.1" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;">
+                        </div>
+                    </div>
+                    <div class="btn-group" style="margin-top: 10px;">
+                        <button class="btn btn-primary" onclick="scanReversalStocks()" style="background: #9b59b6; font-size: 15px; padding: 12px 24px;">🔍 开始搜索</button>
+                    </div>
+                </div>
+                
+                <!-- 反转个股扫描结果区域 -->
                 <div id="reversalResults" style="margin-top: 20px; display: none;"></div>
                 
                 <!-- 周K线图模态框 -->
