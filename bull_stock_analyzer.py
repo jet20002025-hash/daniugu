@@ -3120,9 +3120,42 @@ class BullStockAnalyzer:
         try:
             import json
             from datetime import datetime
+            import os
             
-            with open(filename, 'r', encoding='utf-8') as f:
-                model_data = json.load(f)
+            # 尝试多个可能的路径（Vercel 环境中路径可能不同）
+            possible_paths = [
+                filename,  # 原始路径
+                os.path.abspath(filename),  # 绝对路径
+                os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), filename),  # 项目根目录
+            ]
+            
+            model_data = None
+            loaded_path = None
+            
+            for path in possible_paths:
+                try:
+                    abs_path = os.path.abspath(path)
+                    if os.path.exists(path):
+                        print(f"[load_model] 尝试读取: {path} (绝对路径: {abs_path})")
+                        with open(path, 'r', encoding='utf-8') as f:
+                            model_data = json.load(f)
+                        loaded_path = path
+                        print(f"[load_model] ✅ 成功从 {path} 加载模型")
+                        break
+                except (FileNotFoundError, OSError) as e:
+                    print(f"[load_model] 路径不存在: {path} - {e}")
+                    continue
+                except json.JSONDecodeError as e:
+                    print(f"[load_model] JSON 解析失败: {path} - {e}")
+                    continue
+                except Exception as e:
+                    print(f"[load_model] 读取文件失败: {path} - {e}")
+                    continue
+            
+            if model_data is None:
+                print(f"[load_model] ❌ 所有路径都失败，无法加载模型文件: {filename}")
+                print(f"[load_model] 尝试的路径: {possible_paths}")
+                return False
             
             # 加载买点特征模型
             if model_data.get('buy_features'):

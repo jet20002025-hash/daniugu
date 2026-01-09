@@ -84,18 +84,52 @@ def init_analyzer():
                 )
                 
                 # 在 Vercel 环境中也要尝试加载已保存的模型
-                print("尝试加载已保存的模型...")
-                if analyzer.load_model('trained_model.json'):
-                    print("✅ 模型加载成功")
-                    # 检查模型完整性
-                    if analyzer.trained_features:
-                        feature_count = len(analyzer.trained_features.get('common_features', {}))
-                        print(f"   - 买点特征数: {feature_count}")
-                    if analyzer.trained_sell_features:
-                        sell_feature_count = len(analyzer.trained_sell_features.get('common_features', {}))
-                        print(f"   - 卖点特征数: {sell_feature_count}")
-                else:
-                    print("⚠️ 未找到已保存的模型，需要重新训练")
+                # 尝试多个可能的路径（Vercel serverless 函数的工作目录可能不同）
+                # 获取当前脚本的目录和项目根目录
+                current_file_dir = os.path.dirname(os.path.abspath(__file__))
+                project_root = current_file_dir  # bull_stock_web.py 在项目根目录
+                
+                model_paths = [
+                    os.path.join(project_root, 'trained_model.json'),  # 项目根目录（最可能）
+                    'trained_model.json',  # 当前工作目录
+                    '../trained_model.json',  # 父目录
+                    os.path.join(current_file_dir, 'trained_model.json'),  # 当前文件所在目录
+                ]
+                
+                model_loaded = False
+                for model_path in model_paths:
+                    abs_path = os.path.abspath(model_path)
+                    print(f"尝试加载模型文件: {model_path} (绝对路径: {abs_path})")
+                    if os.path.exists(model_path):
+                        print(f"  ✓ 文件存在，尝试加载...")
+                        if analyzer.load_model(model_path):
+                            print(f"✅ 模型加载成功: {model_path}")
+                            # 检查模型完整性
+                            if analyzer.trained_features:
+                                feature_count = len(analyzer.trained_features.get('common_features', {}))
+                                print(f"   - 买点特征数: {feature_count}")
+                            if analyzer.trained_sell_features:
+                                sell_feature_count = len(analyzer.trained_sell_features.get('common_features', {}))
+                                print(f"   - 卖点特征数: {sell_feature_count}")
+                            model_loaded = True
+                            break
+                        else:
+                            print(f"  ⚠️ 文件存在但加载失败: {model_path}")
+                    else:
+                        print(f"  ✗ 文件不存在: {abs_path}")
+                
+                if not model_loaded:
+                    print("⚠️ 未找到已保存的模型文件，尝试的路径：")
+                    for path in model_paths:
+                        abs_path = os.path.abspath(path)
+                        exists = os.path.exists(path)
+                        print(f"   - {path}")
+                        print(f"     绝对路径: {abs_path}")
+                        print(f"     存在: {exists}")
+                    print("⚠️ 需要重新训练模型")
+                    print(f"当前工作目录: {os.getcwd()}")
+                    print(f"当前文件目录: {current_file_dir}")
+                    print(f"项目根目录: {project_root}")
             else:
                 # 本地环境：正常初始化
                 print("正在初始化分析器...")
