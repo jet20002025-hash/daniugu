@@ -224,6 +224,11 @@ def index():
         print(f"主页错误: {error_detail}")
         return f"<h1>服务器错误</h1><pre>{error_detail}</pre>", 500
 
+@app.route('/favicon.ico')
+def favicon():
+    """处理favicon请求，返回204 No Content"""
+    return '', 204
+
 @app.route('/login')
 def login_page():
     """登录页面"""
