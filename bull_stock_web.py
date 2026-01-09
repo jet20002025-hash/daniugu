@@ -102,7 +102,8 @@ def init_analyzer():
                     print(f"尝试加载模型文件: {model_path} (绝对路径: {abs_path})")
                     if os.path.exists(model_path):
                         print(f"  ✓ 文件存在，尝试加载...")
-                        if analyzer.load_model(model_path):
+                        # 在 Vercel 环境中，加载模型时跳过网络请求（skip_network=True）
+                        if analyzer.load_model(model_path, skip_network=True):
                             print(f"✅ 模型加载成功: {model_path}")
                             # 检查模型完整性
                             if analyzer.trained_features:
@@ -138,9 +139,9 @@ def init_analyzer():
                     auto_analyze_and_train=False  # 即使是本地也禁用自动训练，避免阻塞
                 )
                 
-                # 尝试加载已保存的模型
+                # 尝试加载已保存的模型（本地环境也跳过网络请求，仅加载模型文件）
                 print("尝试加载已保存的模型...")
-                if analyzer.load_model('trained_model.json'):
+                if analyzer.load_model('trained_model.json', skip_network=True):
                     print("✅ 模型加载成功")
                     # 检查模型完整性
                     if analyzer.trained_features:

@@ -3111,10 +3111,11 @@ class BullStockAnalyzer:
             traceback.print_exc()
             return False
     
-    def load_model(self, filename: str = 'trained_model.json') -> bool:
+    def load_model(self, filename: str = 'trained_model.json', skip_network: bool = True) -> bool:
         """
         从JSON文件加载模型
         :param filename: 模型文件名
+        :param skip_network: 是否跳过网络请求（加载模型时不需要网络）
         :return: 是否加载成功
         """
         try:
@@ -3132,11 +3133,13 @@ class BullStockAnalyzer:
             model_data = None
             loaded_path = None
             
+            # 加载文件（纯文件操作，不涉及网络）
             for path in possible_paths:
                 try:
                     abs_path = os.path.abspath(path)
                     if os.path.exists(path):
                         print(f"[load_model] 尝试读取: {path} (绝对路径: {abs_path})")
+                        # 直接读取文件，不触发任何网络请求
                         with open(path, 'r', encoding='utf-8') as f:
                             model_data = json.load(f)
                         loaded_path = path
@@ -3157,6 +3160,7 @@ class BullStockAnalyzer:
                 print(f"[load_model] 尝试的路径: {possible_paths}")
                 return False
             
+            # 解析模型数据（纯内存操作，不涉及网络）
             # 加载买点特征模型
             if model_data.get('buy_features'):
                 buy_features = model_data['buy_features'].copy()
@@ -3173,19 +3177,24 @@ class BullStockAnalyzer:
                     sell_features['trained_at'] = datetime.fromisoformat(sell_features['trained_at'])
                 self.trained_sell_features = sell_features
             
-            # 加载大牛股列表（如果不存在）
+            # 加载大牛股列表（仅加载元数据，不获取股票数据，避免网络请求）
             if model_data.get('bull_stocks'):
-                for stock_data in model_data['bull_stocks']:
-                    # 检查是否已存在
-                    existing = [s for s in self.bull_stocks if s['代码'] == stock_data['代码']]
-                    if not existing:
-                        stock = {
-                            '代码': stock_data['代码'],
-                            '名称': stock_data['名称'],
-                            '添加时间': datetime.fromisoformat(stock_data['添加时间']) if isinstance(stock_data['添加时间'], str) else datetime.now(),
-                            '数据条数': stock_data.get('数据条数', 0)
-                        }
-                        self.bull_stocks.append(stock)
+                if skip_network:
+                    # 跳过加载股票列表，仅加载模型特征（避免网络请求）
+                    print(f"[load_model] 跳过加载股票列表（skip_network=True），仅加载模型特征")
+                else:
+                    # 只有在明确不需要跳过网络时才加载股票列表
+                    for stock_data in model_data['bull_stocks']:
+                        # 检查是否已存在
+                        existing = [s for s in self.bull_stocks if s['代码'] == stock_data['代码']]
+                        if not existing:
+                            stock = {
+                                '代码': stock_data['代码'],
+                                '名称': stock_data['名称'],
+                                '添加时间': datetime.fromisoformat(stock_data['添加时间']) if isinstance(stock_data['添加时间'], str) else datetime.now(),
+                                '数据条数': stock_data.get('数据条数', 0)
+                            }
+                            self.bull_stocks.append(stock)
             
             return True
         except FileNotFoundError:
