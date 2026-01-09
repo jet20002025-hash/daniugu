@@ -2583,9 +2583,19 @@
             }
             
             try {
+                // 先检查登录状态
+                const loginCheck = await fetch('/api/check_login');
+                const loginResult = await loginCheck.json();
+                if (!loginResult.success || !loginResult.logged_in) {
+                    // 未登录，跳转到登录页
+                    window.location.href = '/login';
+                    return;
+                }
+                
                 const user = await getUserInfo();
                 if (!user) {
-                    userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #999;">未登录</div>';
+                    // 获取用户信息失败，也跳转到登录页
+                    window.location.href = '/login';
                     return;
                 }
                 
