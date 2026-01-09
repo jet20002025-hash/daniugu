@@ -1703,6 +1703,27 @@
                 console.error('❌ [scanAllStocks] 错误详情:', errorInfo);
                 console.error('❌ [scanAllStocks] 错误对象:', error);
                 
+                // 首先检查是否是 AbortError（应该在显示错误之前处理）
+                if (error.name === 'AbortError' || error.message?.includes('aborted') || error.message?.includes('signal is aborted')) {
+                    // 请求超时或被中断，但扫描可能已在后台启动
+                    console.warn('[scanAllStocks] 请求被中断（AbortError），可能原因：');
+                    console.warn('  1. 请求超时（30秒）');
+                    console.warn('  2. 用户在其他设备/标签页启动了扫描');
+                    console.warn('  3. 网络连接中断');
+                    console.warn('[scanAllStocks] 继续等待进度更新，扫描可能在后台继续...');
+                    
+                    // 不显示错误提示框，只显示警告消息
+                    const existingErrorDiv = document.getElementById('scanErrorDisplay');
+                    if (existingErrorDiv) {
+                        existingErrorDiv.remove();
+                    }
+                    
+                    showMessage('请求已中断，但扫描可能已在后台启动。请继续等待进度更新...', 'warning');
+                    // 不停止进度轮询，因为扫描可能在后台继续
+                    return; // 直接返回，不执行后续的错误处理
+                }
+                
+                // 其他错误才显示错误提示框
                 // 在页面上显示详细错误信息
                 const errorMsg = `扫描启动失败: ${error.name || '未知错误'}\n错误信息: ${error.message || '无详细信息'}\n\n请查看浏览器控制台（F12）获取更多详情`;
                 showMessage(errorMsg, 'error');
@@ -1734,7 +1755,7 @@
                 `;
                 document.body.appendChild(errorDiv);
                 
-                // 5秒后自动移除错误显示
+                // 10秒后自动移除错误显示
                 setTimeout(() => {
                     const errDiv = document.getElementById('scanErrorDisplay');
                     if (errDiv) {
@@ -1742,7 +1763,8 @@
                     }
                 }, 10000);
                 
-                if (error.name === 'AbortError') {
+                // AbortError 已经在上面处理并返回了，这里不会执行到
+                if (false && error.name === 'AbortError') {
                     // 请求超时或被中断，但扫描可能已在后台启动
                     console.warn('[scanAllStocks] 请求被中断（AbortError），可能原因：');
                     console.warn('  1. 请求超时（30秒）');
