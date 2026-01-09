@@ -1193,8 +1193,18 @@ def scan_all_stocks():
             import uuid
             import scan_progress_store
             
-            # 生成扫描任务ID
-            scan_id = str(uuid.uuid4())
+            # 获取当前用户信息，确保每个用户的扫描任务独立
+            current_user = get_current_user()
+            username = current_user.get('username', 'anonymous') if current_user else 'anonymous'
+            
+            # 生成扫描任务ID，包含用户名前缀，确保多用户并发时不会冲突
+            # 格式: username_timestamp_uuid
+            import time as time_module
+            timestamp = int(time_module.time())
+            unique_id = str(uuid.uuid4())[:8]  # 使用 UUID 的前8位，减少长度
+            scan_id = f"{username}_{timestamp}_{unique_id}"
+            
+            print(f"[scan_all_stocks] 生成扫描任务ID: {scan_id} (用户: {username})")
             
             # 获取股票列表，计算批次
             if analyzer is None:
@@ -1245,6 +1255,7 @@ def scan_all_stocks():
             initial_progress = {
                 'type': 'scan',
                 'scan_id': scan_id,
+                'username': username,  # 添加用户名，用于多用户隔离
                 'current': 0,
                 'total': total_stocks,
                 'status': '准备中',
@@ -1406,6 +1417,10 @@ def continue_scan():
                 'message': '缺少 scan_id 参数'
             }), 400
         
+        # 获取当前用户信息，用于验证权限
+        current_user = get_current_user()
+        username = current_user.get('username', 'anonymous') if current_user else 'anonymous'
+        
         import scan_progress_store
         from vercel_scan_helper import process_scan_batch_vercel
         
@@ -1415,14 +1430,25 @@ def continue_scan():
             # 提供更详细的错误信息
             import traceback
             error_detail = traceback.format_exc()
-            print(f"⚠️ 找不到扫描任务 scan_id={scan_id}")
-            print(f"   可能原因：1) Redis 数据过期（TTL 24小时） 2) scan_id 错误 3) Redis 连接问题")
+            print(f"⚠️ 找不到扫描任务 scan_id={scan_id} (用户: {username})")
+            print(f"   可能原因：1) Redis 数据过期（TTL 24小时） 2) scan_id 错误 3) Redis 连接问题 4) 不是当前用户的扫描任务")
             return jsonify({
                 'success': False,
                 'message': f'找不到扫描任务（scan_id: {scan_id}）。可能原因：数据已过期（超过24小时）或任务已删除。',
                 'error_code': 'SCAN_NOT_FOUND',
                 'scan_id': scan_id
             }), 404
+        
+        # 验证扫描任务是否属于当前用户（多用户隔离）
+        progress_username = progress.get('username', 'anonymous')
+        if progress_username != username:
+            print(f"⚠️ 用户 {username} 尝试访问其他用户 {progress_username} 的扫描任务: {scan_id}")
+            return jsonify({
+                'success': False,
+                'message': '无权访问此扫描任务（不属于当前用户）',
+                'error_code': 'ACCESS_DENIED',
+                'scan_id': scan_id
+            }), 403
         
         # 检查是否已完成
         if progress.get('status') == '完成':
@@ -1532,22 +1558,37 @@ def stop_scan():
             
             if scan_id:
                 try:
+                    # 获取当前用户信息，用于验证权限
+                    current_user = get_current_user()
+                    username = current_user.get('username', 'anonymous') if current_user else 'anonymous'
+                    
                     import scan_progress_store
                     progress = scan_progress_store.get_scan_progress(scan_id)
                     if progress:
+                        # 验证扫描任务是否属于当前用户（多用户隔离）
+                        progress_username = progress.get('username', 'anonymous')
+                        if progress_username != username:
+                            print(f"[stop_scan] ⚠️ 用户 {username} 尝试停止其他用户 {progress_username} 的扫描任务: {scan_id}")
+                            return jsonify({
+                                'success': False,
+                                'message': '无权停止此扫描任务（不属于当前用户）',
+                                'error_code': 'ACCESS_DENIED',
+                                'scan_id': scan_id
+                            }), 403
+                        
                         progress['status'] = '已停止'
                         progress['detail'] = '扫描已停止（用户请求）'
                         import time
                         progress['last_update_time'] = time.time()
                         scan_progress_store.save_scan_progress(scan_id, progress)
-                        print(f"[stop_scan] ✅ 成功停止扫描任务: {scan_id}")
+                        print(f"[stop_scan] ✅ 成功停止扫描任务: {scan_id} (用户: {username})")
                         return jsonify({
                             'success': True,
                             'message': '停止扫描请求已发送',
                             'scan_id': scan_id
                         })
                     else:
-                        print(f"[stop_scan] ⚠️ 找不到扫描任务: {scan_id}")
+                        print(f"[stop_scan] ⚠️ 找不到扫描任务: {scan_id} (用户: {username})")
                         return jsonify({
                             'success': False,
                             'message': f'找不到扫描任务（scan_id: {scan_id}），可能已过期或已完成'
