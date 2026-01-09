@@ -362,6 +362,7 @@ def api_login():
         }), 500
 
 @app.route('/api/logout', methods=['POST'])
+@require_login
 def api_logout():
     """用户登出API"""
     session.clear()
@@ -1088,6 +1089,7 @@ def get_progress():
 
 
 @app.route('/api/save_model', methods=['POST'])
+@require_login
 def save_model():
     """保存模型到文件API"""
     try:
