@@ -2411,6 +2411,77 @@ def get_reversal_scan_results():
             'stocks': []
         }), 500
 
+@app.route('/api/search_stock', methods=['POST'])
+@require_login
+def search_stock():
+    """个股检索API - 根据代码或名称搜索股票"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': '请求数据为空'
+            }), 400
+        
+        search_keyword = (data.get('keyword') or '').strip()
+        if not search_keyword:
+            return jsonify({
+                'success': False,
+                'message': '请输入股票代码或名称'
+            }), 400
+        
+        init_analyzer()
+        if analyzer is None or analyzer.fetcher is None:
+            return jsonify({
+                'success': False,
+                'message': '分析器未初始化'
+            }), 500
+        
+        # 获取所有股票列表
+        stock_list = analyzer.fetcher.get_all_stocks(timeout=15, max_retries=3)
+        if stock_list is None or len(stock_list) == 0:
+            return jsonify({
+                'success': False,
+                'message': '无法获取股票列表'
+            }), 500
+        
+        # 搜索匹配的股票
+        results = []
+        search_keyword_lower = search_keyword.lower()
+        
+        for _, row in stock_list.iterrows():
+            code = str(row.get('code', '')).strip()
+            name = str(row.get('name', '')).strip()
+            
+            # 匹配代码或名称
+            if (search_keyword_lower in code.lower() or 
+                search_keyword_lower in name.lower()):
+                results.append({
+                    'code': code,
+                    'name': name
+                })
+                
+                # 限制返回结果数量，避免过多
+                if len(results) >= 50:
+                    break
+        
+        return jsonify({
+            'success': True,
+            'results': results,
+            'count': len(results),
+            'keyword': search_keyword
+        })
+        
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"个股检索错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'检索失败: {str(e)}'
+        }), 500
+
+
 @app.route('/api/get_weekly_kline_for_stock', methods=['POST'])
 @require_login
 def get_weekly_kline_for_stock():

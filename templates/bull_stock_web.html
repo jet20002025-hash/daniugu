@@ -355,6 +355,25 @@
                 </div>
             </div>
             
+            <!-- 个股检索功能 -->
+            <div class="add-form" style="margin-bottom: 20px;">
+                <h2 style="margin-bottom: 20px; color: #333;">🔍 个股检索</h2>
+                <div class="form-row">
+                    <div class="form-group" style="flex: 1;">
+                        <label for="searchKeyword">输入股票代码或名称</label>
+                        <input type="text" id="searchKeyword" placeholder="例如：000001 或 平安银行" style="width: 100%;">
+                    </div>
+                    <div class="form-group" style="flex: 0 0 auto; margin-top: 28px;">
+                        <button class="btn btn-primary" onclick="searchStock()" style="margin-left: 10px;">搜索</button>
+                    </div>
+                </div>
+                <div id="searchResults" style="margin-top: 15px; display: none;">
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; max-height: 300px; overflow-y: auto;">
+                        <div id="searchResultsList"></div>
+                    </div>
+                </div>
+            </div>
+            
             <!-- 添加表单 -->
             <div class="add-form">
                 <h2 style="margin-bottom: 20px; color: #333;">添加大牛股</h2>
@@ -440,6 +459,117 @@
                 messageEl.classList.remove('show');
             }, 3000);
         }
+        
+        // 个股检索功能
+        async function searchStock() {
+            const keyword = document.getElementById('searchKeyword').value.trim();
+            const resultsDiv = document.getElementById('searchResults');
+            const resultsList = document.getElementById('searchResultsList');
+            
+            if (!keyword) {
+                showMessage('请输入股票代码或名称', 'error');
+                return;
+            }
+            
+            try {
+                // 显示加载状态
+                resultsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">正在搜索...</div>';
+                resultsDiv.style.display = 'block';
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒超时
+                
+                const response = await fetch('/api/search_stock', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        keyword: keyword
+                    }),
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                if (!result.success) {
+                    throw new Error(result.message || '搜索失败');
+                }
+                
+                // 显示搜索结果
+                if (result.results && result.results.length > 0) {
+                    let html = `<div style="margin-bottom: 10px; font-weight: bold; color: #333;">找到 ${result.count} 个结果：</div>`;
+                    html += '<div style="display: grid; gap: 10px;">';
+                    
+                    result.results.forEach((stock, index) => {
+                        html += `
+                            <div style="padding: 12px; background: white; border: 1px solid #e0e0e0; border-radius: 6px; cursor: pointer; transition: all 0.3s;" 
+                                 onmouseover="this.style.background='#f0f7ff'; this.style.borderColor='#667eea';" 
+                                 onmouseout="this.style.background='white'; this.style.borderColor='#e0e0e0';"
+                                 onclick="selectStockFromSearch('${stock.code}', '${stock.name}')">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <span style="font-weight: bold; color: #667eea; font-size: 16px;">${stock.code}</span>
+                                        <span style="margin-left: 10px; color: #333;">${stock.name}</span>
+                                    </div>
+                                    <span style="color: #999; font-size: 12px;">点击选择</span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    html += '</div>';
+                    resultsList.innerHTML = html;
+                } else {
+                    resultsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">未找到匹配的股票</div>';
+                }
+                
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    resultsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #e74c3c;">搜索超时，请重试</div>';
+                } else {
+                    console.error('搜索股票失败:', error);
+                    resultsList.innerHTML = `<div style="text-align: center; padding: 20px; color: #e74c3c;">搜索失败: ${error.message}</div>`;
+                }
+            }
+        }
+        
+        // 从搜索结果中选择股票
+        function selectStockFromSearch(code, name) {
+            // 填充到添加股票的表单
+            document.getElementById('stockCode').value = code;
+            document.getElementById('stockName').value = name;
+            
+            // 隐藏搜索结果
+            document.getElementById('searchResults').style.display = 'none';
+            
+            // 清空搜索框
+            document.getElementById('searchKeyword').value = '';
+            
+            // 提示用户
+            showMessage(`已选择: ${code} ${name}，可以点击"添加股票"按钮添加`, 'success');
+            
+            // 自动滚动到添加股票表单
+            document.querySelector('.add-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+        // 添加回车键搜索
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('searchKeyword');
+            if (searchInput) {
+                searchInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        searchStock();
+                    }
+                });
+            }
+        });
         
         // 添加股票
         async function addStock() {
