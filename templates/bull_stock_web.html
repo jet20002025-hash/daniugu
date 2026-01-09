@@ -389,55 +389,8 @@
                 </div>
                 <!-- 功能按钮组（根据环境和用户等级显示） -->
                 <div class="btn-group" id="functionButtonsGroup">
-                    <!-- 本地版本：显示所有功能 -->
-                    <div id="localVersionButtons" style="display: none;">
-                        <button class="btn btn-primary" onclick="addStock()">添加股票</button>
-                        <button class="btn btn-secondary" onclick="clearStocks()">清空所有</button>
-                        <button class="btn btn-primary" onclick="analyzeAllStocks()" style="background: #27ae60;">分析所有股票</button>
-                        <button class="btn btn-primary" onclick="trainFeatures()" style="background: #e67e22;">训练特征模型</button>
-                        <button class="btn btn-primary" onclick="scanAllStocks()" style="background: #e74c3c;" id="scanAllStocksBtn">🔍 扫描全市场</button>
-                        <button class="btn btn-primary" onclick="stopScan()" style="background: #95a5a6;" id="stopScanBtn" disabled>🛑 停止扫描</button>
                     </div>
-                    
-                    <!-- 网络版本：根据用户等级显示 -->
-                    <div id="webVersionButtons" style="display: none;">
-                        <!-- VIP用户：可以扫描全市场（每天一次） -->
-                        <div id="vipUserButtons" style="display: none;">
-                            <button class="btn btn-primary" onclick="scanAllStocks()" style="background: #e74c3c;" id="scanAllStocksBtnWeb">🔍 扫描全市场（VIP每日一次）</button>
-                            <button class="btn btn-primary" onclick="stopScan()" style="background: #95a5a6;" id="stopScanBtnWeb" disabled>🛑 停止扫描</button>
-                        </div>
-                        
-                        <!-- 免费用户：只显示查看结果按钮 -->
-                        <div id="freeUserButtons" style="display: none;">
-                            <button class="btn btn-primary" onclick="viewScanResults()" style="background: #667eea;">📊 查看扫描结果</button>
-                        </div>
-                        
-                        <!-- 超级用户：显示所有功能 -->
-                        <div id="superUserButtons" style="display: none;">
-                            <button class="btn btn-primary" onclick="addStock()">添加股票</button>
-                            <button class="btn btn-secondary" onclick="clearStocks()">清空所有</button>
-                            <button class="btn btn-primary" onclick="analyzeAllStocks()" style="background: #27ae60;">分析所有股票</button>
-                            <button class="btn btn-primary" onclick="trainFeatures()" style="background: #e67e22;">训练特征模型</button>
-                            <button class="btn btn-primary" onclick="scanAllStocks()" style="background: #e74c3c;" id="scanAllStocksBtnSuper">🔍 扫描全市场</button>
-                            <button class="btn btn-primary" onclick="stopScan()" style="background: #95a5a6;" id="stopScanBtnSuper" disabled>🛑 停止扫描</button>
-                        </div>
-                    </div>
-                </div>
-                <!-- 反转个股筛选条件（仅本地版本显示） -->
-                <div id="reversalStockSection" style="margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #9b59b6; display: none;">
-                    <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px;">📈 搜索反转个股（上周阴线+本周阳线）</h3>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="display: block; margin-bottom: 5px; color: #555; font-size: 13px; font-weight: 500;">市值上限（亿元）</label>
-                            <input type="number" id="reversalMarketCapMax" placeholder="例如: 100" value="100" min="0" step="0.1" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;">
-                        </div>
-                    </div>
-                    <div class="btn-group" style="margin-top: 10px;">
-                        <button class="btn btn-primary" onclick="scanReversalStocks()" style="background: #9b59b6; font-size: 15px; padding: 12px 24px;">🔍 开始搜索</button>
-                    </div>
-                </div>
                 
-                <!-- 反转个股扫描结果区域 -->
                 <div id="reversalResults" style="margin-top: 20px; display: none;"></div>
                 
                 <!-- 周K线图模态框 -->
@@ -2686,70 +2639,58 @@
         
         // 检查是否为本地环境（非Vercel）
         function isLocalEnvironment() {
-            // 检查域名，如果是 localhost 或 127.0.0.1，则为本地环境
-            const hostname = window.location.hostname;
-            return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+            // 网络版：始终返回 false（不显示本地版本功能）
+            return false;
         }
         
         // 根据环境和用户等级显示/隐藏功能按钮
+                // 根据环境和用户等级显示/隐藏功能按钮（网络版）
         async function updateFunctionButtonsVisibility() {
-            const isLocal = isLocalEnvironment();
-            const localButtons = document.getElementById('localVersionButtons');
+            // 网络环境：根据用户等级显示
             const webButtons = document.getElementById('webVersionButtons');
             const vipButtons = document.getElementById('vipUserButtons');
             const freeButtons = document.getElementById('freeUserButtons');
             const superButtons = document.getElementById('superUserButtons');
             
-            if (isLocal) {
-                // 本地环境：显示所有功能
-                if (localButtons) localButtons.style.display = 'block';
-                if (webButtons) webButtons.style.display = 'none';
-            } else {
-                // 网络环境：根据用户等级显示
-                if (localButtons) localButtons.style.display = 'none';
-                if (webButtons) webButtons.style.display = 'block';
-                
-                // 获取用户信息
-                try {
-                    const user = await getUserInfo();
-                    if (user) {
-                        const tier = user.tier || 'free';
-                        const isSuper = user.is_super || false;
-                        
-                        if (isSuper || tier === 'super') {
-                            // 超级用户：显示所有功能
-                            if (superButtons) superButtons.style.display = 'block';
-                            if (vipButtons) vipButtons.style.display = 'none';
-                            if (freeButtons) freeButtons.style.display = 'none';
-                        } else if (tier === 'premium') {
-                            // VIP用户：显示扫描全市场（每天一次）
-                            if (vipButtons) vipButtons.style.display = 'block';
-                            if (freeButtons) freeButtons.style.display = 'none';
-                            if (superButtons) superButtons.style.display = 'none';
-                        } else {
-                            // 免费用户：只显示查看结果按钮
-                            if (freeButtons) freeButtons.style.display = 'block';
-                            if (vipButtons) vipButtons.style.display = 'none';
-                            if (superButtons) superButtons.style.display = 'none';
-                        }
+            if (webButtons) webButtons.style.display = 'block';
+            
+            // 获取用户信息
+            try {
+                const user = await getUserInfo();
+                if (user) {
+                    const tier = user.tier || 'free';
+                    const isSuper = user.is_super || false;
+                    
+                    if (isSuper || tier === 'super') {
+                        // 超级用户：显示所有功能
+                        if (superButtons) superButtons.style.display = 'block';
+                        if (vipButtons) vipButtons.style.display = 'none';
+                        if (freeButtons) freeButtons.style.display = 'none';
+                    } else if (tier === 'premium') {
+                        // VIP用户：显示扫描全市场（每天一次）
+                        if (vipButtons) vipButtons.style.display = 'block';
+                        if (freeButtons) freeButtons.style.display = 'none';
+                        if (superButtons) superButtons.style.display = 'none';
                     } else {
-                        // 无法获取用户信息，默认显示免费用户按钮
+                        // 免费用户：只显示查看结果按钮
                         if (freeButtons) freeButtons.style.display = 'block';
                         if (vipButtons) vipButtons.style.display = 'none';
                         if (superButtons) superButtons.style.display = 'none';
                     }
-                } catch (error) {
-                    console.error('获取用户信息失败:', error);
-                    // 出错时默认显示免费用户按钮
+                } else {
+                    // 无法获取用户信息，默认显示免费用户按钮
                     if (freeButtons) freeButtons.style.display = 'block';
                     if (vipButtons) vipButtons.style.display = 'none';
                     if (superButtons) superButtons.style.display = 'none';
                 }
+            } catch (error) {
+                console.error('获取用户信息失败:', error);
+                // 出错时默认显示免费用户按钮
+                if (freeButtons) freeButtons.style.display = 'block';
+                if (vipButtons) vipButtons.style.display = 'none';
+                if (superButtons) superButtons.style.display = 'none';
             }
-        }
-        
-        // 查看扫描结果（免费用户专用）
-        async function viewScanResults() {
+        }async function viewScanResults() {
             try {
                 showMessage('正在加载扫描结果...', 'success');
                 
@@ -2801,12 +2742,7 @@
             // 根据环境和用户等级显示/隐藏功能按钮
             await updateFunctionButtonsVisibility();
             
-            // 根据环境显示/隐藏"搜索反转个股"功能
-            const isLocal = isLocalEnvironment();
-            const reversalSection = document.getElementById('reversalStockSection');
-            if (reversalSection) {
-                reversalSection.style.display = isLocal ? 'block' : 'none';
-                console.log(`[initPageLoad] 搜索反转个股功能: ${isLocal ? '显示（本地环境）' : '隐藏（网络环境）'}`);
+            
             }
             
             // 页面加载时检查匹配度状态
