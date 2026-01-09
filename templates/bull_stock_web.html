@@ -2656,12 +2656,27 @@
             }
         }
         
+        // 检查是否为本地环境（非Vercel）
+        function isLocalEnvironment() {
+            // 检查域名，如果是 localhost 或 127.0.0.1，则为本地环境
+            const hostname = window.location.hostname;
+            return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+        }
+        
         // 页面加载时获取股票列表
         async function initPageLoad() {
             // 首先检查登录状态
             const isLoggedIn = await checkLoginStatus();
             if (!isLoggedIn) {
                 return; // 未登录，已跳转，不再继续执行
+            }
+            
+            // 根据环境显示/隐藏"搜索反转个股"功能
+            const isLocal = isLocalEnvironment();
+            const reversalSection = document.getElementById('reversalStockSection');
+            if (reversalSection) {
+                reversalSection.style.display = isLocal ? 'block' : 'none';
+                console.log(`[initPageLoad] 搜索反转个股功能: ${isLocal ? '显示（本地环境）' : '隐藏（网络环境）'}`);
             }
             
             // 页面加载时检查匹配度状态
