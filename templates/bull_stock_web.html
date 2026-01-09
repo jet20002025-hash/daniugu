@@ -1317,7 +1317,12 @@
                     }
                 }
             } catch (error) {
-                console.error('检查扫描状态失败:', error);
+                console.error('❌ [scanAllStocks] 检查扫描状态失败:', error);
+                console.error('❌ [scanAllStocks] 错误详情:', {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack
+                });
             }
             
             // 先检查是否已训练特征模型
@@ -1345,8 +1350,13 @@
                     return;
                 }
             } catch (error) {
-                console.error('检查特征模型失败:', error);
-                showMessage('无法检查特征模型状态: ' + error.message, 'error');
+                console.error('❌ [scanAllStocks] 检查特征模型失败:', error);
+                console.error('❌ [scanAllStocks] 错误详情:', {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack
+                });
+                showMessage('无法检查特征模型状态: ' + (error.message || '未知错误'), 'error');
                 return;
             }
             
@@ -1409,10 +1419,27 @@
                 clearTimeout(timeoutId);
                 
                 if (!response.ok) {
-                    throw new Error(`HTTP错误: ${response.status}`);
+                    const errorText = await response.text();
+                    console.error('[scanAllStocks] HTTP错误响应:', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        body: errorText
+                    });
+                    throw new Error(`HTTP错误 ${response.status}: ${response.statusText}\n响应内容: ${errorText.substring(0, 200)}`);
                 }
                 
-                const result = await response.json();
+                const responseText = await response.text();
+                console.log('[scanAllStocks] API 原始响应:', responseText);
+                
+                let result;
+                try {
+                    result = JSON.parse(responseText);
+                } catch (parseError) {
+                    console.error('[scanAllStocks] JSON解析失败:', parseError);
+                    console.error('[scanAllStocks] 响应内容:', responseText);
+                    throw new Error(`服务器返回了无效的JSON格式\n响应内容: ${responseText.substring(0, 200)}`);
+                }
+                
                 console.log('[scanAllStocks] 扫描API响应:', result);
                 
                 if (!result) {
@@ -1593,12 +1620,56 @@
                     }
                 }
             } catch (error) {
-                console.error('[scanAllStocks] 扫描过程出错:', error);
-                console.error('[scanAllStocks] 错误详情:', {
+                // 详细错误日志
+                const errorInfo = {
                     name: error.name,
                     message: error.message,
-                    stack: error.stack
-                });
+                    stack: error.stack,
+                    toString: error.toString()
+                };
+                
+                console.error('❌ [scanAllStocks] 扫描过程出错:', error);
+                console.error('❌ [scanAllStocks] 错误详情:', errorInfo);
+                console.error('❌ [scanAllStocks] 错误对象:', error);
+                
+                // 在页面上显示详细错误信息
+                const errorMsg = `扫描启动失败: ${error.name || '未知错误'}\n错误信息: ${error.message || '无详细信息'}\n\n请查看浏览器控制台（F12）获取更多详情`;
+                showMessage(errorMsg, 'error');
+                
+                // 创建一个可见的错误显示区域
+                const errorDiv = document.createElement('div');
+                errorDiv.id = 'scanErrorDisplay';
+                errorDiv.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: #ff4444;
+                    color: white;
+                    padding: 20px;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                    z-index: 10000;
+                    max-width: 400px;
+                    font-family: monospace;
+                    font-size: 12px;
+                    line-height: 1.5;
+                `;
+                errorDiv.innerHTML = `
+                    <div style="font-weight: bold; margin-bottom: 10px; font-size: 14px;">❌ 扫描错误</div>
+                    <div><strong>错误类型:</strong> ${error.name || '未知'}</div>
+                    <div><strong>错误信息:</strong> ${error.message || '无详细信息'}</div>
+                    ${error.stack ? `<div style="margin-top: 10px; font-size: 11px; opacity: 0.9;"><strong>堆栈:</strong><br><pre style="white-space: pre-wrap; word-wrap: break-word;">${error.stack.substring(0, 500)}</pre></div>` : ''}
+                    <button onclick="this.parentElement.remove()" style="margin-top: 10px; padding: 5px 10px; background: white; color: #ff4444; border: none; border-radius: 4px; cursor: pointer;">关闭</button>
+                `;
+                document.body.appendChild(errorDiv);
+                
+                // 5秒后自动移除错误显示
+                setTimeout(() => {
+                    const errDiv = document.getElementById('scanErrorDisplay');
+                    if (errDiv) {
+                        errDiv.remove();
+                    }
+                }, 10000);
                 
                 if (error.name === 'AbortError') {
                     // 请求超时，但扫描可能已在后台启动
@@ -1614,7 +1685,6 @@
                     stopProgressPolling();
                     hideProgress();
                     console.error('[scanAllStocks] 扫描失败，已停止进度轮询');
-                    showMessage('扫描启动失败: ' + (error.message || '未知错误'), 'error');
                 }
             }
         }
