@@ -982,7 +982,29 @@ def scan_all_stocks():
             scan_id = str(uuid.uuid4())
             
             # 获取股票列表，计算批次
-            stock_list = analyzer.fetcher.get_all_stocks()
+            if analyzer is None:
+                return jsonify({
+                    'success': False,
+                    'message': '分析器未初始化'
+                }), 500
+            
+            if not hasattr(analyzer, 'fetcher') or analyzer.fetcher is None:
+                return jsonify({
+                    'success': False,
+                    'message': '数据获取器未初始化'
+                }), 500
+            
+            try:
+                stock_list = analyzer.fetcher.get_all_stocks()
+            except Exception as e:
+                import traceback
+                error_detail = traceback.format_exc()
+                print(f"获取股票列表失败: {error_detail}")
+                return jsonify({
+                    'success': False,
+                    'message': f'获取股票列表失败: {str(e)}'
+                }), 500
+            
             if stock_list is None or len(stock_list) == 0:
                 return jsonify({
                     'success': False,
