@@ -2731,14 +2731,28 @@
             const freeButtons = document.getElementById('freeUserButtons');
             const superButtons = document.getElementById('superUserButtons');
             
+            console.log('[updateFunctionButtonsVisibility] 环境检测:', {
+                hostname: window.location.hostname,
+                isLocal: isLocal,
+                localButtons: !!localButtons,
+                webButtons: !!webButtons
+            });
+            
             if (isLocal) {
                 // 本地环境：显示所有功能
-                if (localButtons) localButtons.style.display = 'block';
+                console.log('[updateFunctionButtonsVisibility] 本地环境，显示所有功能按钮');
+                if (localButtons) {
+                    localButtons.style.display = 'block';
+                    console.log('[updateFunctionButtonsVisibility] 本地按钮已显示');
+                }
                 if (webButtons) webButtons.style.display = 'none';
                 
                 // 显示反转个股功能
                 const reversalSection = document.getElementById('reversalStockSection');
-                if (reversalSection) reversalSection.style.display = 'block';
+                if (reversalSection) {
+                    reversalSection.style.display = 'block';
+                    console.log('[updateFunctionButtonsVisibility] 反转个股功能已显示');
+                }
             } else {
                 // 网络环境：根据用户等级显示
                 if (localButtons) localButtons.style.display = 'none';
@@ -2839,9 +2853,6 @@
             // 根据环境和用户等级显示/隐藏功能按钮
             await updateFunctionButtonsVisibility();
             
-            
-            }
-            
             // 页面加载时检查匹配度状态
             checkMatchScoreStatus();
             
@@ -2876,6 +2887,33 @@
                 console.error('[initPageLoad] 初始化失败:', error);
             }
         }
+        
+        // 立即执行一次按钮显示更新（不等待异步操作）
+        (function() {
+            const isLocal = isLocalEnvironment();
+            const localButtons = document.getElementById('localVersionButtons');
+            const webButtons = document.getElementById('webVersionButtons');
+            const reversalSection = document.getElementById('reversalStockSection');
+            
+            console.log('[立即执行] 环境检测:', {
+                hostname: window.location.hostname,
+                isLocal: isLocal,
+                localButtons: !!localButtons,
+                webButtons: !!webButtons
+            });
+            
+            if (isLocal && localButtons) {
+                localButtons.style.display = 'block';
+                console.log('[立即执行] 本地按钮已显示');
+            }
+            if (isLocal && reversalSection) {
+                reversalSection.style.display = 'block';
+                console.log('[立即执行] 反转个股功能已显示');
+            }
+            if (!isLocal && webButtons) {
+                webButtons.style.display = 'block';
+            }
+        })();
         
         // 多种方式确保页面加载时执行
         try {
