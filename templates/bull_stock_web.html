@@ -296,8 +296,15 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🐂 大牛股分析器</h1>
-            <p>添加大牛股，分析大涨前的特征</p>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div>
+                    <h1>🐂 大牛股分析器</h1>
+                    <p>添加大牛股，分析大涨前的特征</p>
+                </div>
+                <div id="userInfoDisplay" style="text-align: right; padding: 10px; background: #f8f9fa; border-radius: 8px; min-width: 200px;">
+                    <div style="font-size: 12px; color: #666;">加载中...</div>
+                </div>
+            </div>
         </div>
         
         <div class="content">
@@ -2474,6 +2481,13 @@
         function initPageLoad() {
             // 页面加载时检查匹配度状态
             checkMatchScoreStatus();
+            
+            // 显示用户信息
+            displayUserInfo();
+            
+            // 每30秒刷新一次用户信息
+            setInterval(displayUserInfo, 30000);
+            
             try {
                 console.log('[initPageLoad] 初始化页面加载...');
                 console.log('[initPageLoad] document.readyState:', document.readyState);
