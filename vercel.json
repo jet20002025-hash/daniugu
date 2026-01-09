@@ -1,4 +1,5 @@
 {
+  "buildCommand": "bash generate_version.sh",
   "crons": [
     {
       "path": "/api/cron?tier=premium",
