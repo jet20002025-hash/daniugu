@@ -2477,8 +2477,34 @@
             container.innerHTML = html;
         }
         
+        // 检查登录状态
+        async function checkLoginStatus() {
+            try {
+                const response = await fetch('/api/check_login');
+                const result = await response.json();
+                if (!result.success || !result.logged_in) {
+                    // 未登录，跳转到登录页
+                    console.log('[checkLoginStatus] 用户未登录，跳转到登录页');
+                    window.location.href = '/login';
+                    return false;
+                }
+                return true;
+            } catch (error) {
+                console.error('[checkLoginStatus] 检查登录状态失败:', error);
+                // 检查失败也跳转到登录页
+                window.location.href = '/login';
+                return false;
+            }
+        }
+        
         // 页面加载时获取股票列表
-        function initPageLoad() {
+        async function initPageLoad() {
+            // 首先检查登录状态
+            const isLoggedIn = await checkLoginStatus();
+            if (!isLoggedIn) {
+                return; // 未登录，已跳转，不再继续执行
+            }
+            
             // 页面加载时检查匹配度状态
             checkMatchScoreStatus();
             
