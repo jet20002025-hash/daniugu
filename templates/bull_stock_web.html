@@ -2143,8 +2143,8 @@
                 return;
             }
             
-            // 等待一小段时间，让上一批次完成
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // 等待一小段时间，让上一批次完成（增加延迟以提高稳定性）
+            await new Promise(resolve => setTimeout(resolve, 2000));
             
             try {
                 console.log(`开始处理第 ${currentBatch + 1}/${totalBatches} 批...`);

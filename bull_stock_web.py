@@ -1016,9 +1016,9 @@ def scan_all_stocks():
                 stock_list = stock_list.head(limit)
                 total_stocks = min(total_stocks, limit)
             
-            # 计算批次大小（每批约50只股票，确保在10秒内完成）
-            # 估算：每只股票约0.1-0.2秒，50只股票约5-10秒
-            batch_size = 50
+            # 计算批次大小（每批约30只股票，降低速度以提高稳定性）
+            # 估算：每只股票约0.1-0.2秒，30只股票约3-6秒，留出更多缓冲时间
+            batch_size = 30
             total_batches = (total_stocks + batch_size - 1) // batch_size  # 向上取整
             
             # 初始化扫描进度并保存到 Redis
@@ -1254,8 +1254,8 @@ def continue_scan():
                 'message': '特征模板为空'
             }), 400
         
-        # 计算批次
-        batch_size = 50
+        # 计算批次（与初始扫描保持一致）
+        batch_size = 30
         start_idx = (batch_num - 1) * batch_size
         end_idx = min(start_idx + batch_size, total_stocks)
         

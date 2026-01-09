@@ -66,9 +66,9 @@ def process_scan_batch_vercel(
         current_idx = start_idx + idx + 1
         
         try:
-            # 检查超时（单只股票最多处理8秒）
+            # 检查超时（单只股票最多处理10秒，增加时间以提高成功率）
             stock_start_time = time.time()
-            max_stock_time = 8
+            max_stock_time = 10
             
             # 获取股票周线数据
             weekly_df = analyzer.fetcher.get_weekly_kline(stock_code, weeks=100)
