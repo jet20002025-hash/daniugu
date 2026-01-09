@@ -1236,6 +1236,9 @@ def scan_all_stocks():
                         'message': '特征模板为空'
                     }), 400
                 
+                # 获取扫描配置
+                scan_config = get_scan_config()
+                
                 # 处理第一批股票
                 from vercel_scan_helper import process_scan_batch_vercel
                 first_batch = stock_list.head(batch_size)
