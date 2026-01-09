@@ -21,7 +21,7 @@ def get_beijing_time() -> datetime:
 
 def check_scan_time_limit(user_tier: str, scan_config: Dict) -> Tuple[bool, Optional[str]]:
     """
-    检查用户是否可以在当前时间扫描
+    检查用户是否可以在当前时间手动扫描
     :param user_tier: 用户等级 ('free', 'premium', 'super')
     :param scan_config: 扫描配置
     :return: (是否允许, 错误消息)
@@ -30,24 +30,25 @@ def check_scan_time_limit(user_tier: str, scan_config: Dict) -> Tuple[bool, Opti
         # 超级用户：随时可以扫描
         return True, None
     
-    beijing_now = get_beijing_time()
-    current_hour = beijing_now.hour
-    current_minute = beijing_now.minute
+    # 检查是否允许手动扫描
+    manual_scan_allowed = scan_config.get('manual_scan_allowed', True)
+    if not manual_scan_allowed:
+        # 免费用户：系统自动扫描，不允许手动扫描
+        auto_scan_hour = scan_config.get('auto_scan_hour', 15)
+        auto_scan_minute = scan_config.get('auto_scan_minute', 0)
+        return False, f'免费用户由系统每天 {auto_scan_hour:02d}:{auto_scan_minute:02d} 自动扫描，请直接查看扫描结果'
     
+    # VIP用户：允许手动扫描（没有时间限制）
     if user_tier == 'premium':
-        # VIP用户：随时可以扫描（没有时间限制）
         return True, None
-    else:
-        # 免费用户：只能在下午3点后扫描
-        scan_start_hour = scan_config.get('scan_start_hour', 15)
-        if current_hour < scan_start_hour:
-            return False, f'免费用户只能在下午{scan_start_hour}点后扫描，当前时间：{beijing_now.strftime("%H:%M")}'
-        return True, None
+    
+    # 其他情况：允许扫描
+    return True, None
 
 
 def check_daily_scan_limit(username: str, user_tier: str, scan_config: Dict, is_vercel: bool = False) -> Tuple[bool, Optional[str], Optional[int]]:
     """
-    检查用户每日扫描次数限制
+    检查用户每日扫描次数限制（仅用于手动扫描）
     :param username: 用户名
     :param user_tier: 用户等级
     :param scan_config: 扫描配置
@@ -59,9 +60,17 @@ def check_daily_scan_limit(username: str, user_tier: str, scan_config: Dict, is_
         return True, None, 0
     
     if user_tier == 'premium':
-        # VIP用户：无限制
+        # VIP用户：无限制（可以手动扫描）
         return True, None, 0
     
+    # 免费用户：不允许手动扫描（系统自动扫描）
+    manual_scan_allowed = scan_config.get('manual_scan_allowed', False)
+    if not manual_scan_allowed:
+        auto_scan_hour = scan_config.get('auto_scan_hour', 15)
+        auto_scan_minute = scan_config.get('auto_scan_minute', 0)
+        return False, f'免费用户由系统每天 {auto_scan_hour:02d}:{auto_scan_minute:02d} 自动扫描，请直接查看扫描结果', 0
+    
+    # 如果允许手动扫描，检查每日次数限制（保留原有逻辑）
     # 免费用户：每天只能扫描一次
     beijing_now = get_beijing_time()
     today_str = beijing_now.strftime('%Y-%m-%d')

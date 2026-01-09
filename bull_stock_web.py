@@ -120,7 +120,7 @@ def get_scan_config():
             'result_view_hour': 0  # 0点后即可查看结果
         }
     elif tier == 'premium':
-        # 收费版（VIP）：快速扫描，中午12点后可查看结果
+        # 收费版（VIP）：系统11:30自动扫描，也可以手动扫描
         return {
             'batch_size': 50,      # 50只/批
             'batch_delay': 1,      # 延迟1秒
@@ -128,11 +128,13 @@ def get_scan_config():
             'retry_delay': 2,      # 重试延迟2秒
             'daily_limit': None,   # 无限制
             'scan_interval': 0,    # 无间隔
-            'scan_start_hour': 0,  # 0点后即可扫描
+            'scan_start_hour': 0,  # 0点后即可手动扫描
+            'auto_scan_hour': 11,  # 系统自动扫描时间：11:30
+            'auto_scan_minute': 30,
             'result_view_hour': 12  # 中午12点后可查看结果
         }
     else:
-        # 免费版：慢速扫描，下午3点后可扫描，3:30后可查看结果
+        # 免费版：系统每天3:00自动扫描，用户直接看结果
         return {
             'batch_size': 20,      # 20只/批（更慢）
             'batch_delay': 3,      # 延迟3秒（更慢）
@@ -140,9 +142,11 @@ def get_scan_config():
             'retry_delay': 5,      # 重试延迟5秒
             'daily_limit': 2000,   # 每日2000只
             'scan_interval': 180,  # 间隔3分钟
-            'scan_start_hour': 15,  # 下午3点（15:00）后可扫描
+            'auto_scan_hour': 15,  # 每天15:00（下午3点）自动扫描
+            'auto_scan_minute': 0,  # 15:00整点
             'result_view_hour': 15,  # 下午3点后可查看结果
-            'result_view_minute': 30  # 下午3:30后可查看结果
+            'result_view_minute': 0,  # 15:00后即可查看
+            'manual_scan_allowed': False  # 不允许手动扫描
         }
 
 def init_analyzer():
