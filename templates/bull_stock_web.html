@@ -2548,6 +2548,56 @@
             }
         }
         
+        // 显示用户信息
+        async function displayUserInfo() {
+            const userInfoDiv = document.getElementById('userInfoDisplay');
+            if (!userInfoDiv) {
+                console.warn('找不到用户信息显示区域');
+                return;
+            }
+            
+            try {
+                const user = await getUserInfo();
+                if (!user) {
+                    userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #999;">未登录</div>';
+                    return;
+                }
+                
+                const tierNames = {
+                    'free': '🆓 免费版',
+                    'premium': '💎 VIP会员',
+                    'super': '👑 超级用户'
+                };
+                
+                const tierName = tierNames[user.tier] || '未知';
+                const username = user.username || '未知用户';
+                const restrictions = user.scan_restrictions || {};
+                
+                let html = `<div style="font-weight: bold; font-size: 14px; margin-bottom: 5px;">${tierName}</div>`;
+                html += `<div style="font-size: 12px; color: #666; margin-bottom: 3px;">用户: ${username}</div>`;
+                
+                // 显示扫描限制信息
+                if (user.tier === 'free') {
+                    html += `<div style="font-size: 11px; color: #999; margin-top: 5px;">系统每天15:00自动扫描</div>`;
+                    if (restrictions.current_time) {
+                        html += `<div style="font-size: 10px; color: #999;">当前: ${restrictions.current_time.split(' ')[1]}</div>`;
+                    }
+                } else if (user.tier === 'premium') {
+                    html += `<div style="font-size: 11px; color: #999; margin-top: 5px;">系统每天11:30自动扫描</div>`;
+                    if (restrictions.current_time) {
+                        html += `<div style="font-size: 10px; color: #999;">当前: ${restrictions.current_time.split(' ')[1]}</div>`;
+                    }
+                } else if (user.tier === 'super') {
+                    html += `<div style="font-size: 11px; color: #999; margin-top: 5px;">无限制访问</div>`;
+                }
+                
+                userInfoDiv.innerHTML = html;
+            } catch (error) {
+                console.error('显示用户信息失败:', error);
+                userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #e74c3c;">加载失败</div>';
+            }
+        }
+        
         // Vercel 分批扫描：自动继续处理下一批次
         async function autoContinueScan(scanId, currentBatch, totalBatches) {
             if (!scanId || currentBatch >= totalBatches) {
