@@ -620,10 +620,42 @@ def train_features():
 def get_progress():
     """获取当前进度API"""
     try:
+        init_analyzer()  # 确保分析器已初始化
+        
+        # 检查 analyzer 是否已初始化
+        if analyzer is None:
+            return jsonify({
+                'success': True,
+                'progress': {
+                    'type': None,
+                    'current': 0,
+                    'total': 0,
+                    'status': '空闲',
+                    'detail': '',
+                    'percentage': 0,
+                    'found': 0
+                }
+            })
+        
         progress = analyzer.get_progress()
         return jsonify({
             'success': True,
             'progress': progress
+        })
+    except AttributeError as e:
+        # analyzer 未初始化或 get_progress 方法不存在
+        print(f"获取进度错误 (AttributeError): {e}")
+        return jsonify({
+            'success': True,
+            'progress': {
+                'type': None,
+                'current': 0,
+                'total': 0,
+                'status': '空闲',
+                'detail': '',
+                'percentage': 0,
+                'found': 0
+            }
         })
     except Exception as e:
         import traceback
@@ -631,7 +663,8 @@ def get_progress():
         print(f"获取进度错误: {error_detail}")
         return jsonify({
             'success': False,
-            'message': f'服务器错误: {str(e)}'
+            'message': f'服务器错误: {str(e)}',
+            'error_detail': error_detail if is_vercel else None  # 仅在 Vercel 环境中返回详细错误
         }), 500
 
 
