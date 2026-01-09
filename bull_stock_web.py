@@ -80,8 +80,25 @@ def is_premium_user():
     except:
         return False
 
+def is_super_user():
+    """检查用户是否为超级用户（管理员）"""
+    try:
+        user = get_current_user()
+        if not user:
+            return False
+        # 超级用户：is_super 为 True，或者用户名为特定管理员用户名
+        is_super = user.get('is_super', False) or user.get('is_admin', False)
+        username = user.get('username', '').lower()
+        # 可以在这里添加特定的管理员用户名列表
+        admin_users = ['admin', 'super', 'root']  # 可以根据需要修改
+        return is_super or username in admin_users
+    except:
+        return False
+
 def get_user_tier():
-    """获取用户等级：'free' 或 'premium'"""
+    """获取用户等级：'free'、'premium' 或 'super'"""
+    if is_super_user():
+        return 'super'
     if is_premium_user():
         return 'premium'
     return 'free'
@@ -1346,6 +1363,12 @@ def scan_all_stocks():
                 'start_time': time.time()
             }
             scan_progress_store.save_scan_progress(scan_id, initial_progress)
+            
+            # 记录扫描次数（免费用户）
+            if user_tier == 'free':
+                from scan_limit_helper import record_scan_count
+                record_scan_count(username, is_vercel)
+                print(f"[scan_all_stocks] 记录免费用户 {username} 的扫描次数")
             
             # 处理第一批（在请求中同步处理，避免超时）
             try:
