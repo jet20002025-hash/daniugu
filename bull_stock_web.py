@@ -1000,6 +1000,7 @@ def scan_all_stocks():
             total_batches = (total_stocks + batch_size - 1) // batch_size  # 向上取整
             
             # 初始化扫描进度并保存到 Redis
+            import time
             initial_progress = {
                 'type': 'scan',
                 'scan_id': scan_id,
