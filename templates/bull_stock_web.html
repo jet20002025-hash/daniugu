@@ -657,7 +657,7 @@
                 
                 // 更新计数
                 countEl.textContent = stockCount;
-                console.log('[loadStocks] 已更新计数显示为:', stockCount);
+                // console.log('[loadStocks] 已更新计数显示为:', stockCount); // 已隐藏：避免控制台输出过多日志
                 
                 if (stockCount === 0 || stocks.length === 0) {
                     container.innerHTML = `
@@ -669,7 +669,7 @@
                     `;
                     console.log('[loadStocks] 显示空状态');
                 } else {
-                    console.log('[loadStocks] 开始渲染股票列表，共', stocks.length, '只');
+                    // console.log('[loadStocks] 开始渲染股票列表，共', stocks.length, '只'); // 已隐藏：避免控制台输出过多日志
                     container.innerHTML = stocks.map(stock => {
                         // 使用方括号访问中文字段名，确保兼容性
                         const code = stock['代码'] || stock.代码 || '';
@@ -700,7 +700,7 @@
                             </div>
                         `;
                     }).join('');
-                    console.log('[loadStocks] 股票列表渲染完成');
+                    // console.log('[loadStocks] 股票列表渲染完成'); // 已隐藏：避免控制台输出过多日志
                 }
             } catch (error) {
                 console.error('[loadStocks] 异常:', error);
