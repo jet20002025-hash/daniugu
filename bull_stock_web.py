@@ -943,10 +943,13 @@ def get_progress():
                     'found': 0
                 }
             
-            return jsonify({
+            response = jsonify({
                 'success': True,
                 'progress': progress
             })
+            for key, value in response_headers.items():
+                response.headers[key] = value
+            return response
         except AttributeError as e:
             # analyzer 未初始化或 get_progress 方法不存在
             print(f"[get_progress] AttributeError: {e}")

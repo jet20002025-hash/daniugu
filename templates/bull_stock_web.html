@@ -853,7 +853,13 @@
             
             progressInterval = setInterval(async () => {
                 try {
-                    const response = await fetch('/api/get_progress');
+                    const response = await fetch('/api/get_progress', {
+                        cache: 'no-store',
+                        headers: {
+                            'Cache-Control': 'no-cache',
+                            'Pragma': 'no-cache'
+                        }
+                    });
                     const result = await response.json();
                     
                     if (result.success && result.progress) {
