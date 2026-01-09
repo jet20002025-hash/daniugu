@@ -1,6 +1,7 @@
 *.log
 *.pid
 *.json
+!trained_model.json
 *.xlsx
 *.sh
 __pycache__/
@@ -19,4 +20,6 @@ app.py
 surge_analysis_web.py
 weekly_kline_web.py
 surge_analysis_web_backup.py
+users.json
+invite_codes.json
 
