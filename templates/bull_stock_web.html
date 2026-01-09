@@ -3108,7 +3108,44 @@
                 }
             }
         }
+        
+        // 显示版本信息
+        async function displayVersionInfo() {
+            try {
+                const response = await fetch('/api/version', {
+                    method: 'GET',
+                    cache: 'no-store'
+                });
+                const version = await response.json();
+                
+                if (version.success) {
+                    const versionDiv = document.getElementById('versionInfo');
+                    if (versionDiv) {
+                        const env = version.environment === 'vercel' ? '🌐 网络版' : '💻 本地版';
+                        const sha = version.commit_short || 'unknown';
+                        const message = version.commit_message || 'unknown';
+                        versionDiv.innerHTML = `
+                            <div style="font-size: 11px; color: #999; text-align: center; padding: 10px; border-top: 1px solid #eee; margin-top: 20px;">
+                                ${env} | Commit: <code style="background: #f0f0f0; padding: 2px 4px; border-radius: 3px;">${sha}</code>
+                                ${message !== 'unknown' ? `| ${message.substring(0, 30)}${message.length > 30 ? '...' : ''}` : ''}
+                            </div>
+                        `;
+                        console.log('[版本信息]', version);
+                    }
+                }
+            } catch (error) {
+                console.error('[版本信息] 获取失败:', error);
+            }
+        }
+        
+        // 页面加载时显示版本信息
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', displayVersionInfo);
+        } else {
+            displayVersionInfo();
+        }
     </script>
+    <div id="versionInfo"></div>
 </body>
 </html>
 

@@ -423,6 +423,79 @@ def api_check_login():
                 'logged_in': False
             })
     except Exception as e:
+        return jsonify({
+            'success': False,
+            'logged_in': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/version', methods=['GET'])
+def api_version():
+    """获取版本信息API"""
+    try:
+        import subprocess
+        import os
+        
+        # 尝试获取 Git commit SHA
+        version_info = {
+            'success': True,
+            'environment': 'vercel' if is_vercel else 'local',
+            'commit_sha': 'unknown',
+            'commit_short': 'unknown',
+            'commit_message': 'unknown',
+            'commit_date': 'unknown'
+        }
+        
+        try:
+            # 方法1: 从 .git-version 文件读取（部署时生成）
+            version_file = os.path.join(os.path.dirname(__file__), '.git-version')
+            if os.path.exists(version_file):
+                with open(version_file, 'r') as f:
+                    commit_sha = f.read().strip()
+                    if commit_sha and commit_sha != 'unknown':
+                        version_info['commit_sha'] = commit_sha
+                        version_info['commit_short'] = commit_sha[:7]
+            
+            # 方法2: 直接从 Git 获取（本地环境）
+            if version_info['commit_sha'] == 'unknown' and not is_vercel:
+                try:
+                    result = subprocess.run(
+                        ['git', 'rev-parse', 'HEAD'],
+                        capture_output=True,
+                        text=True,
+                        cwd=os.path.dirname(__file__),
+                        timeout=2
+                    )
+                    if result.returncode == 0:
+                        commit_sha = result.stdout.strip()
+                        version_info['commit_sha'] = commit_sha
+                        version_info['commit_short'] = commit_sha[:7]
+                    
+                    # 获取 commit 信息
+                    result = subprocess.run(
+                        ['git', 'log', '-1', '--pretty=format:%s|%ci'],
+                        capture_output=True,
+                        text=True,
+                        cwd=os.path.dirname(__file__),
+                        timeout=2
+                    )
+                    if result.returncode == 0:
+                        parts = result.stdout.strip().split('|')
+                        if len(parts) == 2:
+                            version_info['commit_message'] = parts[0]
+                            version_info['commit_date'] = parts[1]
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"获取版本信息失败: {e}")
+        
+        return jsonify(version_info)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    except Exception as e:
         import traceback
         error_detail = traceback.format_exc()
         print(f"检查登录状态错误: {error_detail}")
