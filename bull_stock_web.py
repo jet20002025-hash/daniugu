@@ -291,18 +291,18 @@ def register_page():
 
 @app.route('/api/register', methods=['POST'])
 def api_register():
-    """用户注册API（需要邀请码）"""
+    """用户注册API（邮箱注册，无需邀请码）"""
     try:
         data = request.get_json() or {}
         username = data.get('username', '').strip()
         email = data.get('email', '').strip()
         password = data.get('password', '')
-        invite_code = data.get('invite_code', '').strip().upper()
+        invite_code = data.get('invite_code', '').strip().upper() or None  # 邀请码改为可选
         
-        if not username or not email or not password or not invite_code:
+        if not username or not email or not password:
             return jsonify({
                 'success': False,
-                'message': '请填写所有字段'
+                'message': '请填写用户名、邮箱和密码'
             }), 400
         
         result = register_user(username, email, password, invite_code)

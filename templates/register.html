@@ -155,7 +155,7 @@
         </div>
         
         <div class="invite-note">
-            ⚠️ 本系统采用邀请制注册，需要有效的邀请码才能注册。
+            ✅ 免费注册，使用邮箱即可注册。新用户默认只能查看扫描结果，不能手动扫描。
         </div>
         
         <div id="message" class="message"></div>
@@ -170,18 +170,13 @@
             <div class="form-group">
                 <label for="email">邮箱</label>
                 <input type="email" id="email" name="email" required autocomplete="email">
+                <small>用于登录和找回密码</small>
             </div>
             
             <div class="form-group">
                 <label for="password">密码</label>
                 <input type="password" id="password" name="password" required autocomplete="new-password">
                 <small>至少6个字符</small>
-            </div>
-            
-            <div class="form-group">
-                <label for="invite_code">邀请码 *</label>
-                <input type="text" id="invite_code" name="invite_code" required placeholder="请输入邀请码" autocomplete="off">
-                <small>必须提供有效的邀请码才能注册（不区分大小写）</small>
             </div>
             
             <button type="submit" class="btn">注册</button>
@@ -195,7 +190,6 @@
     <script>
         const form = document.getElementById('registerForm');
         const messageDiv = document.getElementById('message');
-        const inviteCodeInput = document.getElementById('invite_code');
         
         function showMessage(text, type) {
             messageDiv.textContent = text;
@@ -215,10 +209,9 @@
             const username = document.getElementById('username').value.trim();
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
-            const inviteCode = document.getElementById('invite_code').value.trim();
             
-            if (!username || !email || !password || !inviteCode) {
-                showMessage('请填写所有字段', 'error');
+            if (!username || !email || !password) {
+                showMessage('请填写用户名、邮箱和密码', 'error');
                 return;
             }
             
@@ -232,6 +225,13 @@
                 return;
             }
             
+            // 验证邮箱格式
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                showMessage('请输入有效的邮箱地址', 'error');
+                return;
+            }
+            
             try {
                 const response = await fetch('/api/register', {
                     method: 'POST',
@@ -241,8 +241,7 @@
                     body: JSON.stringify({
                         username: username,
                         email: email,
-                        password: password,
-                        invite_code: inviteCode
+                        password: password
                     })
                 });
                 

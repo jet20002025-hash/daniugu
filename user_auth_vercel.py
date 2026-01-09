@@ -241,10 +241,9 @@ def save_invite_codes(codes):
     # 即使保存失败，也更新缓存（至少内存中有数据）
     return True
 
-def register_user(username, email, password, invite_code):
-    """注册用户（需要邀请码）"""
+def register_user(username, email, password, invite_code=None):
+    """注册用户（邮箱注册，无需邀请码）"""
     users = load_users()
-    invite_codes = load_invite_codes()
     
     # 检查用户名是否已存在
     if username in users:
@@ -255,43 +254,21 @@ def register_user(username, email, password, invite_code):
         if user.get('email') == email:
             return {'success': False, 'message': '邮箱已被注册'}
     
-    # 验证邀请码
-    if invite_code not in invite_codes:
-        return {'success': False, 'message': '邀请码无效'}
-    
-    code_info = invite_codes[invite_code]
-    
-    # 检查邀请码是否已使用
-    if code_info.get('used', False):
-        # 检查使用次数
-        if code_info.get('max_uses', 1) <= code_info.get('use_count', 0):
-            return {'success': False, 'message': '邀请码已使用'}
-    
-    # 创建用户
+    # 创建用户（默认免费用户，只能查看，不能扫描）
     user_data = {
         'username': username,
         'email': email,
         'password': hash_password(password),
         'created_at': datetime.now().isoformat(),
         'last_login': None,
-        'invite_code': invite_code,
+        'invite_code': invite_code or 'EMAIL_REGISTER',  # 记录注册方式
         'is_active': True,
-        'is_vip': False
+        'is_vip': False,  # 默认免费用户
+        'is_super': False  # 默认非超级用户
     }
     
     users[username] = user_data
     save_users(users)
-    
-    # 更新邀请码使用状态
-    if not code_info.get('use_count'):
-        code_info['use_count'] = 0
-    code_info['use_count'] = code_info.get('use_count', 0) + 1
-    code_info['used_by'] = username
-    code_info['used_at'] = datetime.now().isoformat()
-    if code_info.get('use_count', 0) >= code_info.get('max_uses', 1):
-        code_info['used'] = True
-    
-    save_invite_codes(invite_codes)
     
     return {'success': True, 'message': '注册成功'}
 
