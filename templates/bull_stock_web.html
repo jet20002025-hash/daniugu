@@ -395,8 +395,8 @@
                     <button class="btn btn-primary" onclick="scanAllStocks()" style="background: #e74c3c;" id="scanAllStocksBtn">🔍 扫描全市场</button>
                     <button class="btn btn-primary" onclick="stopScan()" style="background: #95a5a6;" id="stopScanBtn" disabled>🛑 停止扫描</button>
                 </div>
-                <!-- 反转个股筛选条件 -->
-                <div style="margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #9b59b6;">
+                <!-- 反转个股筛选条件（仅本地版本显示） -->
+                <div id="reversalStockSection" style="margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #9b59b6; display: none;">
                     <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px;">📈 搜索反转个股（上周阴线+本周阳线）</h3>
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
                         <div class="form-group" style="margin-bottom: 0;">
