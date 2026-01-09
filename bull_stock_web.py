@@ -511,15 +511,6 @@ def api_version():
             'success': False,
             'error': str(e)
         }), 500
-    except Exception as e:
-        import traceback
-        error_detail = traceback.format_exc()
-        print(f"检查登录状态错误: {error_detail}")
-        return jsonify({
-            'success': False,
-            'logged_in': False,
-            'error': str(e)
-        }), 500
 
 @app.route('/api/health', methods=['GET'])
 def api_health():
