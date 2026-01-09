@@ -7,6 +7,7 @@
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for
 from bull_stock_analyzer import BullStockAnalyzer
 from technical_analysis import TechnicalAnalysis
+from datetime import datetime
 # 根据环境选择使用哪个认证模块
 import os
 
@@ -369,20 +370,42 @@ def add_stock():
 
 @app.route('/api/get_stocks', methods=['GET'])
 def get_stocks():
-    init_analyzer()  # 确保分析器已初始化
     """获取所有已添加的大牛股API"""
     try:
+        init_analyzer()  # 确保分析器已初始化
+        
+        # 检查 analyzer 是否已初始化
+        if analyzer is None:
+            return jsonify({
+                'success': True,
+                'stocks': [],
+                'count': 0
+            })
+        
         stocks = analyzer.get_bull_stocks()
         
         # 转换为可序列化的格式
         stocks_list = []
         for stock in stocks:
-            stocks_list.append({
-                '代码': stock['代码'],
-                '名称': stock['名称'],
-                '添加时间': stock['添加时间'].strftime('%Y-%m-%d %H:%M:%S') if isinstance(stock['添加时间'], type(stock['添加时间'])) else str(stock['添加时间']),
-                '数据条数': stock.get('数据条数', 0)
-            })
+            try:
+                # 处理添加时间字段
+                add_time = stock.get('添加时间')
+                if isinstance(add_time, datetime):
+                    add_time_str = add_time.strftime('%Y-%m-%d %H:%M:%S')
+                elif isinstance(add_time, str):
+                    add_time_str = add_time
+                else:
+                    add_time_str = str(add_time) if add_time else ''
+                
+                stocks_list.append({
+                    '代码': stock.get('代码', ''),
+                    '名称': stock.get('名称', ''),
+                    '添加时间': add_time_str,
+                    '数据条数': stock.get('数据条数', 0)
+                })
+            except Exception as e:
+                print(f"处理股票数据时出错: {stock} - {e}")
+                continue
         
         return jsonify({
             'success': True,
@@ -390,10 +413,22 @@ def get_stocks():
             'count': len(stocks_list)
         })
         
+    except AttributeError as e:
+        # analyzer 未初始化或方法不存在
+        print(f"获取股票列表错误 (AttributeError): {e}")
+        return jsonify({
+            'success': True,
+            'stocks': [],
+            'count': 0
+        })
     except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"获取股票列表错误: {error_detail}")
         return jsonify({
             'success': False,
-            'message': f'服务器错误: {str(e)}'
+            'message': f'服务器错误: {str(e)}',
+            'error_detail': error_detail if is_vercel else None  # 仅在 Vercel 环境中返回详细错误
         }), 500
 
 

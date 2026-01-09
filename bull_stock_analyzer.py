@@ -3178,23 +3178,26 @@ class BullStockAnalyzer:
                 self.trained_sell_features = sell_features
             
             # 加载大牛股列表（仅加载元数据，不获取股票数据，避免网络请求）
+            # 即使 skip_network=True，也应该加载股票列表的元数据（不触发网络请求）
             if model_data.get('bull_stocks'):
-                if skip_network:
-                    # 跳过加载股票列表，仅加载模型特征（避免网络请求）
-                    print(f"[load_model] 跳过加载股票列表（skip_network=True），仅加载模型特征")
+                loaded_count = 0
+                for stock_data in model_data['bull_stocks']:
+                    # 检查是否已存在
+                    existing = [s for s in self.bull_stocks if s['代码'] == stock_data['代码']]
+                    if not existing:
+                        stock = {
+                            '代码': stock_data['代码'],
+                            '名称': stock_data['名称'],
+                            '添加时间': datetime.fromisoformat(stock_data['添加时间']) if isinstance(stock_data['添加时间'], str) else datetime.now(),
+                            '数据条数': stock_data.get('数据条数', 0)
+                        }
+                        self.bull_stocks.append(stock)
+                        loaded_count += 1
+                
+                if loaded_count > 0:
+                    print(f"[load_model] ✅ 从模型加载了 {loaded_count} 只股票的元数据（不触发网络请求）")
                 else:
-                    # 只有在明确不需要跳过网络时才加载股票列表
-                    for stock_data in model_data['bull_stocks']:
-                        # 检查是否已存在
-                        existing = [s for s in self.bull_stocks if s['代码'] == stock_data['代码']]
-                        if not existing:
-                            stock = {
-                                '代码': stock_data['代码'],
-                                '名称': stock_data['名称'],
-                                '添加时间': datetime.fromisoformat(stock_data['添加时间']) if isinstance(stock_data['添加时间'], str) else datetime.now(),
-                                '数据条数': stock_data.get('数据条数', 0)
-                            }
-                            self.bull_stocks.append(stock)
+                    print(f"[load_model] ℹ️ 模型中有 {len(model_data.get('bull_stocks', []))} 只股票，但都已存在，未重复加载")
             
             return True
         except FileNotFoundError:
