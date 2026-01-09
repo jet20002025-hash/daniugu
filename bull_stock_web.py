@@ -865,9 +865,34 @@ def get_progress():
         scan_id = request.args.get('scan_id')
         if scan_id:
             try:
+                # 获取当前用户信息，用于验证权限
+                current_user = get_current_user()
+                username = current_user.get('username', 'anonymous') if current_user else 'anonymous'
+                
                 import scan_progress_store
                 progress = scan_progress_store.get_scan_progress(scan_id)
                 if progress:
+                    # 验证进度是否属于当前用户（多用户隔离）
+                    progress_username = progress.get('username', 'anonymous')
+                    if progress_username != username:
+                        print(f"[get_progress] ⚠️ 用户 {username} 尝试访问其他用户 {progress_username} 的扫描进度: {scan_id}")
+                        # 返回空闲状态，而不是错误，避免前端显示错误
+                        response = jsonify({
+                            'success': True,
+                            'progress': {
+                                'type': None,
+                                'current': 0,
+                                'total': 0,
+                                'status': '空闲',
+                                'detail': '无权访问此扫描任务',
+                                'percentage': 0,
+                                'found': 0
+                            }
+                        })
+                        for key, value in response_headers.items():
+                            response.headers[key] = value
+                        return response
+                    
                     response = jsonify({
                         'success': True,
                         'progress': progress
