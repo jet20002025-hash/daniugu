@@ -461,8 +461,22 @@ def get_user_info():
             }), 401
         
         is_premium = user.get('is_vip', False) or user.get('is_premium', False)
-        tier = 'premium' if is_premium else 'free'
+        tier = get_user_tier()  # 使用统一的函数获取等级
         scan_config = get_scan_config()
+        
+        # 获取扫描限制信息
+        from scan_limit_helper import get_beijing_time, check_scan_time_limit, check_result_view_time, check_daily_scan_limit
+        beijing_now = get_beijing_time()
+        
+        # 检查当前是否可以扫描
+        can_scan, scan_time_error = check_scan_time_limit(tier, scan_config)
+        
+        # 检查当前是否可以查看结果
+        can_view, view_time_error = check_result_view_time(tier, scan_config)
+        
+        # 检查今日扫描次数
+        username = user.get('username', 'anonymous')
+        can_scan_daily, daily_error, today_count = check_daily_scan_limit(username, tier, scan_config, is_vercel)
         
         return jsonify({
             'success': True,
@@ -471,7 +485,18 @@ def get_user_info():
                 'email': user.get('email'),
                 'tier': tier,
                 'is_premium': is_premium,
-                'scan_config': scan_config
+                'is_super': is_super_user(),
+                'scan_config': scan_config,
+                'scan_restrictions': {
+                    'can_scan_now': can_scan,
+                    'scan_time_error': scan_time_error,
+                    'can_view_now': can_view,
+                    'view_time_error': view_time_error,
+                    'can_scan_daily': can_scan_daily,
+                    'daily_error': daily_error,
+                    'today_scan_count': today_count,
+                    'current_time': beijing_now.strftime('%Y-%m-%d %H:%M:%S')
+                }
             }
         })
     except Exception as e:
