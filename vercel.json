@@ -7,10 +7,6 @@
     {
       "path": "/api/cron?scan_type=afternoon",
       "schedule": "0 15 * * 1-5"
-    },
-    {
-      "path": "/api/refresh_stock_cache",
-      "schedule": "25 9 * * 1-5"
     }
   ]
 }
