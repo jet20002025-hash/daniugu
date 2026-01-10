@@ -1498,6 +1498,8 @@ def scan_all_stocks():
                 'type': 'scan',
                 'scan_id': scan_id,
                 'username': username,  # 添加用户名，用于多用户隔离
+                'user_tier': user_tier,  # 添加用户等级，用于判断是否需要保存历史记录
+                'is_auto_scan': False,  # 标记为手动扫描（VIP用户手动扫描）
                 'current': 0,
                 'total': total_stocks,
                 'status': '准备中',
@@ -1513,15 +1515,11 @@ def scan_all_stocks():
             }
             scan_progress_store.save_scan_progress(scan_id, initial_progress)
             
-            # 记录扫描次数（免费用户和VIP用户都需要记录）
-            if user_tier in ['free', 'premium']:
-                from scan_limit_helper import record_scan_count, record_vip_scan_count
-                if user_tier == 'free':
-                    record_scan_count(username, is_vercel)
-                    print(f"[scan_all_stocks] 记录免费用户 {username} 的扫描次数")
-                else:  # premium
-                    record_vip_scan_count(username, is_vercel)
-                    print(f"[scan_all_stocks] 记录VIP用户 {username} 的扫描次数")
+            # VIP用户无限制扫描，不需要记录扫描次数（已移除限制）
+            # 但可以保留记录功能用于统计（不限制扫描）
+            if user_tier == 'premium':
+                # VIP用户：可选记录统计信息（不影响扫描权限）
+                print(f"[scan_all_stocks] VIP用户 {username} 开始扫描（无限制）")
             
             # 处理第一批（在请求中同步处理，避免超时）
             try:
