@@ -595,14 +595,30 @@ def api_health():
 def check_cache_status():
     """检查股票列表缓存状态API"""
     try:
-        init_analyzer()
+        # 确保分析器已初始化（在 try 块内，以便捕获异常）
+        try:
+            init_analyzer()
+        except Exception as init_error:
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"[check_cache_status] ❌ 初始化分析器失败: {error_detail}")
+            return jsonify({
+                'success': False,
+                'message': f'初始化分析器失败: {str(init_error)}',
+                'cache_exists': False,
+                'cached_stock_count': 0,
+                'error_type': 'init_error',
+                'error_detail': error_detail
+            }), 500
         
+        # 检查分析器是否初始化成功
         if analyzer is None or analyzer.fetcher is None:
             return jsonify({
                 'success': False,
-                'message': '分析器未初始化',
+                'message': '分析器未初始化或初始化失败',
                 'cache_exists': False,
-                'cached_stock_count': 0
+                'cached_stock_count': 0,
+                'error_type': 'analyzer_not_initialized'
             }), 500
         
         # 检测缓存是否存在
