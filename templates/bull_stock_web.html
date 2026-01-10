@@ -3964,44 +3964,78 @@
         // 网络环境：所有用户都需要手动刷新
         console.log('[定时刷新] 已禁用自动刷新，用户需要时手动刷新');
         
-        // 获取用户信息（添加超时控制）
-        async function getUserInfo() {
+        // 获取用户信息（添加超时控制和重试机制）
+        async function getUserInfo(retryCount = 0) {
+            const maxRetries = 2; // 最多重试2次
+            const timeout = 10000; // 增加到10秒超时
+            
             try {
-                // 添加超时控制（5秒）
+                // 添加超时控制（10秒）
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => {
-                    console.warn('[getUserInfo] 请求超时（5秒），中断请求');
+                    console.warn(`[getUserInfo] 请求超时（${timeout/1000}秒），${retryCount < maxRetries ? '将重试' : '中断请求'}`);
                     controller.abort();
-                }, 5000);
+                }, timeout);
                 
                 let response;
                 try {
+                    console.log(`[getUserInfo] 正在获取用户信息... (尝试 ${retryCount + 1}/${maxRetries + 1})`);
                     response = await fetch('/api/user_info', {
                         signal: controller.signal,
-                        cache: 'no-store'
+                        cache: 'no-store',
+                        headers: {
+                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                            'Pragma': 'no-cache'
+                        }
                     });
                     clearTimeout(timeoutId);
                 } catch (fetchError) {
                     clearTimeout(timeoutId);
-                    if (fetchError.name === 'AbortError') {
-                        console.warn('[getUserInfo] 请求超时');
+                    if (fetchError.name === 'AbortError' || fetchError.message?.includes('aborted')) {
+                        console.warn(`[getUserInfo] 请求超时或中断 (尝试 ${retryCount + 1}/${maxRetries + 1})`);
+                        // 如果还有重试次数，等待1秒后重试
+                        if (retryCount < maxRetries) {
+                            console.log(`[getUserInfo] 等待1秒后重试...`);
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            return getUserInfo(retryCount + 1);
+                        }
+                        console.warn('[getUserInfo] 已达到最大重试次数，返回 null');
                         return null;
+                    }
+                    // 网络错误也重试一次
+                    if (retryCount < maxRetries && (fetchError.message?.includes('Failed to fetch') || fetchError.message?.includes('network'))) {
+                        console.warn(`[getUserInfo] 网络错误，等待1秒后重试... (尝试 ${retryCount + 1}/${maxRetries + 1})`);
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        return getUserInfo(retryCount + 1);
                     }
                     throw fetchError;
                 }
                 
                 if (!response.ok) {
-                    console.error('[getUserInfo] HTTP错误:', response.status);
+                    console.error(`[getUserInfo] HTTP错误: ${response.status} (尝试 ${retryCount + 1}/${maxRetries + 1})`);
+                    // 如果是5xx错误，重试一次
+                    if (retryCount < maxRetries && response.status >= 500) {
+                        console.warn(`[getUserInfo] 服务器错误，等待1秒后重试...`);
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        return getUserInfo(retryCount + 1);
+                    }
                     return null;
                 }
                 
                 const result = await response.json();
                 if (result.success && result.user) {
+                    console.log(`[getUserInfo] ✅ 成功获取用户信息 (尝试 ${retryCount + 1}/${maxRetries + 1})`);
                     return result.user;
                 }
                 return null;
             } catch (error) {
-                console.error('获取用户信息失败:', error);
+                console.error(`[getUserInfo] 获取用户信息失败 (尝试 ${retryCount + 1}/${maxRetries + 1}):`, error);
+                // 如果还有重试次数且是网络错误，重试一次
+                if (retryCount < maxRetries && (error.message?.includes('Failed to fetch') || error.message?.includes('network'))) {
+                    console.warn(`[getUserInfo] 网络错误，等待1秒后重试...`);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    return getUserInfo(retryCount + 1);
+                }
                 return null;
             }
         }
