@@ -2784,8 +2784,8 @@
                     <td style="padding: 8px; border: 1px solid #ddd;">${candidate.市值 || candidate.market_cap ? (candidate.市值 || candidate.market_cap).toFixed(2) : 'N/A'}</td>
                     <td style="padding: 8px; border: 1px solid #ddd;">
                         <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-                            <button onclick="analyzeStockDetail('${stockCode}', '${stockName}', '${buyDate}', ${buyPrice}, ${matchScore})" style="background: #667eea; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🔍 深度分析</button>` + 
-                            (showWatchlistButton ? `<button onclick="addToWatchlist('${stockCode}', '${stockName}', ${buyPrice}, '${buyDate}', ${matchScore})" style="background: #27ae60; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">⭐ 加入关注</button>` : '') + `
+                            <button onclick="analyzeStockDetail('${stockCode}', '${stockName}', '${buyDate}', ${buyPrice}, ${matchScore})" style="background: #667eea; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🔍 深度分析</button>
+                            ${showWatchlistButton ? `<button onclick="addToWatchlist('${stockCode}', '${stockName}', ${buyPrice}, '${buyDate}', ${matchScore})" style="background: #27ae60; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">⭐ 加入关注</button>` : ''}
                         </div>
                     </td>
                 </tr>`;
