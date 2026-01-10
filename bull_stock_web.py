@@ -2093,16 +2093,18 @@ def scan_all_stocks():
                 scan_start_time = time_module.time()
                 
                 # 根据缓存状态显示不同的提示信息
+                # 注意：get_all_stocks 内部已实现智能缓存检查，在交易时间段内会自动刷新过期缓存
                 if cache_exists:
-                    print("[scan_all_stocks] 正在从缓存获取股票列表...")
-                    status_msg = f"正在从缓存获取股票数据（{cached_stock_count} 只股票）..."
+                    print("[scan_all_stocks] 正在从缓存获取股票列表（如果过期会自动刷新）...")
+                    status_msg = f"正在从缓存获取股票数据（{cached_stock_count} 只股票，交易时间段内会自动刷新过期缓存）..."
                 else:
                     print("[scan_all_stocks] 正在从 API 获取股票列表...")
                     status_msg = "正在获取股票数据（从 API）..."
                 
                 # 在 Vercel 环境中，使用更短的超时时间（避免超过执行时间限制）
-                # get_all_stocks 内部会根据环境自动调整超时和重试次数
+                # get_all_stocks 内部会根据环境自动调整超时和重试次数，并且会智能检查缓存年龄
                 # Vercel 中：超时5秒，只尝试1次；本地：超时15秒，最多重试3次
+                # 交易时间段内，如果缓存超过5分钟，会自动从API获取最新数据
                 stock_list = analyzer.fetcher.get_all_stocks(timeout=5 if is_vercel else 15, max_retries=1 if is_vercel else 3)
                 
                 elapsed = time_module.time() - scan_start_time
