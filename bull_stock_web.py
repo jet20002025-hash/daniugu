@@ -1968,6 +1968,76 @@ def scan_all_stocks():
                     'message': '数据获取器未初始化'
                 }), 500
             
+            # 每次扫描前先检测缓存是否存在（建议每次使用前都检测）
+            print("[scan_all_stocks] 🔍 检测缓存是否存在...")
+            cache_exists = False
+            cached_stock_count = 0
+            try:
+                cached_stocks = analyzer.fetcher._get_stock_list_from_cache()
+                if cached_stocks is not None and len(cached_stocks) > 0:
+                    cache_exists = True
+                    cached_stock_count = len(cached_stocks)
+                    print(f"[scan_all_stocks] ✅ 缓存存在，股票数: {cached_stock_count} 只，可以直接使用")
+                else:
+                    print(f"[scan_all_stocks] ⚠️ 缓存不存在或为空")
+            except Exception as e:
+                print(f"[scan_all_stocks] ⚠️ 检测缓存时出错: {e}")
+            
+            # 如果缓存不存在，在 Vercel 环境中提前返回错误（避免超时）
+            if not cache_exists and is_vercel:
+                from datetime import datetime, timezone, timedelta
+                try:
+                    utc_now = datetime.now(timezone.utc)
+                    beijing_tz = timezone(timedelta(hours=8))
+                    beijing_now = utc_now.astimezone(beijing_tz)
+                    current_hour = beijing_now.hour
+                    current_minute = beijing_now.minute
+                    current_time_str = beijing_now.strftime('%Y-%m-%d %H:%M:%S')
+                    
+                    # 判断是否在交易时间（9:30-11:30, 13:00-15:00）
+                    is_in_trading_time = (
+                        (current_hour == 9 and current_minute >= 30) or
+                        (current_hour == 10) or
+                        (current_hour == 11 and current_minute <= 30) or
+                        (current_hour == 13) or
+                        (current_hour == 14) or
+                        (current_hour == 15 and current_minute <= 0)
+                    )
+                    
+                    error_msg = '⚠️ **缓存未生成（股票列表缓存不存在）**\n\n'
+                    error_msg += f'当前时间: {current_time_str}\n\n'
+                    
+                    if is_in_trading_time:
+                        error_msg += '💡 **解决方案：**\n'
+                        error_msg += '当前在交易时间段内，系统会在5分钟内自动刷新缓存。\n'
+                        error_msg += '**方案1（推荐）：** 等待5分钟，系统会自动刷新缓存，然后再次尝试扫描\n'
+                        error_msg += '**方案2（手动）：** 手动触发缓存刷新：访问 https://www.daniugu.online/api/refresh_stock_cache?force=true\n'
+                        error_msg += '   - 手动刷新可能需要30秒，请耐心等待\n'
+                        error_msg += '   - 刷新成功后，再尝试扫描\n'
+                    else:
+                        error_msg += '💡 **解决方案：**\n'
+                        error_msg += '当前不在交易时间段（9:30-11:30, 13:00-15:00），缓存可能尚未生成。\n'
+                        error_msg += '**方案1（推荐）：** 等待到交易时间段（9:30-11:30, 13:00-15:00），系统会自动刷新缓存\n'
+                        error_msg += '**方案2（手动）：** 手动触发缓存刷新：访问 https://www.daniugu.online/api/refresh_stock_cache?force=true\n'
+                        error_msg += '   - 手动刷新可能需要30秒，请耐心等待\n'
+                        error_msg += '   - 刷新成功后，再尝试扫描\n'
+                    
+                    error_msg += '\n📌 **说明：**\n'
+                    error_msg += '- 股票列表缓存会在交易时间段（9:30-11:30, 13:00-15:00）每5分钟自动刷新\n'
+                    error_msg += '- 盘后（15:05）也会自动刷新一次缓存\n'
+                    error_msg += '- 扫描时优先从缓存读取，避免超时\n'
+                    
+                    print(f"[scan_all_stocks] ❌ 缓存不存在，提前返回错误（避免超时）")
+                    return jsonify({
+                        'success': False,
+                        'message': error_msg,
+                        'cache_exists': False,
+                        'current_time': current_time_str,
+                        'is_in_trading_time': is_in_trading_time
+                    }), 400
+                except Exception as e:
+                    print(f"[scan_all_stocks] ⚠️ 检查交易时间时出错: {e}")
+            
             try:
                 print("[scan_all_stocks] 开始获取股票列表...")
                 import time as time_module
@@ -1979,7 +2049,7 @@ def scan_all_stocks():
                 stock_list = analyzer.fetcher.get_all_stocks(timeout=5 if is_vercel else 15, max_retries=1 if is_vercel else 3)
                 
                 elapsed = time_module.time() - scan_start_time
-                print(f"[scan_all_stocks] 获取股票列表结果: {stock_list is not None}, 数量: {len(stock_list) if stock_list is not None else 0}, 耗时 {elapsed:.2f}秒")
+                print(f"[scan_all_stocks] 获取股票列表结果: stock_list is not None: {stock_list is not None}, 数量: {len(stock_list) if stock_list is not None else 0}, 耗时 {elapsed:.2f}秒")
             except Exception as e:
                 import traceback
                 error_detail = traceback.format_exc()
