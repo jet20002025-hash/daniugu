@@ -2139,18 +2139,35 @@ def scan_all_stocks():
             cached_stock_count = 0
             cache_status = "未知"
             try:
-                cached_stocks = analyzer.fetcher._get_stock_list_from_cache()
-                if cached_stocks is not None and len(cached_stocks) > 0:
-                    cache_exists = True
-                    cached_stock_count = len(cached_stocks)
-                    cache_status = f"缓存存在（{cached_stock_count} 只股票）"
-                    print(f"[scan_all_stocks] ✅ 缓存存在，股票数: {cached_stock_count} 只，可以直接使用")
+                # 明确传递 check_age=False，确保返回 DataFrame 或 None
+                cached_stocks = analyzer.fetcher._get_stock_list_from_cache(check_age=False)
+                if cached_stocks is not None:
+                    try:
+                        # 确保 cached_stocks 是 DataFrame，可以使用 len()
+                        if hasattr(cached_stocks, '__len__'):
+                            cached_stock_count = len(cached_stocks)
+                            if cached_stock_count > 0:
+                                cache_exists = True
+                                cache_status = f"缓存存在（{cached_stock_count} 只股票）"
+                                print(f"[scan_all_stocks] ✅ 缓存存在，股票数: {cached_stock_count} 只，可以直接使用")
+                            else:
+                                cache_status = "缓存为空"
+                                print(f"[scan_all_stocks] ⚠️ 缓存存在但为空（长度为0）")
+                        else:
+                            cache_status = "缓存数据格式错误（不是可迭代对象）"
+                            print(f"[scan_all_stocks] ⚠️ 缓存数据格式错误: {type(cached_stocks)}")
+                    except Exception as len_error:
+                        cache_status = f"检查缓存长度时出错: {len_error}"
+                        print(f"[scan_all_stocks] ⚠️ {cache_status}")
                 else:
                     cache_status = "缓存不存在"
-                    print(f"[scan_all_stocks] ⚠️ 缓存不存在或为空")
+                    print(f"[scan_all_stocks] ⚠️ 缓存不存在（返回 None）")
             except Exception as e:
+                import traceback
+                error_detail = traceback.format_exc()
                 cache_status = f"检测缓存时出错: {e}"
                 print(f"[scan_all_stocks] ⚠️ {cache_status}")
+                print(f"[scan_all_stocks] 错误详情: {error_detail}")
             
             # 如果缓存不存在，只在交易时间段内且是 Vercel 环境时提前返回错误（避免超时和数据不一致）
             # 非交易时间段，允许从 API 获取数据（虽然可能慢，但应该允许用户扫描）
@@ -4636,22 +4653,29 @@ def refresh_stock_cache():
             cache_success = analyzer.fetcher._save_stock_list_to_cache(stock_list)
             if cache_success:
                 print(f"[refresh_stock_cache] ✅ 股票列表已保存到缓存")
+                # 更新分析器的股票列表
+                analyzer.fetcher.stock_list = stock_list
+                
+                return jsonify({
+                    'success': True,
+                    'message': f'股票列表缓存已刷新（{len(stock_list)} 只股票）',
+                    'stock_count': len(stock_list),
+                    'current_time': current_time_str,
+                    'cache_ttl': '24小时'
+                }), 200
             else:
-                print(f"[refresh_stock_cache] ⚠️ 保存到缓存失败，但已获取股票列表")
-            
-            # 更新分析器的股票列表
-            analyzer.fetcher.stock_list = stock_list
-            
-            # 保存到缓存（已经在上面保存了，这里只是确认）
-            print(f"[refresh_stock_cache] ✅ 成功刷新股票列表缓存，股票数: {len(stock_list)}")
-            
-            return jsonify({
-                'success': True,
-                'message': f'股票列表缓存已刷新（{len(stock_list)} 只股票）',
-                'stock_count': len(stock_list),
-                'current_time': current_time_str,
-                'cache_ttl': '24小时'
-            }), 200
+                print(f"[refresh_stock_cache] ❌ 保存到缓存失败，但已获取股票列表")
+                # 即使保存失败，也更新分析器的股票列表（可以在当前请求中使用）
+                analyzer.fetcher.stock_list = stock_list
+                
+                return jsonify({
+                    'success': False,
+                    'message': f'获取股票列表成功（{len(stock_list)} 只股票），但保存到缓存失败。请检查 Redis/KV 连接或稍后重试。',
+                    'stock_count': len(stock_list),
+                    'current_time': current_time_str,
+                    'cache_saved': False,
+                    'error_type': 'cache_save_failed'
+                }), 500
             
         except Exception as e:
             import traceback

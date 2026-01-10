@@ -132,9 +132,21 @@ class DataFetcher:
             import os
             import json
             
+            # 确保 stock_df 是 DataFrame
+            if stock_df is None or len(stock_df) == 0:
+                print(f"[_save_stock_list_to_cache] ⚠️ 股票列表为空，无法保存到缓存")
+                return False
+            
             # 将 DataFrame 转换为 JSON 格式（字典列表）
-            stock_data = stock_df.to_dict('records')
-            stock_json = json.dumps(stock_data, default=str, ensure_ascii=False)
+            try:
+                stock_data = stock_df.to_dict('records')
+                stock_json = json.dumps(stock_data, default=str, ensure_ascii=False)
+                print(f"[_save_stock_list_to_cache] 准备保存 {len(stock_df)} 只股票到缓存，JSON 大小: {len(stock_json)} 字符")
+            except Exception as e:
+                print(f"[_save_stock_list_to_cache] ⚠️ 转换 DataFrame 到 JSON 失败: {e}")
+                import traceback
+                print(traceback.format_exc())
+                return False
             
             # 尝试使用 Upstash Redis
             redis_url = os.environ.get('UPSTASH_REDIS_REST_URL')
@@ -146,6 +158,7 @@ class DataFetcher:
                     # Upstash Redis REST API 需要将值作为字符串发送
                     # 参考 scan_progress_store.py 的实现：使用 json.dumps() 将值转换为字符串
                     # 注意：Upstash REST API 的请求体格式是 JSON，但值本身也需要是 JSON 字符串
+                    print(f"[_save_stock_list_to_cache] 尝试保存到 Upstash Redis...")
                     response = requests.post(
                         f"{redis_url}/setex/stock_list_all/86400",
                         headers={
@@ -153,31 +166,50 @@ class DataFetcher:
                             "Content-Type": "application/json"
                         },
                         json=stock_json,  # stock_json 已经是 JSON 字符串，直接发送
-                        timeout=3
+                        timeout=5  # 增加超时时间到5秒
                     )
                     if response.status_code == 200:
-                        print(f"[get_all_stocks] ✅ 股票列表已保存到 Redis 缓存（TTL: 24小时，股票数: {len(stock_df)}）")
-                        return True
+                        try:
+                            result = response.json()
+                            # Upstash 返回格式: {"result": "OK"} 或 {"result": true}
+                            if result.get('result') == 'OK' or result.get('result') is True:
+                                print(f"[_save_stock_list_to_cache] ✅ 股票列表已保存到 Redis 缓存（TTL: 24小时，股票数: {len(stock_df)}）")
+                                return True
+                            else:
+                                print(f"[_save_stock_list_to_cache] ⚠️ Redis 保存返回异常结果: {result}")
+                        except Exception as parse_error:
+                            print(f"[_save_stock_list_to_cache] ⚠️ Redis 保存响应解析失败: {parse_error}，但状态码为200，认为保存成功")
+                            return True
                     else:
-                        print(f"[get_all_stocks] ⚠️ Redis 保存失败，状态码: {response.status_code}, 响应: {response.text[:200]}")
+                        print(f"[_save_stock_list_to_cache] ⚠️ Redis 保存失败，状态码: {response.status_code}, 响应: {response.text[:500]}")
                 except Exception as e:
-                    print(f"[get_all_stocks] ⚠️ 保存到 Redis 缓存失败: {e}")
+                    import traceback
+                    error_detail = traceback.format_exc()
+                    print(f"[_save_stock_list_to_cache] ⚠️ 保存到 Redis 缓存失败: {e}")
+                    print(f"[_save_stock_list_to_cache] 错误详情: {error_detail}")
             
-            # 尝试使用 Vercel KV（如果没有使用 Redis）
-            if not (redis_url and redis_token):
-                try:
-                    from vercel_kv import kv
-                    kv.set('stock_list_all', stock_json, ttl=86400)  # 24小时
-                    print(f"[get_all_stocks] ✅ 股票列表已保存到 Vercel KV 缓存（TTL: 24小时，股票数: {len(stock_df)}）")
-                    return True
-                except ImportError:
-                    print(f"[get_all_stocks] ⚠️ Vercel KV 未安装或不可用")
-                except Exception as e:
-                    print(f"[get_all_stocks] ⚠️ 保存到 Vercel KV 缓存失败: {e}")
+            # 尝试使用 Vercel KV（如果没有使用 Redis 或 Redis 保存失败）
+            try:
+                from vercel_kv import kv
+                print(f"[_save_stock_list_to_cache] 尝试保存到 Vercel KV...")
+                kv.set('stock_list_all', stock_json, ttl=86400)  # 24小时
+                print(f"[_save_stock_list_to_cache] ✅ 股票列表已保存到 Vercel KV 缓存（TTL: 24小时，股票数: {len(stock_df)}）")
+                return True
+            except ImportError:
+                print(f"[_save_stock_list_to_cache] ⚠️ Vercel KV 未安装或不可用")
+            except Exception as e:
+                import traceback
+                error_detail = traceback.format_exc()
+                print(f"[_save_stock_list_to_cache] ⚠️ 保存到 Vercel KV 缓存失败: {e}")
+                print(f"[_save_stock_list_to_cache] 错误详情: {error_detail}")
                 
         except Exception as e:
-            print(f"[get_all_stocks] ⚠️ 保存股票列表到缓存失败: {e}")
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"[_save_stock_list_to_cache] ⚠️ 保存股票列表到缓存失败: {e}")
+            print(f"[_save_stock_list_to_cache] 错误详情: {error_detail}")
         
+        print(f"[_save_stock_list_to_cache] ❌ 所有缓存保存方式均失败，返回 False")
         return False
         
     def get_all_stocks(self, timeout=10, max_retries=3):
