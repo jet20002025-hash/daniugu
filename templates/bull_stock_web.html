@@ -2237,13 +2237,13 @@
                 console.error('❌ [scanAllStocks] 错误对象:', error);
                 
                 // 首先检查是否是 AbortError（应该在显示错误之前处理）
-                if (error.name === 'AbortError' || error.message?.includes('aborted') || error.message?.includes('signal is aborted')) {
+                if (error.name === 'AbortError' || error.message?.includes('aborted') || error.message?.includes('signal is aborted') || error.message?.includes('Failed to fetch')) {
                     // 请求超时或被中断，但扫描可能已在后台启动
-                    console.warn('[scanAllStocks] 请求被中断（AbortError），可能原因：');
-                    console.warn('  1. 请求超时（30秒）');
-                    console.warn('  2. 用户在其他设备/标签页启动了扫描');
-                    console.warn('  3. 网络连接中断');
-                    console.warn('[scanAllStocks] 继续等待进度更新，扫描可能在后台继续...');
+                    console.warn('[scanAllStocks] 请求被中断（AbortError/Failed to fetch），可能原因：');
+                    console.warn('  1. 请求超时（60秒）- 这在Vercel环境中可能发生');
+                    console.warn('  2. 网络连接中断或不稳定');
+                    console.warn('  3. 用户在其他设备/标签页启动了扫描');
+                    console.warn('[scanAllStocks] 正在检查扫描是否已在后台启动...');
                     
                     // 不显示错误提示框，只显示警告消息
                     const existingErrorDiv = document.getElementById('scanErrorDisplay');
@@ -2296,13 +2296,13 @@
                     }
                 }, 10000);
                 
-                // AbortError 已经在上面处理并返回了，这里不会执行到
+                // AbortError 已经在上面处理并返回了，这里不会执行到（已废弃的代码，保留作为参考）
                 if (false && error.name === 'AbortError') {
-                    // 请求超时或被中断，但扫描可能已在后台启动
+                    // 请求超时或被中断，但扫描可能已在后台启动（此代码已被上面的处理替换）
                     console.warn('[scanAllStocks] 请求被中断（AbortError），可能原因：');
-                    console.warn('  1. 请求超时（30秒）');
-                    console.warn('  2. 用户在其他设备/标签页启动了扫描');
-                    console.warn('  3. 网络连接中断');
+                    console.warn('  1. 请求超时（60秒）- 这在Vercel环境中可能发生');
+                    console.warn('  2. 网络连接中断或不稳定');
+                    console.warn('  3. 用户在其他设备/标签页启动了扫描');
                     console.warn('[scanAllStocks] 继续等待进度更新，扫描可能在后台继续...');
                     
                     // 不显示错误提示框，只显示警告消息
@@ -2359,7 +2359,11 @@
             try {
                 console.log('发送请求到 /api/scan_reversal_stocks');
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 30000);
+                // 反转股票扫描也可能需要较长时间，设置45秒超时
+                const timeoutId = setTimeout(() => {
+                    console.warn('[scanReversalStocks] 请求超时（45秒），中断请求');
+                    controller.abort();
+                }, 45000);
                 
                 const response = await fetch('/api/scan_reversal_stocks', {
                     method: 'POST',
