@@ -17,9 +17,118 @@ class DataFetcher:
         self.stock_list = None
         self._market_cap_cache = None  # 缓存市值数据，避免重复获取
         
+    def _get_stock_list_from_cache(self):
+        """从缓存中获取股票列表"""
+        try:
+            import os
+            import json
+            
+            # 尝试使用 Upstash Redis
+            redis_url = os.environ.get('UPSTASH_REDIS_REST_URL')
+            redis_token = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
+            if redis_url and redis_token:
+                import requests
+                try:
+                    response = requests.get(
+                        f"{redis_url}/get/stock_list_all",
+                        headers={"Authorization": f"Bearer {redis_token}"},
+                        timeout=2  # 缓存获取应该很快
+                    )
+                    if response.status_code == 200:
+                        result = response.json()
+                        value_str = result.get('result')
+                        if value_str:
+                            # 解析 JSON 字符串
+                            stock_data = json.loads(value_str) if isinstance(value_str, str) else value_str
+                            # 转换为 DataFrame（确保数据格式正确）
+                            if isinstance(stock_data, list) and len(stock_data) > 0:
+                                import pandas as pd
+                                stock_df = pd.DataFrame(stock_data)
+                                print(f"[get_all_stocks] ✅ 从 Redis 缓存获取股票列表: {len(stock_df)} 只")
+                                return stock_df
+                            else:
+                                print(f"[get_all_stocks] ⚠️ 缓存数据格式错误: {type(stock_data)}")
+                except Exception as e:
+                    print(f"[get_all_stocks] ⚠️ 从 Redis 缓存获取失败: {e}")
+            
+            # 尝试使用 Vercel KV
+            try:
+                from vercel_kv import kv
+                cached_data = kv.get('stock_list_all')
+                if cached_data:
+                    stock_data = json.loads(cached_data) if isinstance(cached_data, str) else cached_data
+                    # 转换为 DataFrame（确保数据格式正确）
+                    if isinstance(stock_data, list) and len(stock_data) > 0:
+                        import pandas as pd
+                        stock_df = pd.DataFrame(stock_data)
+                        print(f"[get_all_stocks] ✅ 从 Vercel KV 缓存获取股票列表: {len(stock_df)} 只")
+                        return stock_df
+                    else:
+                        print(f"[get_all_stocks] ⚠️ Vercel KV 缓存数据格式错误: {type(stock_data)}")
+            except Exception as e:
+                print(f"[get_all_stocks] ⚠️ 从 Vercel KV 缓存获取失败: {e}")
+                
+        except Exception as e:
+            print(f"[get_all_stocks] ⚠️ 从缓存获取股票列表失败: {e}")
+        
+        return None
+    
+    def _save_stock_list_to_cache(self, stock_df):
+        """将股票列表保存到缓存（TTL: 24小时 = 86400秒）"""
+        try:
+            import os
+            import json
+            
+            # 将 DataFrame 转换为 JSON 格式（字典列表）
+            stock_data = stock_df.to_dict('records')
+            stock_json = json.dumps(stock_data, default=str, ensure_ascii=False)
+            
+            # 尝试使用 Upstash Redis
+            redis_url = os.environ.get('UPSTASH_REDIS_REST_URL')
+            redis_token = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
+            if redis_url and redis_token:
+                import requests
+                try:
+                    # 缓存 24 小时（86400秒）
+                    # Upstash Redis REST API 需要将值作为字符串发送
+                    # 参考 scan_progress_store.py 的实现
+                    response = requests.post(
+                        f"{redis_url}/setex/stock_list_all/86400",
+                        headers={
+                            "Authorization": f"Bearer {redis_token}",
+                            "Content-Type": "application/json"
+                        },
+                        json=stock_json,  # 发送 JSON 字符串
+                        timeout=3
+                    )
+                    if response.status_code == 200:
+                        print(f"[get_all_stocks] ✅ 股票列表已保存到 Redis 缓存（TTL: 24小时，股票数: {len(stock_df)}）")
+                        return True
+                    else:
+                        print(f"[get_all_stocks] ⚠️ Redis 保存失败，状态码: {response.status_code}, 响应: {response.text[:200]}")
+                except Exception as e:
+                    print(f"[get_all_stocks] ⚠️ 保存到 Redis 缓存失败: {e}")
+            
+            # 尝试使用 Vercel KV（如果没有使用 Redis）
+            if not (redis_url and redis_token):
+                try:
+                    from vercel_kv import kv
+                    kv.set('stock_list_all', stock_json, ttl=86400)  # 24小时
+                    print(f"[get_all_stocks] ✅ 股票列表已保存到 Vercel KV 缓存（TTL: 24小时，股票数: {len(stock_df)}）")
+                    return True
+                except ImportError:
+                    print(f"[get_all_stocks] ⚠️ Vercel KV 未安装或不可用")
+                except Exception as e:
+                    print(f"[get_all_stocks] ⚠️ 保存到 Vercel KV 缓存失败: {e}")
+                
+        except Exception as e:
+            print(f"[get_all_stocks] ⚠️ 保存股票列表到缓存失败: {e}")
+        
+        return False
+        
     def get_all_stocks(self, timeout=10, max_retries=3):
         """
-        获取所有A股股票列表
+        获取所有A股股票列表（优先从缓存获取）
         返回: DataFrame，包含股票代码、名称等信息
         :param timeout: 超时时间（秒），默认10秒
         :param max_retries: 最大重试次数，默认3次
@@ -27,6 +136,15 @@ class DataFetcher:
         import signal
         import threading
         import os
+        
+        # 首先尝试从缓存获取
+        print("[get_all_stocks] 尝试从缓存获取股票列表...")
+        cached_stocks = self._get_stock_list_from_cache()
+        if cached_stocks is not None and len(cached_stocks) > 0:
+            self.stock_list = cached_stocks
+            return cached_stocks
+        
+        print("[get_all_stocks] 缓存中没有股票列表，开始从 akshare API 获取...")
         
         # 检测 Vercel 环境，在 Vercel 中使用更短的超时和更少的重试
         is_vercel = (
@@ -120,6 +238,24 @@ class DataFetcher:
                     self.stock_list = stock_info
                     elapsed_total = time.time() - start_time
                     print(f"[get_all_stocks] ✅ 成功获取 {len(stock_info)} 只A股股票（耗时 {elapsed_total:.2f}秒）")
+                    
+                    # 将获取的股票列表保存到缓存（异步保存，不阻塞）
+                    try:
+                        import threading
+                        def save_cache():
+                            try:
+                                self._save_stock_list_to_cache(stock_info)
+                            except Exception as e:
+                                print(f"[get_all_stocks] ⚠️ 后台保存缓存失败（不影响使用）: {e}")
+                        
+                        cache_thread = threading.Thread(target=save_cache)
+                        cache_thread.daemon = True
+                        cache_thread.start()
+                        # 不等待缓存保存完成，立即返回结果
+                        print(f"[get_all_stocks] 已启动后台线程保存股票列表到缓存...")
+                    except Exception as e:
+                        print(f"[get_all_stocks] ⚠️ 启动缓存保存线程失败（不影响使用）: {e}")
+                    
                     return stock_info
                 else:
                     print(f"[get_all_stocks] ⚠️ 返回结果为空（耗时 {elapsed_total:.2f}秒）")
