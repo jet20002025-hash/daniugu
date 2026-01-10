@@ -26,10 +26,24 @@ class DataFetcher:
         """
         import signal
         import threading
+        import os
+        
+        # 检测 Vercel 环境，在 Vercel 中使用更短的超时和更少的重试
+        is_vercel = (
+            os.environ.get('VERCEL') == '1' or 
+            os.environ.get('VERCEL_ENV') is not None or
+            os.environ.get('VERCEL_URL') is not None
+        )
+        
+        # Vercel 环境中，serverless 函数有 10 秒限制，使用更短的超时
+        if is_vercel:
+            timeout = min(timeout, 8)  # 最多8秒，留出2秒给其他处理
+            max_retries = min(max_retries, 2)  # 最多重试2次，避免超过执行时间限制
+            print(f"[get_all_stocks] Vercel 环境检测到，使用更短的超时时间: {timeout}秒，最多重试 {max_retries} 次")
         
         for attempt in range(max_retries):
             try:
-                print(f"[get_all_stocks] 尝试获取股票列表（第 {attempt + 1}/{max_retries} 次）...")
+                print(f"[get_all_stocks] 尝试获取股票列表（第 {attempt + 1}/{max_retries} 次，超时: {timeout}秒）...")
                 
                 # 使用线程和超时机制
                 result = [None]
@@ -37,12 +51,24 @@ class DataFetcher:
                 
                 def fetch_stocks():
                     try:
-                        result[0] = ak.stock_info_a_code_name()
+                        # 在 Vercel 环境中，尝试使用更快的接口或添加额外错误处理
+                        if is_vercel:
+                            # 在 Vercel 中，如果第一次尝试失败，直接返回 None
+                            try:
+                                result[0] = ak.stock_info_a_code_name()
+                            except Exception as e:
+                                error[0] = e
+                                import traceback
+                                print(f"[get_all_stocks] Vercel 环境中获取失败: {e}")
+                                # 在 Vercel 中，不打印完整堆栈，避免日志过长
+                        else:
+                            result[0] = ak.stock_info_a_code_name()
                     except Exception as e:
                         error[0] = e
                         import traceback
                         print(f"[get_all_stocks] 获取失败: {e}")
-                        print(f"[get_all_stocks] 错误堆栈: {traceback.format_exc()}")
+                        if not is_vercel:
+                            print(f"[get_all_stocks] 错误堆栈: {traceback.format_exc()}")
                 
                 fetch_thread = threading.Thread(target=fetch_stocks)
                 fetch_thread.daemon = True
@@ -50,11 +76,27 @@ class DataFetcher:
                 fetch_thread.join(timeout=timeout)
                 
                 if fetch_thread.is_alive():
-                    print(f"[get_all_stocks] 获取超时（{timeout}秒），尝试重试...")
-                    continue  # 重试
+                    print(f"[get_all_stocks] ⏱️ 获取超时（{timeout}秒），尝试重试...")
+                    if is_vercel and attempt == 0:
+                        # 在 Vercel 中，如果第一次就超时，直接返回 None，避免等待
+                        print(f"[get_all_stocks] Vercel 环境中第一次尝试超时，直接返回 None（避免超过执行时间限制）")
+                        return None
+                    if attempt < max_retries - 1:
+                        # 不在 Vercel 中时，等待后重试
+                        if not is_vercel:
+                            import time
+                            time.sleep(2)
+                        continue  # 重试
+                    else:
+                        print(f"[get_all_stocks] ❌ 所有重试都超时")
+                        return None
                 
                 if error[0]:
-                    print(f"[get_all_stocks] 获取出错: {error[0]}")
+                    print(f"[get_all_stocks] ❌ 获取出错: {error[0]}")
+                    if is_vercel:
+                        # 在 Vercel 中，如果出错，直接返回 None，避免等待
+                        print(f"[get_all_stocks] Vercel 环境中获取出错，直接返回 None")
+                        return None
                     if attempt < max_retries - 1:
                         print(f"[get_all_stocks] 等待 2 秒后重试...")
                         import time
@@ -70,6 +112,10 @@ class DataFetcher:
                     return stock_info
                 else:
                     print(f"[get_all_stocks] ⚠️ 返回结果为空")
+                    if is_vercel:
+                        # 在 Vercel 中，如果结果为空，直接返回 None
+                        print(f"[get_all_stocks] Vercel 环境中结果为空，直接返回 None")
+                        return None
                     if attempt < max_retries - 1:
                         print(f"[get_all_stocks] 等待 2 秒后重试...")
                         import time
@@ -83,7 +129,13 @@ class DataFetcher:
                 import traceback
                 error_detail = traceback.format_exc()
                 print(f"[get_all_stocks] ❌ 获取股票列表失败（第 {attempt + 1} 次尝试）: {e}")
-                print(f"[get_all_stocks] 错误详情: {error_detail}")
+                if not is_vercel:
+                    print(f"[get_all_stocks] 错误详情: {error_detail}")
+                
+                if is_vercel:
+                    # 在 Vercel 中，如果出错，直接返回 None
+                    print(f"[get_all_stocks] Vercel 环境中出错，直接返回 None")
+                    return None
                 
                 if attempt < max_retries - 1:
                     print(f"[get_all_stocks] 等待 2 秒后重试...")

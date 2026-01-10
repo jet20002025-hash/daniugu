@@ -502,7 +502,7 @@
                                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 10px;">
                                         <div class="form-group" style="margin-bottom: 0;">
                                             <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">匹配度阈值</label>
-                                            <input type="number" id="minMatchScore" placeholder="0.97" value="0.97" min="0.8" max="1.0" step="0.01" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                                            <input type="number" id="minMatchScore" placeholder="0.93" value="0.93" min="0.8" max="1.0" step="0.01" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
                                             <small style="color: #999; font-size: 11px;">范围：0.8-1.0</small>
                                         </div>
                                         <div class="form-group" style="margin-bottom: 0;">
@@ -1662,11 +1662,13 @@
                                     if (resultsResult.success) {
                                         if (resultsResult.stocks && resultsResult.stocks.length > 0) {
                                             displayReversalResults(resultsResult);
-                                            showMessage(`反转扫描已停止，已找到 ${resultsResult.found_count || resultsResult.stocks.length || 0} 只符合条件的股票。`, 'success');
+                                            const foundCount = resultsResult.found_count || resultsResult.stocks.length || 0;
+                                            const totalScanned = progress.total || 0;
+                                            showMessage(`反转扫描已停止，共扫描 ${totalScanned} 只股票，共有 ${foundCount} 只股票符合条件。`, 'success');
                                         } else {
                                             const totalScanned = progress.total || 0;
                                             const current = progress.current || 0;
-                                            showMessage(`反转扫描已停止，已处理 ${current}/${totalScanned} 只股票，但未找到符合条件的股票。`, 'warning');
+                                            showMessage(`反转扫描已停止，共扫描 ${current}/${totalScanned} 只股票，共有 0 只股票符合条件。`, 'warning');
                                         }
                                     }
                                 } else {
@@ -1676,12 +1678,13 @@
                                     console.log('停止后的扫描结果:', resultsResult);
                                     
                                     if (resultsResult.success) {
-                                        if (resultsResult.candidates && resultsResult.candidates.length > 0) {
-                                            await displayScanResults(resultsResult);
-                                            showMessage(`扫描已停止，已找到 ${resultsResult.found_count || resultsResult.candidates.length || 0} 只符合条件的股票。可以点击"扫描全市场"继续扫描。`, 'success');
+                                        await displayScanResults(resultsResult);
+                                        const foundCount = resultsResult.found_count || resultsResult.candidates?.length || 0;
+                                        const totalScanned = resultsResult.total_scanned || 0;
+                                        if (foundCount > 0) {
+                                            showMessage(`扫描已停止，共扫描 ${totalScanned} 只股票，共有 ${foundCount} 只股票符合条件。可以点击"扫描全市场"继续扫描。`, 'success');
                                         } else {
-                                            const totalScanned = resultsResult.total_scanned || 0;
-                                            showMessage(`扫描已停止，已处理 ${totalScanned} 只股票，但未找到符合条件的股票。可以点击"扫描全市场"继续扫描。`, 'warning');
+                                            showMessage(`扫描已停止，共扫描 ${totalScanned} 只股票，共有 0 只股票符合条件。可以点击"扫描全市场"继续扫描。`, 'warning');
                                         }
                                     }
                                 }
@@ -1948,15 +1951,63 @@
                 }
             }
             
-            // 检查是VIP用户、本地版本还是超级用户
+            // 检查是VIP用户、本地版本还是超级用户（优先检查本地版本）
             let minMatch, maxCap, scanLimit, excludeST, excludeSuspended, industryFilter, customStockPool;
             
-            const vipParamsPanel = document.getElementById('vipScanParams');
+            // 先检查环境，本地环境优先使用本地参数面板
+            const isLocal = isLocalEnvironment();
+            const localVersionButtons = document.getElementById('localVersionButtons');
             const localParamsPanel = document.getElementById('localScanParams');
+            const vipParamsPanel = document.getElementById('vipScanParams');
             const superParamsPanel = document.getElementById('superScanParams');
             
-            if (vipParamsPanel && vipParamsPanel.style.display !== 'none') {
-                // VIP用户：从表单获取参数
+            // 本地环境：优先检查本地版本参数面板（检查父元素是否显示）
+            if (isLocal && localVersionButtons && localVersionButtons.style.display !== 'none' && localParamsPanel) {
+                // 本地版本：从表单获取参数
+                const localMinMatchScoreInput = document.getElementById('localMinMatchScore');
+                const localMaxMarketCapInput = document.getElementById('localMaxMarketCap');
+                const localScanLimitInput = document.getElementById('localScanLimit');
+                
+                if (localMinMatchScoreInput) {
+                    minMatch = parseFloat(localMinMatchScoreInput.value) || 0.93;
+                    maxCap = parseFloat(localMaxMarketCapInput?.value) || 100;
+                    scanLimit = localScanLimitInput?.value ? parseInt(localScanLimitInput.value) : null;
+                    excludeST = true;
+                    excludeSuspended = true;
+                    industryFilter = '';
+                    customStockPool = '';
+                    
+                    console.log('[scanAllStocks] 本地版本参数:', { minMatch, maxCap, scanLimit });
+                    
+                    if (!confirm(`确定要开始扫描吗？\n\n扫描参数：\n- 匹配度阈值：${minMatch}\n- 最大市值：${maxCap}亿元\n${scanLimit ? `- 扫描数量限制：${scanLimit}只\n` : ''}\n这可能需要较长时间。`)) {
+                        isScanning = false; // 重置标志
+                        return;
+                    }
+                }
+            } else if (superParamsPanel && superParamsPanel.offsetParent !== null) {
+                // 超级用户：检查元素是否可见（使用 offsetParent，更可靠）
+                const superMinMatchScoreInput = document.getElementById('superMinMatchScore');
+                const superMaxMarketCapInput = document.getElementById('superMaxMarketCap');
+                const superScanLimitInput = document.getElementById('superScanLimit');
+                
+                if (superMinMatchScoreInput) {
+                    minMatch = parseFloat(superMinMatchScoreInput.value) || 0.93;
+                    maxCap = parseFloat(superMaxMarketCapInput?.value) || 100;
+                    scanLimit = superScanLimitInput?.value ? parseInt(superScanLimitInput.value) : null;
+                    excludeST = true;
+                    excludeSuspended = true;
+                    industryFilter = '';
+                    customStockPool = '';
+                    
+                    console.log('[scanAllStocks] 超级用户参数:', { minMatch, maxCap, scanLimit });
+                    
+                    if (!confirm(`确定要开始扫描吗？\n\n扫描参数：\n- 匹配度阈值：${minMatch}\n- 最大市值：${maxCap}亿元\n${scanLimit ? `- 扫描数量限制：${scanLimit}只\n` : ''}\n这可能需要较长时间。`)) {
+                        isScanning = false; // 重置标志
+                        return;
+                    }
+                }
+            } else if (vipParamsPanel && vipParamsPanel.offsetParent !== null) {
+                // VIP用户：检查元素是否可见（使用 offsetParent，更可靠）
                 const minMatchScoreInput = document.getElementById('minMatchScore');
                 const maxMarketCapInput = document.getElementById('maxMarketCap');
                 const excludeSTInput = document.getElementById('excludeST');
@@ -1964,53 +2015,21 @@
                 const industryFilterInput = document.getElementById('industryFilter');
                 const customStockPoolInput = document.getElementById('customStockPool');
                 
-                minMatch = parseFloat(minMatchScoreInput?.value) || 0.97;
-                maxCap = parseFloat(maxMarketCapInput?.value) || 100;
-                excludeST = excludeSTInput?.checked !== false; // 默认true
-                excludeSuspended = excludeSuspendedInput?.checked !== false; // 默认true
-                industryFilter = (industryFilterInput?.value || '').trim();
-                customStockPool = (customStockPoolInput?.value || '').trim();
-                scanLimit = null; // VIP用户支持全市场扫描，不使用limit
-                
-                if (!confirm(`确定要开始扫描吗？\n\n扫描参数：\n- 匹配度阈值：${minMatch}\n- 最大市值：${maxCap}亿元\n- 排除ST股票：${excludeST ? '是' : '否'}\n- 排除停牌股票：${excludeSuspended ? '是' : '否'}\n${industryFilter ? `- 行业筛选：${industryFilter}\n` : ''}${customStockPool ? `- 自定义股票池：${customStockPool}\n` : ''}\n这可能需要较长时间（约5000只股票）。`)) {
-                    isScanning = false; // 重置标志
-                    return;
-                }
-            } else if (localParamsPanel && localParamsPanel.style.display !== 'none') {
-                // 本地版本：从表单获取参数
-                const localMinMatchScoreInput = document.getElementById('localMinMatchScore');
-                const localMaxMarketCapInput = document.getElementById('localMaxMarketCap');
-                const localScanLimitInput = document.getElementById('localScanLimit');
-                
-                minMatch = parseFloat(localMinMatchScoreInput?.value) || 0.93;
-                maxCap = parseFloat(localMaxMarketCapInput?.value) || 100;
-                scanLimit = localScanLimitInput?.value ? parseInt(localScanLimitInput.value) : null;
-                excludeST = true;
-                excludeSuspended = true;
-                industryFilter = '';
-                customStockPool = '';
-                
-                if (!confirm(`确定要开始扫描吗？\n\n扫描参数：\n- 匹配度阈值：${minMatch}\n- 最大市值：${maxCap}亿元\n${scanLimit ? `- 扫描数量限制：${scanLimit}只\n` : ''}\n这可能需要较长时间。`)) {
-                    isScanning = false; // 重置标志
-                    return;
-                }
-            } else if (superParamsPanel && superParamsPanel.style.display !== 'none') {
-                // 超级用户：从表单获取参数
-                const superMinMatchScoreInput = document.getElementById('superMinMatchScore');
-                const superMaxMarketCapInput = document.getElementById('superMaxMarketCap');
-                const superScanLimitInput = document.getElementById('superScanLimit');
-                
-                minMatch = parseFloat(superMinMatchScoreInput?.value) || 0.93;
-                maxCap = parseFloat(superMaxMarketCapInput?.value) || 100;
-                scanLimit = superScanLimitInput?.value ? parseInt(superScanLimitInput.value) : null;
-                excludeST = true;
-                excludeSuspended = true;
-                industryFilter = '';
-                customStockPool = '';
-                
-                if (!confirm(`确定要开始扫描吗？\n\n扫描参数：\n- 匹配度阈值：${minMatch}\n- 最大市值：${maxCap}亿元\n${scanLimit ? `- 扫描数量限制：${scanLimit}只\n` : ''}\n这可能需要较长时间。`)) {
-                    isScanning = false; // 重置标志
-                    return;
+                if (minMatchScoreInput) {
+                    minMatch = parseFloat(minMatchScoreInput.value) || 0.93;
+                    maxCap = parseFloat(maxMarketCapInput?.value) || 100;
+                    excludeST = excludeSTInput?.checked !== false; // 默认true
+                    excludeSuspended = excludeSuspendedInput?.checked !== false; // 默认true
+                    industryFilter = (industryFilterInput?.value || '').trim();
+                    customStockPool = (customStockPoolInput?.value || '').trim();
+                    scanLimit = null; // VIP用户支持全市场扫描，不使用limit
+                    
+                    console.log('[scanAllStocks] VIP用户参数:', { minMatch, maxCap, excludeST, excludeSuspended, industryFilter, customStockPool });
+                    
+                    if (!confirm(`确定要开始扫描吗？\n\n扫描参数：\n- 匹配度阈值：${minMatch}\n- 最大市值：${maxCap}亿元\n- 排除ST股票：${excludeST ? '是' : '否'}\n- 排除停牌股票：${excludeSuspended ? '是' : '否'}\n${industryFilter ? `- 行业筛选：${industryFilter}\n` : ''}${customStockPool ? `- 自定义股票池：${customStockPool}\n` : ''}\n这可能需要较长时间（约5000只股票）。`)) {
+                        isScanning = false; // 重置标志
+                        return;
+                    }
                 }
             } else {
                 // 兜底方案：使用默认值（如果输入框不可见）
@@ -2021,6 +2040,8 @@
                 excludeSuspended = true;
                 industryFilter = '';
                 customStockPool = '';
+                
+                console.warn('[scanAllStocks] 无法确定参数来源，使用默认值:', { minMatch, maxCap });
                 
                 if (!confirm(`确定要开始扫描吗？\n\n扫描参数：\n- 匹配度阈值：${minMatch}（默认）\n- 最大市值：${maxCap}亿元（默认）\n这可能需要较长时间（约5000只股票）。`)) {
                     isScanning = false; // 重置标志
@@ -2323,11 +2344,19 @@
                                         const resultsResponse = await fetch('/api/get_scan_results');
                                         const resultsResult = await resultsResponse.json();
                                         
-                                        if (resultsResult.success && resultsResult.candidates) {
+                                        // 无论是否找到股票，都显示结果
+                                        if (resultsResult.success) {
                                             await displayScanResults(resultsResult);
-                                            showMessage(`扫描完成！找到 ${resultsResult.found_count || 0} 只符合条件的股票`, 'success');
+                                            const foundCount = resultsResult.found_count || 0;
+                                            const totalScanned = resultsResult.total_scanned || 0;
+                                            if (foundCount > 0) {
+                                                showMessage(`扫描完成！共扫描 ${totalScanned} 只股票，共有 ${foundCount} 只股票符合条件`, 'success');
+                                            } else {
+                                                showMessage(`扫描完成！共扫描 ${totalScanned} 只股票，共有 0 只股票符合条件`, 'warning');
+                                            }
                                         } else {
-                                            showMessage(resultsResult.message || '扫描完成，但未找到符合条件的股票', 'error');
+                                            const totalScanned = resultsResult.total_scanned || 0;
+                                            showMessage(`扫描完成！共扫描 ${totalScanned} 只股票，共有 0 只股票符合条件。${resultsResult.message || ''}`, 'warning');
                                         }
                                     } else if (progress.status === '失败' || progress.status === '已停止') {
                                         clearInterval(scanCheckInterval);
@@ -2353,14 +2382,17 @@
                                                 console.log('停止后的扫描结果:', resultsResult);
                                                 
                                                 if (resultsResult.success) {
-                                                    if (resultsResult.candidates && resultsResult.candidates.length > 0) {
-                                                        await displayScanResults(resultsResult);
-                                                        showMessage(`扫描已停止，已找到 ${resultsResult.found_count || resultsResult.candidates.length || 0} 只符合条件的股票`, 'success');
+                                                    await displayScanResults(resultsResult);
+                                                    const foundCount = resultsResult.found_count || resultsResult.candidates?.length || 0;
+                                                    const totalScanned = resultsResult.total_scanned || 0;
+                                                    if (foundCount > 0) {
+                                                        showMessage(`扫描已停止，共扫描 ${totalScanned} 只股票，共有 ${foundCount} 只股票符合条件`, 'success');
                                                     } else {
-                                                        showMessage('扫描已停止，但未找到符合条件的股票', 'warning');
+                                                        showMessage(`扫描已停止，共扫描 ${totalScanned} 只股票，共有 0 只股票符合条件`, 'warning');
                                                     }
                                                 } else {
-                                                    showMessage('扫描已停止，但无法获取结果: ' + (resultsResult.message || '未知错误'), 'warning');
+                                                    const totalScanned = resultsResult.total_scanned || 0;
+                                                    showMessage(`扫描已停止，共扫描 ${totalScanned} 只股票，共有 0 只股票符合条件。${resultsResult.message || ''}`, 'warning');
                                                 }
                                             } catch (error) {
                                                 console.error('获取停止后的扫描结果失败:', error);
@@ -2616,11 +2648,13 @@
                                             
                                             if (resultsResult.success && resultsResult.stocks) {
                                                 displayReversalResults(resultsResult);
-                                                showMessage(`反转扫描已停止，已找到 ${resultsResult.found_count || resultsResult.stocks.length || 0} 只符合条件的股票。`, 'success');
+                                                const foundCount = resultsResult.found_count || resultsResult.stocks.length || 0;
+                                                const totalScanned = progress.total || 0;
+                                                showMessage(`反转扫描已停止，共扫描 ${totalScanned} 只股票，共有 ${foundCount} 只股票符合条件。`, 'success');
                                             } else {
                                                 const totalScanned = progress.total || 0;
                                                 const current = progress.current || 0;
-                                                showMessage(`反转扫描已停止，已处理 ${current}/${totalScanned} 只股票。`, 'warning');
+                                                showMessage(`反转扫描已停止，共扫描 ${current}/${totalScanned} 只股票，共有 0 只股票符合条件。`, 'warning');
                                             }
                                         } else {
                                             showMessage(progress.detail || '搜索失败', 'error');
@@ -3004,8 +3038,25 @@
         async function displayScanResults(result) {
             const container = document.getElementById('buyPointsResult');
             
-            if (!result.candidates || result.candidates.length === 0) {
-                container.innerHTML = '<div style="margin-top: 15px; padding: 15px; background: white; border-radius: 6px; color: #999;">未找到符合条件的股票</div>';
+            // 获取扫描总数和找到的数量
+            const totalScanned = result.total_scanned || 0;
+            const foundCount = result.found_count || 0;
+            const candidates = result.candidates || [];
+            
+            // 即使没找到股票，也显示结果提示
+            if (!candidates || candidates.length === 0) {
+                const noResultHtml = `
+                    <div style="margin-top: 15px; padding: 20px; background: white; border-radius: 6px; text-align: center;">
+                        <div style="font-size: 16px; color: #e74c3c; margin-bottom: 10px;">❌ 未找到符合条件的股票</div>
+                        <div style="font-size: 14px; color: #666; margin-top: 10px;">
+                            共扫描 <strong style="color: #667eea;">${totalScanned}</strong> 只股票，共有 <strong style="color: #e74c3c;">0</strong> 只股票符合条件
+                        </div>
+                        <div style="font-size: 12px; color: #999; margin-top: 10px;">
+                            提示：可以尝试降低匹配度阈值或调整其他扫描参数
+                        </div>
+                    </div>
+                `;
+                container.innerHTML = noResultHtml;
                 return;
             }
             
@@ -4088,7 +4139,13 @@
                     } else if (result.is_complete) {
                         // 所有批次完成
                         console.log('所有批次处理完成！');
-                        showMessage(`扫描完成！共找到 ${result.progress?.found || 0} 只符合条件的股票`, 'success');
+                        const foundCount = result.progress?.found || 0;
+                        const totalScanned = result.progress?.total_scanned || result.progress?.scanned || 0;
+                        if (foundCount > 0) {
+                            showMessage(`扫描完成！共扫描 ${totalScanned} 只股票，共有 ${foundCount} 只股票符合条件`, 'success');
+                        } else {
+                            showMessage(`扫描完成！共扫描 ${totalScanned} 只股票，共有 0 只股票符合条件`, 'warning');
+                        }
                         hideProgress();
                         stopProgressPolling();
                         const stopBtn = document.getElementById('stopScanBtn');
@@ -4097,6 +4154,17 @@
                         // 重置扫描标志
                         if (typeof isScanning !== 'undefined') {
                             isScanning = false;
+                        }
+                        
+                        // 获取并显示扫描结果
+                        try {
+                            const resultsResponse = await fetch('/api/get_scan_results');
+                            const resultsResult = await resultsResponse.json();
+                            if (resultsResult.success) {
+                                await displayScanResults(resultsResult);
+                            }
+                        } catch (error) {
+                            console.error('获取扫描结果失败:', error);
                         }
                         
                         // 刷新股票列表

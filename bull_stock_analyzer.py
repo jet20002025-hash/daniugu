@@ -2952,13 +2952,54 @@ class BullStockAnalyzer:
                         print(f"⚠️ {stock_code} 匹配度计算失败: {str(e)[:50]}")
                     continue
                 
-                # 5. 如果匹配度达到阈值，记录为候选
+                # 5. 如果匹配度达到阈值，检查市值并记录为候选
                 total_match = match_score['总匹配度']
                 if total_match >= min_match_score:
                     if current_idx >= len(weekly_df):
                         continue
                     
                     try:
+                        # 尝试获取市值（如果市值获取成功，按市值筛选；失败则跳过市值检查）
+                        market_cap_checked = False
+                        market_cap_valid = False
+                        
+                        if max_market_cap > 0:  # 如果设置了市值限制，尝试获取市值
+                            try:
+                                # 使用超时机制获取市值（避免卡住）
+                                market_cap_result = [None]
+                                market_cap_error = [None]
+                                
+                                def fetch_market_cap():
+                                    try:
+                                        market_cap_result[0] = self.fetcher.get_market_cap(stock_code, timeout=2)
+                                    except Exception as e:
+                                        market_cap_error[0] = e
+                                
+                                cap_thread = threading.Thread(target=fetch_market_cap)
+                                cap_thread.daemon = True
+                                cap_thread.start()
+                                cap_thread.join(timeout=2.5)  # 最多等待2.5秒
+                                
+                                if not cap_thread.is_alive():
+                                    fetched_market_cap = market_cap_result[0]
+                                    if fetched_market_cap is not None and fetched_market_cap > 0:
+                                        market_cap = fetched_market_cap
+                                        market_cap_valid = True
+                                        market_cap_checked = True
+                                        # 如果市值获取成功，检查是否符合条件
+                                        if market_cap > max_market_cap:
+                                            # 市值超过限制，跳过该股票
+                                            if idx % 10 == 0:
+                                                print(f"[{idx}/{total_stocks}] {stock_code} {stock_name} 市值 {market_cap:.2f}亿超过限制 {max_market_cap:.2f}亿，跳过")
+                                            continue
+                            except Exception as e:
+                                # 市值获取失败，跳过市值检查，继续处理该股票
+                                if idx % 100 == 0:
+                                    print(f"[{idx}/{total_stocks}] {stock_code} 市值获取失败，跳过市值检查: {str(e)[:50]}")
+                                market_cap_checked = True
+                                market_cap_valid = False
+                        
+                        # 市值检查通过（或市值获取失败，跳过检查），记录该股票
                         current_price = float(weekly_df.iloc[current_idx]['收盘'])
                         current_date = weekly_df.iloc[current_idx]['日期']
                         
@@ -2971,8 +3012,9 @@ class BullStockAnalyzer:
                         buy_price = current_price
                         buy_date = current_date_str
                         
-                        # 跳过市值获取（避免卡住）
-                        # market_cap 保持为 None
+                        # 如果没有获取到市值，market_cap 保持为 None
+                        if not market_cap_checked:
+                            market_cap = None
                         
                         candidates.append({
                             '股票代码': stock_code,
@@ -2981,13 +3023,14 @@ class BullStockAnalyzer:
                             '最佳买点日期': buy_date,
                             '最佳买点价格': round(buy_price, 2),
                             '当前价格': round(current_price, 2),
-                            '市值': round(market_cap, 2) if market_cap else None,
+                            '市值': round(market_cap, 2) if market_cap_valid else None,
                             '核心特征匹配': match_score.get('核心特征匹配', {}),
                             '特征': features
                         })
                         
                         self.progress['found'] = len(candidates)
-                        print(f"\n✅ 找到候选: {stock_code} {stock_name} (匹配度: {match_score['总匹配度']:.3f})")
+                        market_cap_info = f" 市值: {market_cap:.2f}亿" if market_cap_valid else " 市值: 未知"
+                        print(f"\n✅ 找到候选: {stock_code} {stock_name} (匹配度: {match_score['总匹配度']:.3f}{market_cap_info})")
                     except Exception as e:
                         # 处理候选股票时的错误，跳过该股票
                         if idx % 100 == 0:

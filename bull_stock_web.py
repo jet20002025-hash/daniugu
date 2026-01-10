@@ -1968,8 +1968,9 @@ def scan_all_stocks():
             
             try:
                 print("[scan_all_stocks] 开始获取股票列表...")
-                # 在 Vercel 环境中，使用更长的超时时间和重试机制
-                stock_list = analyzer.fetcher.get_all_stocks(timeout=15, max_retries=3)
+                # 在 Vercel 环境中，使用更短的超时时间（避免超过执行时间限制）
+                # get_all_stocks 内部会根据环境自动调整超时和重试次数
+                stock_list = analyzer.fetcher.get_all_stocks(timeout=8 if is_vercel else 15, max_retries=2 if is_vercel else 3)
                 print(f"[scan_all_stocks] 获取股票列表结果: {stock_list is not None}, 数量: {len(stock_list) if stock_list is not None else 0}")
             except Exception as e:
                 import traceback
@@ -1977,14 +1978,17 @@ def scan_all_stocks():
                 print(f"[scan_all_stocks] ❌ 获取股票列表失败: {error_detail}")
                 return jsonify({
                     'success': False,
-                    'message': f'获取股票列表失败: {str(e)}\n\n可能的原因：\n1. 网络连接问题\n2. akshare 服务暂时不可用\n3. Vercel 环境网络限制\n\n请稍后重试或检查网络连接。'
+                    'message': f'获取股票列表失败: {str(e)}\n\n可能的原因：\n1. 网络连接问题（Vercel 环境网络限制）\n2. akshare 服务暂时不可用\n3. 超时（Vercel 函数执行时间限制为 10 秒）\n\n建议：\n- 请稍后重试\n- 如果问题持续，可能是 akshare 服务暂时不可用\n- 可以尝试在非高峰时段重试'
                 }), 500
             
             if stock_list is None or len(stock_list) == 0:
                 print(f"[scan_all_stocks] ❌ 股票列表为空: stock_list={stock_list}, len={len(stock_list) if stock_list is not None else 0}")
+                error_msg = '无法获取股票列表\n\n可能的原因：\n1. 网络连接问题（Vercel 环境网络限制）\n2. akshare 服务暂时不可用\n3. 超时（Vercel 函数执行时间限制为 10 秒）\n\n建议：\n- 请稍后重试\n- 如果问题持续，可能是 akshare 服务暂时不可用\n- 可以尝试在非高峰时段重试'
+                if is_vercel:
+                    error_msg += '\n\n注意：Vercel serverless 函数有 10 秒执行时间限制，如果 akshare 服务响应慢，可能导致超时。'
                 return jsonify({
                     'success': False,
-                    'message': '无法获取股票列表\n\n可能的原因：\n1. 网络连接问题\n2. akshare 服务暂时不可用\n3. Vercel 环境网络限制\n\n请稍后重试或检查网络连接。'
+                    'message': error_msg
                 }), 500
             
             # VIP用户自定义筛选：排除ST股票
