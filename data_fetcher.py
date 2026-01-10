@@ -91,14 +91,15 @@ class DataFetcher:
                 try:
                     # 缓存 24 小时（86400秒）
                     # Upstash Redis REST API 需要将值作为字符串发送
-                    # 参考 scan_progress_store.py 的实现
+                    # 参考 scan_progress_store.py 的实现：使用 json.dumps() 将值转换为字符串
+                    # 注意：Upstash REST API 的请求体格式是 JSON，但值本身也需要是 JSON 字符串
                     response = requests.post(
                         f"{redis_url}/setex/stock_list_all/86400",
                         headers={
                             "Authorization": f"Bearer {redis_token}",
                             "Content-Type": "application/json"
                         },
-                        json=stock_json,  # 发送 JSON 字符串
+                        json=stock_json,  # stock_json 已经是 JSON 字符串，直接发送
                         timeout=3
                     )
                     if response.status_code == 200:
