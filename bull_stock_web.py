@@ -4130,9 +4130,16 @@ def search_stock():
 def refresh_stock_cache():
     """
     刷新股票列表缓存的 Cron Job 端点
-    在交易时间段（9:30-11:30, 13:00-15:00）每5分钟刷新一次
-    盘后（15:05）刷新一次
-    也允许手动触发刷新（无需登录，但建议在交易时间段使用）
+    
+    注意：由于 Vercel Hobby 账户限制每天只能运行一次 cron job，
+    因此配置为每个交易日 9:25（开盘前）自动刷新一次。
+    
+    如果需要更频繁的刷新（如交易时间段内每5分钟），可以：
+    1. 手动访问 /api/refresh_stock_cache?force=true
+    2. 使用外部服务（如 GitHub Actions、UptimeRobot）定期调用此API
+    3. 升级到 Vercel Pro 计划以解锁更多 cron job 功能
+    
+    也允许手动触发刷新（无需登录，建议在交易时间段使用）
     """
     try:
         from datetime import datetime, timezone, timedelta
@@ -4145,9 +4152,16 @@ def refresh_stock_cache():
             return beijing_now
         
         def is_trading_time(beijing_now):
-            """判断是否在交易时间段（9:30-11:30, 13:00-15:00）或盘后时间（15:05）"""
+            """
+            判断是否在交易时间段（9:30-11:30, 13:00-15:00）或盘后时间（15:05）
+            也允许在开盘前（9:25）执行，因为Hobby账户限制每天只能运行一次cron job
+            """
             current_hour = beijing_now.hour
             current_minute = beijing_now.minute
+            
+            # 开盘前：9:25（允许执行，因为cron job在这个时间运行）
+            if current_hour == 9 and current_minute == 25:
+                return True
             
             # 上午交易时间：9:30-11:30
             if current_hour == 9 and current_minute >= 30:
@@ -4163,7 +4177,7 @@ def refresh_stock_cache():
             if current_hour == 15 and current_minute == 0:
                 return True
             
-            # 盘后时间：15:05（15:05执行一次）
+            # 盘后时间：15:05（允许手动触发）
             if current_hour == 15 and current_minute == 5:
                 return True
             
@@ -4179,9 +4193,14 @@ def refresh_stock_cache():
         if not is_in_trading_time and not force_refresh:
             return jsonify({
                 'success': False,
-                'message': f'当前时间不在交易时间段或盘后时间（当前时间: {current_time_str}）\n\n如需强制刷新，请使用 ?force=true 参数',
+                'message': f'当前时间不在允许的执行时间（当前时间: {current_time_str}）\n\n允许的时间：\n- 9:25（开盘前，自动cron job）\n- 9:30-11:30, 13:00-15:00（交易时间段，需手动触发）\n- 15:05（盘后，需手动触发）\n\n如需强制刷新，请使用 ?force=true 参数',
                 'current_time': current_time_str,
-                'trading_hours': '9:30-11:30, 13:00-15:00（每5分钟刷新），15:05（盘后刷新）',
+                'allowed_times': {
+                    'auto_cron': '9:25（开盘前，每天一次）',
+                    'trading_hours': '9:30-11:30, 13:00-15:00（需手动触发或使用外部服务）',
+                    'after_market': '15:05（盘后，需手动触发）'
+                },
+                'note': '由于 Vercel Hobby 账户限制每天只能运行一次 cron job，交易时间段内的刷新需要手动触发或使用外部服务',
                 'force_refresh': False
             }), 200
         
