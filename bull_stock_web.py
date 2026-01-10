@@ -748,19 +748,81 @@ def get_user_info():
         tier = get_user_tier()  # 使用统一的函数获取等级
         scan_config = get_scan_config()
         
-        # 获取扫描限制信息
-        from scan_limit_helper import get_beijing_time, check_scan_time_limit, check_result_view_time, check_daily_scan_limit
-        beijing_now = get_beijing_time()
+        # 初始化默认值，即使辅助函数失败也能返回基本用户信息
+        beijing_now = None
+        can_scan = True
+        scan_time_error = None
+        can_view = True
+        view_time_error = None
+        can_scan_daily = True
+        daily_error = None
+        today_count = 0
+        current_time_str = ''
         
-        # 检查当前是否可以扫描
-        can_scan, scan_time_error = check_scan_time_limit(tier, scan_config)
+        # 尝试获取扫描限制信息（使用 try-except 包装，确保即使失败也能返回基本信息）
+        scan_limit_functions_available = False
+        try:
+            from scan_limit_helper import get_beijing_time, check_scan_time_limit, check_result_view_time, check_daily_scan_limit
+            scan_limit_functions_available = True
+        except Exception as import_error:
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"[get_user_info] ⚠️ 导入 scan_limit_helper 失败: {import_error}")
+            print(f"[get_user_info] 错误详情: {error_detail}")
+            # 使用默认值，继续执行
+            scan_limit_functions_available = False
         
-        # 检查当前是否可以查看结果
-        can_view, view_time_error = check_result_view_time(tier, scan_config)
+        # 获取北京时间（优先使用 scan_limit_helper，如果失败则使用备用方法）
+        try:
+            if scan_limit_functions_available:
+                beijing_now = get_beijing_time()
+            else:
+                from datetime import datetime, timezone, timedelta
+                utc_now = datetime.now(timezone.utc)
+                beijing_tz = timezone(timedelta(hours=8))
+                beijing_now = utc_now.astimezone(beijing_tz)
+            current_time_str = beijing_now.strftime('%Y-%m-%d %H:%M:%S') if beijing_now else ''
+        except Exception as time_error:
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"[get_user_info] ⚠️ 获取北京时间失败: {time_error}")
+            print(f"[get_user_info] 错误详情: {error_detail}")
+            from datetime import datetime
+            current_time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
-        # 检查今日扫描次数
-        username = user.get('username', 'anonymous')
-        can_scan_daily, daily_error, today_count = check_daily_scan_limit(username, tier, scan_config, is_vercel)
+        # 检查当前是否可以扫描（使用 try-except 包装）
+        try:
+            if scan_limit_functions_available:
+                can_scan, scan_time_error = check_scan_time_limit(tier, scan_config)
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"[get_user_info] ⚠️ 检查扫描时间限制失败: {e}")
+            print(f"[get_user_info] 错误详情: {error_detail}")
+            # 使用默认值，继续执行
+        
+        # 检查当前是否可以查看结果（使用 try-except 包装）
+        try:
+            if scan_limit_functions_available:
+                can_view, view_time_error = check_result_view_time(tier, scan_config)
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"[get_user_info] ⚠️ 检查结果查看时间失败: {e}")
+            print(f"[get_user_info] 错误详情: {error_detail}")
+            # 使用默认值，继续执行
+        
+        # 检查今日扫描次数（使用 try-except 包装）
+        try:
+            username = user.get('username', 'anonymous')
+            if scan_limit_functions_available:
+                can_scan_daily, daily_error, today_count = check_daily_scan_limit(username, tier, scan_config, is_vercel)
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"[get_user_info] ⚠️ 检查每日扫描次数限制失败: {e}")
+            print(f"[get_user_info] 错误详情: {error_detail}")
+            # 使用默认值，继续执行
         
         return jsonify({
             'success': True,
@@ -779,14 +841,43 @@ def get_user_info():
                     'can_scan_daily': can_scan_daily,
                     'daily_error': daily_error,
                     'today_scan_count': today_count,
-                    'current_time': beijing_now.strftime('%Y-%m-%d %H:%M:%S')
+                    'current_time': current_time_str
                 }
             }
         })
     except Exception as e:
         import traceback
         error_detail = traceback.format_exc()
-        print(f"获取用户信息错误: {error_detail}")
+        print(f"[get_user_info] ❌ 获取用户信息错误: {error_detail}")
+        # 即使出错，也尝试返回基本用户信息
+        try:
+            user = get_current_user()
+            if user:
+                tier = get_user_tier()
+                return jsonify({
+                    'success': True,
+                    'user': {
+                        'username': user.get('username', 'unknown'),
+                        'email': user.get('email', ''),
+                        'tier': tier,
+                        'is_premium': user.get('is_vip', False) or user.get('is_premium', False),
+                        'is_super': is_super_user(),
+                        'scan_config': {},
+                        'scan_restrictions': {
+                            'can_scan_now': True,
+                            'scan_time_error': None,
+                            'can_view_now': True,
+                            'view_time_error': None,
+                            'can_scan_daily': True,
+                            'daily_error': None,
+                            'today_scan_count': 0,
+                            'current_time': ''
+                        }
+                    }
+                })
+        except Exception as fallback_error:
+            print(f"[get_user_info] ❌ 备用方案也失败: {fallback_error}")
+        
         return jsonify({
             'success': False,
             'message': f'服务器错误: {str(e)}'
