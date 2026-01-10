@@ -17,11 +17,16 @@ class DataFetcher:
         self.stock_list = None
         self._market_cap_cache = None  # 缓存市值数据，避免重复获取
         
-    def _get_stock_list_from_cache(self):
-        """从缓存中获取股票列表"""
+    def _get_stock_list_from_cache(self, check_age=False):
+        """
+        从缓存中获取股票列表
+        :param check_age: 是否检查缓存年龄（用于判断是否过期）
+        :return: 如果 check_age=True，返回 (stock_df, cache_timestamp, is_expired)，否则返回 stock_df
+        """
         try:
             import os
             import json
+            from datetime import datetime, timezone
             
             # 尝试使用 Upstash Redis
             redis_url = os.environ.get('UPSTASH_REDIS_REST_URL')
@@ -29,6 +34,7 @@ class DataFetcher:
             if redis_url and redis_token:
                 import requests
                 try:
+                    # 获取缓存数据和时间戳
                     response = requests.get(
                         f"{redis_url}/get/stock_list_all",
                         headers={"Authorization": f"Bearer {redis_token}"},
@@ -44,14 +50,54 @@ class DataFetcher:
                             if isinstance(stock_data, list) and len(stock_data) > 0:
                                 import pandas as pd
                                 stock_df = pd.DataFrame(stock_data)
-                                print(f"[get_all_stocks] ✅ 从 Redis 缓存获取股票列表: {len(stock_df)} 只")
-                                return stock_df
+                                
+                                # 尝试获取缓存时间戳
+                                cache_timestamp = None
+                                is_expired = False
+                                if check_age:
+                                    try:
+                                        # 尝试获取缓存的TTL（剩余时间）
+                                        ttl_response = requests.get(
+                                            f"{redis_url}/ttl/stock_list_all",
+                                            headers={"Authorization": f"Bearer {redis_token}"},
+                                            timeout=2
+                                        )
+                                        if ttl_response.status_code == 200:
+                                            ttl_result = ttl_response.json()
+                                            ttl_seconds = ttl_result.get('result', -1)
+                                            if ttl_seconds > 0:
+                                                # TTL = 86400秒（24小时），缓存时间 = 当前时间 - (86400 - TTL)
+                                                cache_age_seconds = 86400 - ttl_seconds
+                                                cache_timestamp = datetime.now(timezone.utc).timestamp() - cache_age_seconds
+                                                # 如果在交易时间段内且缓存超过5分钟，认为过期
+                                                from datetime import timedelta
+                                                beijing_now = datetime.now(timezone.utc) + timedelta(hours=8)
+                                                is_in_trading_time = (
+                                                    (beijing_now.hour == 9 and beijing_now.minute >= 30) or
+                                                    beijing_now.hour == 10 or
+                                                    (beijing_now.hour == 11 and beijing_now.minute <= 30) or
+                                                    beijing_now.hour == 13 or
+                                                    beijing_now.hour == 14 or
+                                                    (beijing_now.hour == 15 and beijing_now.minute == 0)
+                                                )
+                                                if is_in_trading_time and cache_age_seconds > 300:  # 5分钟 = 300秒
+                                                    is_expired = True
+                                                    print(f"[get_all_stocks] ⚠️ 缓存已过期（交易时间段内，缓存年龄: {cache_age_seconds//60}分钟），需要刷新")
+                                    except Exception as e:
+                                        print(f"[get_all_stocks] ⚠️ 获取缓存TTL失败: {e}")
+                                
+                                if check_age:
+                                    print(f"[get_all_stocks] ✅ 从 Redis 缓存获取股票列表: {len(stock_df)} 只，缓存年龄: {cache_age_seconds//60 if cache_timestamp else 'unknown'}分钟")
+                                    return stock_df, cache_timestamp, is_expired
+                                else:
+                                    print(f"[get_all_stocks] ✅ 从 Redis 缓存获取股票列表: {len(stock_df)} 只")
+                                    return stock_df
                             else:
                                 print(f"[get_all_stocks] ⚠️ 缓存数据格式错误: {type(stock_data)}")
                 except Exception as e:
                     print(f"[get_all_stocks] ⚠️ 从 Redis 缓存获取失败: {e}")
             
-            # 尝试使用 Vercel KV
+            # 尝试使用 Vercel KV（Vercel KV 不支持 TTL 查询，暂时不检查年龄）
             try:
                 from vercel_kv import kv
                 cached_data = kv.get('stock_list_all')
@@ -61,8 +107,13 @@ class DataFetcher:
                     if isinstance(stock_data, list) and len(stock_data) > 0:
                         import pandas as pd
                         stock_df = pd.DataFrame(stock_data)
-                        print(f"[get_all_stocks] ✅ 从 Vercel KV 缓存获取股票列表: {len(stock_df)} 只")
-                        return stock_df
+                        if check_age:
+                            # Vercel KV 不支持TTL查询，返回 None 表示未知
+                            print(f"[get_all_stocks] ✅ 从 Vercel KV 缓存获取股票列表: {len(stock_df)} 只（无法检查缓存年龄）")
+                            return stock_df, None, False
+                        else:
+                            print(f"[get_all_stocks] ✅ 从 Vercel KV 缓存获取股票列表: {len(stock_df)} 只")
+                            return stock_df
                     else:
                         print(f"[get_all_stocks] ⚠️ Vercel KV 缓存数据格式错误: {type(stock_data)}")
             except Exception as e:
@@ -71,6 +122,8 @@ class DataFetcher:
         except Exception as e:
             print(f"[get_all_stocks] ⚠️ 从缓存获取股票列表失败: {e}")
         
+        if check_age:
+            return None, None, True  # 缓存不存在，认为过期
         return None
     
     def _save_stock_list_to_cache(self, stock_df):
@@ -139,12 +192,40 @@ class DataFetcher:
         import os
         
         # 首先尝试从缓存获取（优先从缓存读取，避免每次调用 akshare API）
+        # 在交易时间段内，检查缓存年龄，如果过期则刷新
         print("[get_all_stocks] 尝试从缓存获取股票列表...")
-        cached_stocks = self._get_stock_list_from_cache()
-        if cached_stocks is not None and len(cached_stocks) > 0:
-            self.stock_list = cached_stocks
-            print(f"[get_all_stocks] ✅ 从缓存获取成功，股票数: {len(cached_stocks)} 只（无需调用 akshare API）")
-            return cached_stocks
+        from datetime import datetime, timezone, timedelta
+        beijing_now = datetime.now(timezone.utc) + timedelta(hours=8)
+        is_in_trading_time = (
+            (beijing_now.hour == 9 and beijing_now.minute >= 30) or
+            beijing_now.hour == 10 or
+            (beijing_now.hour == 11 and beijing_now.minute <= 30) or
+            beijing_now.hour == 13 or
+            beijing_now.hour == 14 or
+            (beijing_now.hour == 15 and beijing_now.minute == 0)
+        )
+        
+        # 如果在交易时间段内，检查缓存年龄
+        if is_in_trading_time:
+            cached_stocks, cache_timestamp, is_expired = self._get_stock_list_from_cache(check_age=True)
+            if cached_stocks is not None and len(cached_stocks) > 0 and not is_expired:
+                self.stock_list = cached_stocks
+                print(f"[get_all_stocks] ✅ 从缓存获取成功（交易时间段内，缓存未过期），股票数: {len(cached_stocks)} 只")
+                return cached_stocks
+            elif cached_stocks is not None and len(cached_stocks) > 0 and is_expired:
+                print(f"[get_all_stocks] ⚠️ 缓存已过期（交易时间段内，缓存超过5分钟），将从 API 获取最新数据...")
+                # 继续执行，从 API 获取最新数据
+            elif cached_stocks is None:
+                print(f"[get_all_stocks] ⚠️ 缓存不存在，将从 API 获取...")
+            else:
+                print(f"[get_all_stocks] ⚠️ 缓存数据为空，将从 API 获取...")
+        else:
+            # 非交易时间段，直接使用缓存（如果存在）
+            cached_stocks = self._get_stock_list_from_cache(check_age=False)
+            if cached_stocks is not None and len(cached_stocks) > 0:
+                self.stock_list = cached_stocks
+                print(f"[get_all_stocks] ✅ 从缓存获取成功，股票数: {len(cached_stocks)} 只（非交易时间段，无需调用 akshare API）")
+                return cached_stocks
         
         print("[get_all_stocks] ⚠️ 缓存中没有股票列表，开始从 akshare API 获取...")
         print("[get_all_stocks] 💡 提示：建议在交易时间段通过 Cron Job 自动刷新缓存，避免扫描时超时")
