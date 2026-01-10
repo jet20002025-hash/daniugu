@@ -1916,11 +1916,9 @@
                 }
             }
             
-            // 检查是否是VIP用户（是否有自定义参数面板）
-            const vipParamsPanel = document.getElementById('vipScanParams');
+            // 检查是VIP用户、本地版本还是超级用户
             let minMatch, maxCap, scanLimit, excludeST, excludeSuspended, industryFilter, customStockPool;
             
-            // 检查是VIP用户、本地版本还是超级用户
             const vipParamsPanel = document.getElementById('vipScanParams');
             const localParamsPanel = document.getElementById('localScanParams');
             const superParamsPanel = document.getElementById('superScanParams');
