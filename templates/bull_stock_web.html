@@ -1885,16 +1885,19 @@
             try {
                 // 确保 stopBtn 在作用域内
                 const stopBtn = document.getElementById('stopScanBtn');
-                // 使用AbortController设置超时（30秒）
+                // 使用AbortController设置超时（60秒）
+                // 在Vercel环境中，第一批处理可能需要更长时间（获取股票列表、处理第一批等）
                 // 每个请求使用独立的 controller，避免多设备/多标签页冲突
                 const controller = new AbortController();
                 let timeoutId = null;
                 
                 // 设置超时，但只在请求真正超时时才中断
+                // 增加超时时间到60秒，给服务器更多时间处理第一批
                 timeoutId = setTimeout(() => {
-                    console.warn('[scanAllStocks] 请求超时（30秒），中断请求');
+                    console.warn('[scanAllStocks] 请求超时（60秒），中断请求');
+                    console.warn('[scanAllStocks] 注意：虽然请求被中断，但扫描可能已在后台启动');
                     controller.abort();
-                }, 30000);
+                }, 60000); // 增加到60秒
                 
                 let response;
                 try {
@@ -1922,22 +1925,69 @@
                     }
                     
                     // 检查是否是 AbortError
-                    if (fetchError.name === 'AbortError' || fetchError.message?.includes('aborted')) {
-                        console.warn('[scanAllStocks] 请求被中断（AbortError），可能原因：');
-                        console.warn('  1. 请求超时（30秒）');
-                        console.warn('  2. 用户在其他设备/标签页启动了扫描');
-                        console.warn('  3. 网络连接中断');
-                        console.warn('[scanAllStocks] 继续等待进度更新，扫描可能在后台继续...');
+                    if (fetchError.name === 'AbortError' || fetchError.message?.includes('aborted') || fetchError.message?.includes('Failed to fetch')) {
+                        console.warn('[scanAllStocks] 请求被中断或失败，可能原因：');
+                        console.warn('  1. 请求超时（60秒）- 这在Vercel环境中可能发生，因为第一批处理需要时间');
+                        console.warn('  2. 网络连接中断或不稳定');
+                        console.warn('  3. 用户在其他设备/标签页启动了扫描');
+                        console.warn('[scanAllStocks] 正在检查扫描是否已在后台启动...');
                         
-                        // 不显示错误提示框，只显示警告消息
-                        const errorDiv = document.getElementById('scanErrorDisplay');
-                        if (errorDiv) {
-                            errorDiv.remove();
+                        // 尝试检查是否有活跃的扫描任务（通过进度API）
+                        try {
+                            const checkResponse = await fetch('/api/get_progress', {
+                                cache: 'no-store',
+                                headers: {
+                                    'Cache-Control': 'no-cache'
+                                }
+                            });
+                            const checkResult = await checkResponse.json();
+                            
+                            if (checkResult.success && checkResult.progress && checkResult.progress.status !== '空闲') {
+                                // 扫描已经在进行中
+                                console.log('[scanAllStocks] ✅ 扫描已在后台启动！', checkResult.progress);
+                                showMessage('扫描已在后台启动！请继续等待进度更新...', 'success');
+                                
+                                // 如果返回了scan_id，尝试继续处理后续批次
+                                if (checkResult.progress.scan_id && checkResult.progress.total_batches > 1) {
+                                    const scanId = checkResult.progress.scan_id;
+                                    const totalBatches = checkResult.progress.total_batches;
+                                    const currentBatch = checkResult.progress.batch || 0;
+                                    
+                                    console.log(`[scanAllStocks] 检测到活跃扫描: scan_id=${scanId}, 当前批次=${currentBatch}/${totalBatches}`);
+                                    
+                                    // 如果还有更多批次，自动继续处理
+                                    if (currentBatch < totalBatches) {
+                                        console.log(`[scanAllStocks] 自动继续处理剩余批次: ${currentBatch + 1}/${totalBatches}`);
+                                        autoContinueScan(scanId, currentBatch, totalBatches);
+                                    }
+                                }
+                                
+                                // 不停止进度轮询，继续等待进度更新
+                                return; // 直接返回，不显示错误
+                            } else {
+                                // 没有活跃的扫描任务
+                                console.warn('[scanAllStocks] ⚠️ 未检测到活跃的扫描任务，可能扫描启动失败');
+                                showMessage('请求超时，扫描可能未成功启动。请稍后重试或检查网络连接。', 'warning');
+                                // 继续等待几秒，以防扫描刚刚启动但还未更新进度
+                                setTimeout(() => {
+                                    // 再次检查进度
+                                    fetch('/api/get_progress', { cache: 'no-store' })
+                                        .then(r => r.json())
+                                        .then(result => {
+                                            if (result.success && result.progress && result.progress.status !== '空闲') {
+                                                showMessage('扫描已启动！请继续等待进度更新...', 'success');
+                                            }
+                                        })
+                                        .catch(e => console.error('检查进度失败:', e));
+                                }, 3000);
+                                return; // 直接返回，不抛出错误
+                            }
+                        } catch (checkError) {
+                            console.error('[scanAllStocks] 检查扫描状态失败:', checkError);
+                            showMessage('请求超时，但无法确认扫描状态。请检查网络连接或稍后查看扫描结果。', 'warning');
+                            // 不停止进度轮询，继续等待可能的进度更新
+                            return; // 直接返回，不抛出错误
                         }
-                        
-                        showMessage('请求已中断，但扫描可能已在后台启动。请继续等待进度更新...', 'warning');
-                        // 不停止进度轮询，因为扫描可能在后台继续
-                        return; // 直接返回，不执行后续代码，也不抛出错误
                     }
                     
                     // 其他错误继续抛出
