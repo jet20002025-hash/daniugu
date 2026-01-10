@@ -67,8 +67,48 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'bull-stock-analyzer-secret-key-change-in-production'
 
 # 添加全局错误处理器，确保所有错误都返回 JSON 格式（而不是 HTML）
+# 注意：必须使用 app.errorhandler 注册，不能使用 register_error_handler
+# 并且需要先注册具体的错误类型，再注册通用的 Exception
+
+@app.errorhandler(500)
+def handle_500_error(error):
+    """处理 500 错误，返回 JSON 格式"""
+    import traceback
+    from flask import request, has_request_context
+    
+    # 获取错误详情
+    error_detail = traceback.format_exc()
+    error_type = type(error).__name__ if error else 'UnknownError'
+    error_message = str(error) if error else "未知错误"
+    
+    print(f"[Flask Error Handler] ❌ 500 错误 ({error_type}): {error_detail}")
+    
+    # 检查请求上下文，如果是 API 路径，返回 JSON 格式
+    try:
+        if has_request_context() and request.path.startswith('/api/'):
+            return jsonify({
+                'success': False,
+                'message': f'服务器内部错误: {error_message}',
+                'error_type': error_type,
+                'path': request.path,
+                'method': request.method
+            }), 500
+    except Exception as handler_error:
+        print(f"[Flask Error Handler] ⚠️ 错误处理器内部出错: {handler_error}")
+        import traceback
+        print(f"[Flask Error Handler] 错误详情: {traceback.format_exc()}")
+    
+    # 非 API 路径或没有请求上下文，使用 Flask 默认错误处理
+    # 注意：不能返回 None，需要返回一个响应或重新抛出异常
+    # 但对于非 API 路径，我们希望返回 HTML 错误页面
+    from flask import render_template_string
+    return render_template_string(
+        '<!DOCTYPE html><html><head><title>500 Internal Server Error</title></head>'
+        '<body><h1>Internal Server Error</h1><p>The server encountered an internal error.</p></body></html>'
+    ), 500
+
 @app.errorhandler(Exception)
-def handle_exception(error):
+def handle_all_exceptions(error):
     """处理所有未捕获的异常，返回 JSON 格式"""
     import traceback
     from flask import request, has_request_context
@@ -81,18 +121,29 @@ def handle_exception(error):
     print(f"[Flask Error Handler] ❌ 未捕获的异常 ({error_type}): {error_detail}")
     
     # 检查请求上下文，如果是 API 路径，返回 JSON 格式
-    if has_request_context() and request.path.startswith('/api/'):
-        return jsonify({
-            'success': False,
-            'message': f'服务器错误: {error_message}',
-            'error_type': error_type,
-            'path': request.path,
-            'method': request.method
-        }), 500
+    try:
+        if has_request_context() and request.path.startswith('/api/'):
+            return jsonify({
+                'success': False,
+                'message': f'服务器错误: {error_message}',
+                'error_type': error_type,
+                'path': request.path,
+                'method': request.method
+            }), 500
+    except Exception as handler_error:
+        print(f"[Flask Error Handler] ⚠️ 错误处理器内部出错: {handler_error}")
+        import traceback
+        print(f"[Flask Error Handler] 错误详情: {traceback.format_exc()}")
     
-    # 非 API 路径或没有请求上下文，使用 Flask 默认错误处理
-    # 但是仍然记录错误
-    return None  # 返回 None 让 Flask 使用默认错误处理
+    # 非 API 路径或没有请求上下文，重新抛出异常让 Flask 使用默认错误处理
+    # 注意：对于 HTTPException（如 404, 401），不应该重新抛出，应该返回默认响应
+    from werkzeug.exceptions import HTTPException
+    if isinstance(error, HTTPException):
+        # HTTPException 已经有自己的响应，直接返回
+        return error
+    
+    # 其他异常，重新抛出让 Flask 使用默认错误处理
+    raise
 
 # 应用启动时初始化默认测试用户（永久保留，直到用户明确删除）
 try:
