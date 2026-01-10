@@ -4015,6 +4015,12 @@
                 if (result.success) {
                     // 更新进度显示
                     if (result.progress) {
+                        // 更新 scan_id（如果响应中提供了，说明可能有更新）
+                        if (result.progress.scan_id && result.progress.scan_id !== scanId) {
+                            console.warn(`[autoContinueScan] scan_id 已更新: ${scanId} -> ${result.progress.scan_id}`);
+                            scanId = result.progress.scan_id; // 使用新的 scan_id
+                        }
+                        
                         updateProgress(
                             result.progress.percentage || 0,
                             result.progress.status || '进行中',
@@ -4024,8 +4030,10 @@
                     
                     // 检查是否还有更多批次
                     if (result.has_more && !result.is_complete) {
-                        // 继续处理下一批次
+                        // 继续处理下一批次（使用更新后的 scanId）
                         window.currentScanBatch = currentBatch + 1;
+                        // 添加短暂延迟，确保进度已保存到 Redis
+                        await new Promise(resolve => setTimeout(resolve, 500));
                         autoContinueScan(scanId, currentBatch + 1, totalBatches);
                     } else if (result.is_complete) {
                         // 所有批次完成
@@ -4040,6 +4048,10 @@
                         loadStocks();
                     }
                 } else {
+                    // 检查是否是扫描任务丢失的错误
+                    if (result.error_code === 'SCAN_NOT_FOUND') {
+                        throw new Error(`找不到扫描任务（scan_id: ${scanId}）。可能原因：1) 数据已过期（超过24小时） 2) 任务已删除 3) Redis连接问题。部分结果可能已保存，请查看扫描结果。如需要，请重新开始扫描。`);
+                    }
                     throw new Error(result.message || '处理批次失败');
                 }
             } catch (error) {

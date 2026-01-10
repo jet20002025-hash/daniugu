@@ -2241,14 +2241,18 @@ def continue_scan():
         if not progress:
             # 提供更详细的错误信息
             print(f"⚠️ 找不到扫描任务 scan_id={scan_id} (scan_id中的用户: {scan_id_username}, 当前用户: {current_username})")
-            print(f"   可能原因：1) Redis 数据过期（TTL 24小时） 2) scan_id 错误 3) Redis 连接问题")
+            print(f"   可能原因：1) Redis 数据过期（TTL 24小时） 2) scan_id 错误 3) Redis 连接问题 4) 数据保存失败")
+            
+            # 尝试检查是否有其他相关的扫描任务（可能是同一个用户的另一个扫描）
+            # 这里我们提供一个更友好的错误消息，并建议用户重新开始扫描
             # 返回400而不是404，因为路由存在，只是数据不存在
             return jsonify({
                 'success': False,
-                'message': f'找不到扫描任务（scan_id: {scan_id}）。可能原因：数据已过期（超过24小时）或任务已删除。请重新开始扫描。',
+                'message': f'找不到扫描任务（scan_id: {scan_id}）。可能原因：1) 数据已过期（超过24小时） 2) 任务已删除 3) Redis连接问题。部分结果可能已保存，请查看扫描结果。如需要，请重新开始扫描。',
                 'error_code': 'SCAN_NOT_FOUND',
                 'scan_id': scan_id,
-                'retry': False  # 标识是否应该重试
+                'retry': False,  # 标识是否应该重试
+                'hint': '扫描任务可能已过期或被删除。如果之前有部分结果，请尝试查看扫描结果页面。'
             }), 400
         
         # 验证扫描任务是否属于当前用户（多用户隔离）
@@ -2306,6 +2310,14 @@ def continue_scan():
                 'results': results,
                 'is_complete': True
             })
+        
+        # 在处理批次之前，先刷新TTL，确保进度不会过期
+        # 这很重要，因为在处理批次时可能会花费较长时间
+        progress['last_refresh_time'] = time.time()
+        progress['username'] = username  # 确保用户名正确
+        refresh_success = scan_progress_store.save_scan_progress(scan_id, progress)
+        if not refresh_success:
+            print(f"⚠️ [continue_scan] 刷新进度TTL失败，但继续处理（scan_id={scan_id}）")
         
         # 获取参数
         batch_num = progress.get('batch', 0) + 1
