@@ -3173,35 +3173,64 @@
             container.innerHTML = html;
         }
         
-        // 检查登录状态
-        async function checkLoginStatus() {
+        // 检查登录状态（添加超时控制和重试机制）
+        async function checkLoginStatus(retryCount = 0) {
+            const maxRetries = 1; // 最多重试1次
+            const timeout = 8000; // 增加到8秒超时
+            
             try {
-                // 添加超时控制（5秒）
+                // 添加超时控制（8秒）
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => {
-                    console.warn('[checkLoginStatus] 请求超时（5秒），中断请求');
+                    console.warn(`[checkLoginStatus] 请求超时（${timeout/1000}秒），${retryCount < maxRetries ? '将重试' : '返回 false'}`);
                     controller.abort();
-                }, 5000);
+                }, timeout);
                 
                 let response;
                 try {
+                    console.log(`[checkLoginStatus] 正在检查登录状态... (尝试 ${retryCount + 1}/${maxRetries + 1})`);
                     response = await fetch('/api/check_login', {
                         method: 'GET',
                         signal: controller.signal,
-                        cache: 'no-store'
+                        cache: 'no-store',
+                        headers: {
+                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                            'Pragma': 'no-cache'
+                        }
                     });
                     clearTimeout(timeoutId);
                 } catch (fetchError) {
                     clearTimeout(timeoutId);
-                    if (fetchError.name === 'AbortError') {
-                        console.warn('[checkLoginStatus] 请求超时，返回false');
+                    if (fetchError.name === 'AbortError' || fetchError.message?.includes('aborted')) {
+                        console.warn(`[checkLoginStatus] 请求超时或中断 (尝试 ${retryCount + 1}/${maxRetries + 1})`);
+                        // 如果还有重试次数，等待1秒后重试
+                        if (retryCount < maxRetries) {
+                            console.log(`[checkLoginStatus] 等待1秒后重试...`);
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            return checkLoginStatus(retryCount + 1);
+                        }
+                        console.warn('[checkLoginStatus] 已达到最大重试次数，返回 false（不跳转，给用户重试机会）');
                         return false; // 超时返回false，不跳转，让用户重试
                     }
-                    throw fetchError;
+                    // 网络错误也重试一次
+                    if (retryCount < maxRetries && (fetchError.message?.includes('Failed to fetch') || fetchError.message?.includes('network'))) {
+                        console.warn(`[checkLoginStatus] 网络错误，等待1秒后重试... (尝试 ${retryCount + 1}/${maxRetries + 1})`);
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        return checkLoginStatus(retryCount + 1);
+                    }
+                    // 网络错误时不立即跳转，给用户重试的机会
+                    console.warn('[checkLoginStatus] 网络错误，返回 false（不跳转）');
+                    return false;
                 }
                 
                 if (!response.ok) {
-                    console.error('[checkLoginStatus] HTTP错误:', response.status);
+                    console.error(`[checkLoginStatus] HTTP错误: ${response.status} (尝试 ${retryCount + 1}/${maxRetries + 1})`);
+                    // 如果是5xx错误，重试一次
+                    if (retryCount < maxRetries && response.status >= 500) {
+                        console.warn(`[checkLoginStatus] 服务器错误，等待1秒后重试...`);
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        return checkLoginStatus(retryCount + 1);
+                    }
                     return false;
                 }
                 
@@ -3213,10 +3242,17 @@
                     window.location.href = '/login';
                     return false;
                 }
+                console.log(`[checkLoginStatus] ✅ 用户已登录 (尝试 ${retryCount + 1}/${maxRetries + 1})`);
                 return true;
             } catch (error) {
-                console.error('[checkLoginStatus] 检查登录状态失败:', error);
+                console.error(`[checkLoginStatus] 检查登录状态失败 (尝试 ${retryCount + 1}/${maxRetries + 1}):`, error);
                 // 网络错误时不立即跳转，给用户重试的机会
+                // 如果还有重试次数且是网络错误，重试一次
+                if (retryCount < maxRetries && (error.message?.includes('Failed to fetch') || error.message?.includes('network'))) {
+                    console.warn(`[checkLoginStatus] 网络错误，等待1秒后重试...`);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    return checkLoginStatus(retryCount + 1);
+                }
                 return false;
             }
         }
@@ -3298,14 +3334,14 @@
                 const reversalSection = document.getElementById('reversalStockSection');
                 if (reversalSection) reversalSection.style.display = 'none';
                 
-                // 获取用户信息（添加超时控制，5秒超时）
+                // 获取用户信息（已内置超时和重试机制，这里只设置最大等待时间）
                 try {
                     const user = await Promise.race([
-                        getUserInfo(),
+                        getUserInfo(), // getUserInfo 内部已有超时和重试机制（10秒，最多重试2次，总时间最多约30秒）
                         new Promise((resolve) => setTimeout(() => {
-                            console.warn('[updateFunctionButtonsVisibility] 获取用户信息超时（5秒），使用默认显示');
+                            console.warn('[updateFunctionButtonsVisibility] 获取用户信息超时（30秒，包括重试），使用默认显示');
                             resolve(null);
-                        }, 5000))
+                        }, 30000)) // 30秒最大等待时间（getUserInfo 内部会重试，总时间可能更长）
                     ]);
                     
                     if (user) {
@@ -3394,14 +3430,14 @@
                 console.error('[initPageLoad] 显示用户信息失败:', err);
             });
             
-            // 首先检查登录状态（添加超时）
+            // 首先检查登录状态（已内置超时和重试机制，这里只设置最大等待时间）
             try {
                 const isLoggedIn = await Promise.race([
-                    checkLoginStatus(),
+                    checkLoginStatus(), // checkLoginStatus 内部已有超时和重试机制（8秒，最多重试1次，总时间最多约16秒）
                     new Promise((resolve) => setTimeout(() => {
-                        console.warn('[initPageLoad] 检查登录状态超时，继续执行');
+                        console.warn('[initPageLoad] 检查登录状态超时（18秒，包括重试），继续执行（不跳转，给用户重试机会）');
                         resolve(false);
-                    }, 6000)) // 6秒超时
+                    }, 18000)) // 18秒最大等待时间（checkLoginStatus 内部会重试）
                 ]);
                 
                 if (!isLoggedIn) {
@@ -3442,10 +3478,10 @@
                     }
                 })(),
                 new Promise((resolve) => setTimeout(() => {
-                    console.warn('[initPageLoad] 获取用户信息超时，使用默认加载');
+                    console.warn('[initPageLoad] 获取用户信息超时（30秒，包括重试），使用默认加载');
                     loadStocks();
                     resolve();
-                }, 8000)) // 8秒超时，超时后直接加载股票列表
+                }, 30000)) // 30秒最大等待时间（getUserInfo 内部会重试，总时间可能更长）
             ]).catch(err => {
                 console.error('[initPageLoad] 加载内容失败:', err);
                 loadStocks(); // 出错时也加载股票列表
@@ -4049,32 +4085,39 @@
             }
             
             // 先显示加载状态
-            userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #666;">加载中...</div>';
+            userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #666;">正在加载用户信息...</div>';
             
             try {
-                // 先检查登录状态（添加超时控制）
-                const loginController = new AbortController();
-                const loginTimeoutId = setTimeout(() => {
-                    console.warn('[displayUserInfo] 检查登录状态超时（5秒）');
-                    loginController.abort();
-                }, 5000);
+                // 使用 checkLoginStatus 函数（已内置超时和重试机制）
+                const isLoggedIn = await Promise.race([
+                    checkLoginStatus(), // checkLoginStatus 内部已有超时和重试机制（8秒，最多重试1次）
+                    new Promise((resolve) => setTimeout(() => {
+                        console.warn('[displayUserInfo] 检查登录状态超时（18秒，包括重试）');
+                        resolve(false);
+                    }, 18000)) // 18秒最大等待时间
+                ]);
                 
+                if (!isLoggedIn) {
+                    console.warn('[displayUserInfo] 用户未登录或检查超时');
+                    userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #e74c3c;">网络超时，请刷新重试</div>';
+                    return;
+                }
+                
+                // 如果已登录，继续获取用户详细信息
                 let loginCheckResponse;
                 try {
                     loginCheckResponse = await fetch('/api/check_login', {
                         method: 'GET',
-                        signal: loginController.signal,
-                        cache: 'no-store'
+                        cache: 'no-store',
+                        headers: {
+                            'Cache-Control': 'no-cache, no-store, must-revalidate',
+                            'Pragma': 'no-cache'
+                        }
                     });
-                    clearTimeout(loginTimeoutId);
                 } catch (fetchError) {
-                    clearTimeout(loginTimeoutId);
-                    if (fetchError.name === 'AbortError') {
-                        console.warn('[displayUserInfo] 检查登录状态超时，显示错误信息');
-                        userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #e74c3c;">网络超时，请刷新重试</div>';
-                        return;
-                    }
-                    throw fetchError;
+                    console.error('[displayUserInfo] 获取登录状态失败:', fetchError);
+                    userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #e74c3c;">加载失败，请刷新重试</div>';
+                    return;
                 }
                 
                 if (!loginCheckResponse.ok) {
