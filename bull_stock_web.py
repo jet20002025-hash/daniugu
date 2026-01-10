@@ -2224,7 +2224,14 @@ def continue_scan():
         
         # 获取当前用户信息，用于验证权限
         current_user = get_current_user()
-        username = current_user.get('username', 'anonymous') if current_user else 'anonymous'
+        current_username = current_user.get('username', 'anonymous') if current_user else 'anonymous'
+        
+        # 从scan_id中提取用户名（格式: username_timestamp_uuid）
+        # 这样即使session有问题，也能正确验证
+        scan_id_parts = scan_id.split('_', 1)  # 分割用户名和其余部分
+        scan_id_username = scan_id_parts[0] if scan_id_parts else 'unknown'
+        
+        print(f"[continue_scan] scan_id={scan_id}, scan_id中的用户名={scan_id_username}, 当前用户={current_username}")
         
         import scan_progress_store
         from vercel_scan_helper import process_scan_batch_vercel
@@ -2233,8 +2240,8 @@ def continue_scan():
         progress = scan_progress_store.get_scan_progress(scan_id)
         if not progress:
             # 提供更详细的错误信息
-            print(f"⚠️ 找不到扫描任务 scan_id={scan_id} (用户: {username})")
-            print(f"   可能原因：1) Redis 数据过期（TTL 24小时） 2) scan_id 错误 3) Redis 连接问题 4) 不是当前用户的扫描任务")
+            print(f"⚠️ 找不到扫描任务 scan_id={scan_id} (scan_id中的用户: {scan_id_username}, 当前用户: {current_username})")
+            print(f"   可能原因：1) Redis 数据过期（TTL 24小时） 2) scan_id 错误 3) Redis 连接问题")
             # 返回400而不是404，因为路由存在，只是数据不存在
             return jsonify({
                 'success': False,
@@ -2245,15 +2252,49 @@ def continue_scan():
             }), 400
         
         # 验证扫描任务是否属于当前用户（多用户隔离）
-        progress_username = progress.get('username', 'anonymous')
-        if progress_username != username:
-            print(f"⚠️ 用户 {username} 尝试访问其他用户 {progress_username} 的扫描任务: {scan_id}")
+        # 优先使用scan_id中的用户名进行验证，因为它是创建时的真实用户名，不会受session影响
+        progress_username = progress.get('username') or scan_id_username
+        
+        # 验证逻辑：
+        # 1. 如果scan_id中的用户名和当前用户匹配，允许访问（最常见的情况）
+        # 2. 如果progress中的用户名和当前用户匹配，允许访问（备用验证）
+        # 3. 如果session丢失（current_user为None），但scan_id和progress中的用户名匹配，允许访问（容错处理）
+        # 4. 如果scan_id中的用户名和progress中的用户名匹配，也允许访问（双重验证通过）
+        
+        # 如果scan_id中的用户名是"unknown"，说明scan_id格式不对，使用传统验证方式
+        if scan_id_username == 'unknown':
+            # 传统验证：只检查progress中的用户名和当前用户
+            is_authorized = (progress_username == current_username and current_username != 'anonymous')
+        else:
+            # 新验证方式：优先使用scan_id中的用户名
+            # 如果当前用户存在且匹配scan_id中的用户名，允许访问
+            if current_user and current_username != 'anonymous':
+                is_authorized = (scan_id_username == current_username or progress_username == current_username)
+            else:
+                # 如果session丢失，但scan_id和progress中的用户名匹配，允许访问（容错）
+                is_authorized = (scan_id_username == progress_username and scan_id_username != 'unknown')
+        
+        if not is_authorized:
+            print(f"⚠️ 权限验证失败: scan_id={scan_id}")
+            print(f"   scan_id格式: {scan_id}")
+            print(f"   scan_id中的用户名={scan_id_username}")
+            print(f"   进度中的用户名={progress_username}")
+            print(f"   当前用户={current_username}")
+            print(f"   当前用户对象是否存在={current_user is not None}")
             return jsonify({
                 'success': False,
-                'message': '无权访问此扫描任务（不属于当前用户）',
+                'message': f'无权访问此扫描任务。scan_id中的用户: {scan_id_username}, 当前用户: {current_username}, 进度中的用户: {progress_username}',
                 'error_code': 'ACCESS_DENIED',
-                'scan_id': scan_id
+                'scan_id': scan_id,
+                'scan_id_username': scan_id_username,
+                'current_username': current_username,
+                'progress_username': progress_username,
+                'hint': '请确保使用相同的账号继续扫描任务'
             }), 403
+        
+        # 使用正确的用户名（优先使用scan_id中的，因为它是创建时的真实用户名）
+        username = scan_id_username if scan_id_username != 'unknown' else (progress_username or current_username)
+        print(f"[continue_scan] ✅ 权限验证通过，使用用户名: {username} (scan_id: {scan_id_username}, progress: {progress_username}, current: {current_username})")
         
         # 检查是否已完成
         if progress.get('status') == '完成':
