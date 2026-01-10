@@ -1015,24 +1015,18 @@ def admin_update_application_status(application_id):
 def vip_payment_info():
     """获取VIP付费账号信息（支付宝/微信）"""
     try:
-        # 从环境变量或配置文件读取付款账号信息
-        # 如果没有配置，返回默认提示
-        alipay_account = os.environ.get('VIP_ALIPAY_ACCOUNT', '')  # 支付宝账号
+        # 从环境变量读取付款账号信息，如果没有则使用默认值
+        alipay_account = os.environ.get('VIP_ALIPAY_ACCOUNT', '522168878@qq.com')  # 支付宝账号（默认值）
         wechat_account = os.environ.get('VIP_WECHAT_ACCOUNT', '')  # 微信账号
         
-        # 如果环境变量为空，返回提示信息
-        if not alipay_account and not wechat_account:
-            return jsonify({
-                'success': True,
-                'alipay_account': '请等待管理员配置',
-                'wechat_account': '请等待管理员配置',
-                'message': '付款账号信息待配置'
-            })
+        # 如果环境变量为空，使用默认值
+        if not alipay_account:
+            alipay_account = '522168878@qq.com'
         
         return jsonify({
             'success': True,
             'alipay_account': alipay_account,
-            'wechat_account': wechat_account
+            'wechat_account': wechat_account if wechat_account else '请等待管理员配置'
         })
         
     except Exception as e:
