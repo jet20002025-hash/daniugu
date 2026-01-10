@@ -4192,13 +4192,37 @@
                     });
                 } catch (fetchError) {
                     console.error('[displayUserInfo] 获取登录状态失败:', fetchError);
-                    userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #e74c3c;">加载失败，请刷新重试</div>';
+                    const isLocal = isLocalEnvironment();
+                    if (isLocal) {
+                        userInfoDiv.innerHTML = `
+                            <div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">
+                                网络连接失败，点击刷新重试
+                            </div>
+                            <div style="font-size: 10px; color: #999; margin-top: 3px;">
+                                提示：请检查本地服务器是否运行（端口 5000）
+                            </div>
+                        `;
+                    } else {
+                        userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">网络连接失败，点击刷新重试</div>';
+                    }
                     return;
                 }
                 
                 if (!loginCheckResponse.ok) {
                     console.error('[displayUserInfo] 检查登录状态HTTP错误:', loginCheckResponse.status);
-                    userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #e74c3c;">加载失败，请刷新重试</div>';
+                    const isLocal = isLocalEnvironment();
+                    if (isLocal) {
+                        userInfoDiv.innerHTML = `
+                            <div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">
+                                服务器错误 (${loginCheckResponse.status})，点击刷新重试
+                            </div>
+                            <div style="font-size: 10px; color: #999; margin-top: 3px;">
+                                提示：请检查服务器日志或重启服务器
+                            </div>
+                        `;
+                    } else {
+                        userInfoDiv.innerHTML = `<div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">服务器错误 (${loginCheckResponse.status})，点击刷新重试</div>`;
+                    }
                     return;
                 }
                 
@@ -4215,8 +4239,22 @@
                 const user = await getUserInfo();
                 if (!user) {
                     // 如果获取用户信息失败，显示错误信息而不是立即跳转（可能是网络问题）
-                    console.warn('[displayUserInfo] 获取用户信息失败，可能是网络问题');
-                    userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #e74c3c;">加载失败，请刷新重试</div>';
+                    console.warn('[displayUserInfo] 获取用户信息失败，可能是网络问题或服务器未响应');
+                    const isLocal = isLocalEnvironment();
+                    if (isLocal) {
+                        // 本地环境：提供更详细的错误信息和解决建议
+                        userInfoDiv.innerHTML = `
+                            <div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">
+                                加载失败，点击刷新重试
+                            </div>
+                            <div style="font-size: 10px; color: #999; margin-top: 3px;">
+                                提示：请确保本地服务器已启动（运行 python bull_stock_web.py）
+                            </div>
+                        `;
+                    } else {
+                        // 网络环境：显示通用错误信息
+                        userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">加载失败，点击刷新重试</div>';
+                    }
                     // 不立即跳转，给用户一个重试的机会
                     return;
                 }
@@ -4253,7 +4291,19 @@
                 userInfoDiv.innerHTML = html;
             } catch (error) {
                 console.error('显示用户信息失败:', error);
-                userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #e74c3c;">加载失败，请刷新重试</div>';
+                const isLocal = isLocalEnvironment();
+                if (isLocal) {
+                    userInfoDiv.innerHTML = `
+                        <div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">
+                            加载失败，点击刷新重试
+                        </div>
+                        <div style="font-size: 10px; color: #999; margin-top: 3px;">
+                            错误: ${error.message || '未知错误'} | 提示：请检查服务器状态
+                        </div>
+                    `;
+                } else {
+                    userInfoDiv.innerHTML = `<div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">加载失败，点击刷新重试</div>`;
+                }
             }
         }
         
