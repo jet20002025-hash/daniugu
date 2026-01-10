@@ -2749,19 +2749,28 @@
             html += `<p style="color: #666; font-size: 12px;">扫描总数: ${result.total_scanned} 只</p>`;
             html += exportButtons;
             html += '<table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px;">';
-            html += '<tr style="background: #f0f0f0;"><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">排名</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">股票代码</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">股票名称</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">匹配度</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">最佳买点日期</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">最佳买点价格</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">当前价格</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">市值(亿)</th></tr>';
+            html += '<tr style="background: #f0f0f0;"><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">排名</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">股票代码</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">股票名称</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">匹配度</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">最佳买点日期</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">最佳买点价格</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">当前价格</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">市值(亿)</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">操作</th></tr>';
             
             result.candidates.forEach((candidate, index) => {
                 const matchColor = candidate.匹配度 >= 0.8 ? '#27ae60' : candidate.匹配度 >= 0.7 ? '#f39c12' : '#e74c3c';
+                const stockCode = candidate.股票代码 || candidate.code || '';
+                const stockName = candidate.股票名称 || candidate.name || '';
+                const buyDate = candidate.最佳买点日期 || candidate.buy_date || '';
+                const buyPrice = candidate.最佳买点价格 || candidate.buy_price || 0;
+                const matchScore = candidate.匹配度 || candidate.match_score || 0;
+                
                 html += `<tr>
                     <td style="padding: 8px; border: 1px solid #ddd;">${index + 1}</td>
-                    <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; color: #667eea;">${candidate.股票代码}</td>
-                    <td style="padding: 8px; border: 1px solid #ddd;">${candidate.股票名称}</td>
-                    <td style="padding: 8px; border: 1px solid #ddd; color: ${matchColor}; font-weight: bold;">${candidate.匹配度.toFixed(3)}</td>
-                    <td style="padding: 8px; border: 1px solid #ddd;">${candidate.最佳买点日期}</td>
-                    <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; color: #e74c3c;">${candidate.最佳买点价格.toFixed(2)}</td>
-                    <td style="padding: 8px; border: 1px solid #ddd;">${candidate.当前价格.toFixed(2)}</td>
-                    <td style="padding: 8px; border: 1px solid #ddd;">${candidate.市值 ? candidate.市值.toFixed(2) : 'N/A'}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; color: #667eea;">${stockCode}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">${stockName}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; color: ${matchColor}; font-weight: bold;">${matchScore.toFixed(3)}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">${buyDate}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; color: #e74c3c;">${buyPrice.toFixed(2)}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">${(candidate.当前价格 || candidate.current_price || 0).toFixed(2)}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">${candidate.市值 || candidate.market_cap ? (candidate.市值 || candidate.market_cap).toFixed(2) : 'N/A'}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">
+                        <button onclick="analyzeStockDetail('${stockCode}', '${stockName}', '${buyDate}', ${buyPrice}, ${matchScore})" style="background: #667eea; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">🔍 深度分析</button>
+                    </td>
                 </tr>`;
             });
             
@@ -3664,8 +3673,249 @@
         } else {
             displayVersionInfo();
         }
+        
+        // 个股深度分析功能（VIP专享）
+        async function analyzeStockDetail(stockCode, stockName, buyDate, buyPrice, matchScore) {
+            try {
+                // 检查用户等级（仅VIP和超级用户可以查看深度分析）
+                const user = await getUserInfo();
+                if (!user || (user.tier !== 'premium' && user.tier !== 'super' && !user.is_super)) {
+                    showMessage('个股深度分析功能仅限VIP用户使用，请升级为VIP会员', 'error');
+                    return;
+                }
+                
+                // 显示模态框
+                const modal = document.getElementById('stockDetailModal');
+                const content = document.getElementById('stockDetailContent');
+                const title = document.getElementById('stockDetailTitle');
+                
+                if (!modal || !content || !title) {
+                    showMessage('深度分析界面加载失败', 'error');
+                    return;
+                }
+                
+                modal.style.display = 'block';
+                title.textContent = `🔬 ${stockName} (${stockCode}) 深度分析`;
+                content.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #999;">
+                        <div class="spinner" style="border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
+                        <p>正在加载深度分析数据...</p>
+                    </div>
+                `;
+                
+                // 调用API获取深度分析数据
+                const response = await fetch('/api/analyze_stock_detail', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        stock_code: stockCode,
+                        stock_name: stockName,
+                        buy_date: buyDate,
+                        buy_price: buyPrice,
+                        match_score: matchScore
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayStockDetailContent(result);
+                } else {
+                    content.innerHTML = `
+                        <div style="padding: 40px; text-align: center; color: #e74c3c;">
+                            <h3>❌ 分析失败</h3>
+                            <p>${result.message || '无法获取深度分析数据'}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('深度分析失败:', error);
+                const content = document.getElementById('stockDetailContent');
+                if (content) {
+                    content.innerHTML = `
+                        <div style="padding: 40px; text-align: center; color: #e74c3c;">
+                            <h3>❌ 分析失败</h3>
+                            <p>${error.message || '网络错误，请稍后重试'}</p>
+                        </div>
+                    `;
+                }
+            }
+        }
+        
+        // 显示深度分析内容
+        function displayStockDetailContent(result) {
+            const content = document.getElementById('stockDetailContent');
+            if (!content) return;
+            
+            const data = result.data || {};
+            const features = data.features || {};
+            const matchDetails = data.match_details || {};
+            const predictions = data.predictions || {};
+            const klineData = data.kline_data || null;
+            
+            let html = `
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                    <!-- 基本信息 -->
+                    <div style="padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                        <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px;">📊 基本信息</h3>
+                        <table style="width: 100%; font-size: 13px;">
+                            <tr><td style="padding: 5px; color: #666;">股票代码：</td><td style="padding: 5px; font-weight: bold;">${data.stock_code || 'N/A'}</td></tr>
+                            <tr><td style="padding: 5px; color: #666;">股票名称：</td><td style="padding: 5px; font-weight: bold;">${data.stock_name || 'N/A'}</td></tr>
+                            <tr><td style="padding: 5px; color: #666;">匹配度：</td><td style="padding: 5px; font-weight: bold; color: ${(data.match_score || 0) >= 0.93 ? '#27ae60' : '#f39c12'};">${((data.match_score || 0) * 100).toFixed(2)}%</td></tr>
+                            <tr><td style="padding: 5px; color: #666;">最佳买点日期：</td><td style="padding: 5px;">${data.buy_date || 'N/A'}</td></tr>
+                            <tr><td style="padding: 5px; color: #666;">最佳买点价格：</td><td style="padding: 5px; font-weight: bold; color: #e74c3c;">${(data.buy_price || 0).toFixed(2)} 元</td></tr>
+                            ${data.current_price ? `<tr><td style="padding: 5px; color: #666;">当前价格：</td><td style="padding: 5px;">${data.current_price.toFixed(2)} 元</td></tr>` : ''}
+                            ${data.market_cap ? `<tr><td style="padding: 5px; color: #666;">市值：</td><td style="padding: 5px;">${data.market_cap.toFixed(2)} 亿元</td></tr>` : ''}
+                        </table>
+                    </div>
+                    
+                    <!-- 涨跌幅预测 -->
+                    <div style="padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                        <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px;">💹 涨跌幅预测</h3>
+                        <table style="width: 100%; font-size: 13px;">
+                            ${predictions.gain_4w !== undefined ? `<tr><td style="padding: 5px; color: #666;">4周涨幅：</td><td style="padding: 5px; font-weight: bold; color: ${predictions.gain_4w > 0 ? '#27ae60' : '#e74c3c'};">${predictions.gain_4w > 0 ? '+' : ''}${predictions.gain_4w.toFixed(2)}%</td></tr>` : ''}
+                            ${predictions.gain_10w !== undefined ? `<tr><td style="padding: 5px; color: #666;">10周涨幅：</td><td style="padding: 5px; font-weight: bold; color: ${predictions.gain_10w > 0 ? '#27ae60' : '#e74c3c'};">${predictions.gain_10w > 0 ? '+' : ''}${predictions.gain_10w.toFixed(2)}%</td></tr>` : ''}
+                            ${predictions.gain_20w !== undefined ? `<tr><td style="padding: 5px; color: #666;">20周涨幅：</td><td style="padding: 5px; font-weight: bold; color: ${predictions.gain_20w > 0 ? '#27ae60' : '#e74c3c'};">${predictions.gain_20w > 0 ? '+' : ''}${predictions.gain_20w.toFixed(2)}%</td></tr>` : ''}
+                            ${predictions.max_gain_10w !== undefined ? `<tr><td style="padding: 5px; color: #666;">10周最大涨幅：</td><td style="padding: 5px; font-weight: bold; color: #27ae60;">+${predictions.max_gain_10w.toFixed(2)}%</td></tr>` : ''}
+                            ${predictions.stop_loss_price !== undefined ? `<tr><td style="padding: 5px; color: #666;">止损价格：</td><td style="padding: 5px; font-weight: bold; color: #e74c3c;">${predictions.stop_loss_price.toFixed(2)} 元</td></tr>` : ''}
+                            ${predictions.best_sell_price !== undefined ? `<tr><td style="padding: 5px; color: #666;">最佳卖点价格：</td><td style="padding: 5px; font-weight: bold; color: #27ae60;">${predictions.best_sell_price.toFixed(2)} 元</td></tr>` : ''}
+                            ${predictions.best_sell_date ? `<tr><td style="padding: 5px; color: #666;">最佳卖点日期：</td><td style="padding: 5px;">${predictions.best_sell_date}</td></tr>` : ''}
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- 详细特征分析 -->
+                <div style="padding: 15px; background: #f8f9fa; border-radius: 8px; margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px;">🔬 详细特征分析</h3>
+                    <div id="featuresDetail" style="font-size: 13px;">
+                        <!-- 特征列表将在这里动态生成 -->
+                    </div>
+                </div>
+            `;
+            
+            // 生成特征列表
+            if (matchDetails.all_features_match && Object.keys(matchDetails.all_features_match).length > 0) {
+                html += `
+                    <div style="padding: 15px; background: #f8f9fa; border-radius: 8px; margin-bottom: 20px;">
+                        <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px;">⭐ 特征匹配详情（按匹配度排序）</h3>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                            <tr style="background: #e0e0e0;">
+                                <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">特征名称</th>
+                                <th style="padding: 8px; border: 1px solid #ddd; text-align: right;">匹配度</th>
+                                <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">特征值</th>
+                            </tr>
+                `;
+                
+                // 将特征按匹配度排序
+                const sortedFeatures = Object.entries(matchDetails.all_features_match || {})
+                    .sort((a, b) => (b[1] || 0) - (a[1] || 0));
+                
+                for (const [featureName, matchScore] of sortedFeatures) {
+                    const featureValue = features[featureName] !== undefined ? features[featureName] : 'N/A';
+                    const score = (matchScore || 0) * 100;
+                    const color = score >= 90 ? '#27ae60' : score >= 80 ? '#f39c12' : '#e74c3c';
+                    const isCore = matchDetails.core_features_match && featureName in matchDetails.core_features_match;
+                    html += `
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;">${isCore ? '⭐ ' : ''}${featureName}</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; text-align: right; color: ${color}; font-weight: bold;">${score.toFixed(2)}%</td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">${typeof featureValue === 'number' ? featureValue.toFixed(4) : featureValue}</td>
+                        </tr>
+                    `;
+                }
+                
+                html += '</table></div>';
+            }
+            
+            // 如果有K线数据，显示K线图（简化版，后续可以增强）
+            if (klineData) {
+                html += `
+                    <div style="padding: 15px; background: #f8f9fa; border-radius: 8px; margin-bottom: 20px;">
+                        <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px;">📉 K线图（买点位置）</h3>
+                        <div id="klineChart" style="width: 100%; height: 400px;"></div>
+                        <p style="margin-top: 10px; font-size: 12px; color: #666;">注：K线图增强功能（支撑位/阻力位、技术指标）正在开发中</p>
+                    </div>
+                `;
+            }
+            
+            content.innerHTML = html;
+            
+            // 如果有K线数据，绘制K线图（使用ECharts）
+            if (klineData && typeof echarts !== 'undefined') {
+                setTimeout(() => {
+                    const klineChartDom = document.getElementById('klineChart');
+                    if (klineChartDom) {
+                        const klineChart = echarts.init(klineChartDom);
+                        // 这里可以添加K线图的详细配置
+                        // 暂时使用简化版本
+                        klineChart.setOption({
+                            title: {
+                                text: `${data.stock_name || data.stock_code} K线图`,
+                                left: 'center'
+                            },
+                            tooltip: {
+                                trigger: 'axis'
+                            },
+                            xAxis: {
+                                type: 'category',
+                                data: klineData.dates || []
+                            },
+                            yAxis: {
+                                type: 'value',
+                                scale: true
+                            },
+                            series: [{
+                                type: 'candlestick',
+                                data: klineData.values || []
+                            }]
+                        });
+                    }
+                }, 100);
+            }
+        }
+        
+        // 关闭深度分析模态框
+        function closeStockDetailModal() {
+            const modal = document.getElementById('stockDetailModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+        
+        // 点击模态框外部关闭
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('stockDetailModal');
+            if (modal && event.target === modal) {
+                closeStockDetailModal();
+            }
+        });
     </script>
     <div id="versionInfo"></div>
+    
+    <!-- 深度分析模态框 -->
+    <div id="stockDetailModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; overflow-y: auto;">
+        <div style="position: relative; width: 90%; max-width: 1200px; margin: 20px auto; background: white; border-radius: 8px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 15px;">
+                <h2 id="stockDetailTitle" style="margin: 0; color: #333; font-size: 20px;">🔬 个股深度分析</h2>
+                <button onclick="closeStockDetailModal()" style="background: #e74c3c; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 14px;">✕ 关闭</button>
+            </div>
+            <div id="stockDetailContent" style="min-height: 400px;">
+                <div style="text-align: center; padding: 40px; color: #999;">
+                    <div class="spinner" style="border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
+                    <p>正在加载深度分析数据...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </body>
 </html>
 

@@ -963,6 +963,214 @@ def analyze_all():
         }), 500
 
 
+@app.route('/api/analyze_stock_detail', methods=['POST'])
+@require_login
+def analyze_stock_detail():
+    """个股深度分析API（VIP专享功能）"""
+    try:
+        # 获取用户信息和等级
+        user = get_current_user()
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': '请先登录'
+            }), 401
+        
+        user_tier = get_user_tier()
+        
+        # 检查用户等级（仅VIP和超级用户可以使用深度分析）
+        if user_tier != 'premium' and user_tier != 'super':
+            is_super = user.get('is_super', False)
+            if not is_super:
+                return jsonify({
+                    'success': False,
+                    'message': '个股深度分析功能仅限VIP用户使用，请升级为VIP会员'
+                }), 403
+        
+        data = request.get_json() or {}
+        stock_code = (data.get('stock_code') or '').strip()
+        stock_name = data.get('stock_name', '').strip()
+        buy_date = data.get('buy_date', '')
+        buy_price = float(data.get('buy_price', 0))
+        match_score = float(data.get('match_score', 0))
+        
+        if not stock_code:
+            return jsonify({
+                'success': False,
+                'message': '股票代码不能为空'
+            }), 400
+        
+        init_analyzer()
+        
+        if analyzer is None or not hasattr(analyzer, 'fetcher'):
+            return jsonify({
+                'success': False,
+                'message': '分析器未初始化'
+            }), 500
+        
+        # 获取股票的详细信息
+        features = {}
+        match_details = {}
+        predictions = {}
+        kline_data = None
+        
+        try:
+            # 如果已训练特征模型，计算特征匹配详情
+            if analyzer.trained_features and analyzer.trained_features.get('common_features'):
+                common_features = analyzer.trained_features.get('common_features', {})
+                
+                # 获取股票周线数据
+                weekly_df = analyzer.fetcher.get_weekly_kline(stock_code, weeks=100)
+                if weekly_df is not None and len(weekly_df) >= 40:
+                    # 找到买点日期对应的索引
+                    buy_idx = None
+                    if buy_date:
+                        try:
+                            buy_date_obj = pd.to_datetime(buy_date)
+                            for i in range(len(weekly_df)):
+                                date_col = weekly_df.iloc[i]['日期'] if '日期' in weekly_df.columns else weekly_df.index[i]
+                                if isinstance(date_col, pd.Timestamp):
+                                    if date_col >= buy_date_obj:
+                                        buy_idx = i
+                                        break
+                                elif isinstance(date_col, str):
+                                    if pd.to_datetime(date_col) >= buy_date_obj:
+                                        buy_idx = i
+                                        break
+                        except Exception as e:
+                            print(f"[analyze_stock_detail] 查找买点日期失败: {e}")
+                            buy_idx = len(weekly_df) - 40
+                    else:
+                        buy_idx = len(weekly_df) - 40
+                    
+                    if buy_idx and buy_idx >= 40:
+                        # 提取买点前的特征
+                        features = analyzer.extract_features_at_start_point(
+                            stock_code, buy_idx, lookback_weeks=40, weekly_df=weekly_df
+                        )
+                        
+                        if features:
+                            # 计算特征匹配详情
+                            match_details_dict = analyzer._calculate_match_score(
+                                features, common_features, analyzer.tolerance
+                            )
+                            
+                            match_details = {
+                                'total_match_score': match_details_dict.get('总匹配度', match_score),
+                                'matched_features_count': match_details_dict.get('匹配特征数', 0),
+                                'core_features_match': match_details_dict.get('核心特征匹配', {}),
+                                'all_features_match': match_details_dict.get('所有特征匹配', {})
+                            }
+                            
+                            # 计算涨跌幅预测
+                            if buy_idx < len(weekly_df):
+                                buy_price_actual = float(weekly_df.iloc[buy_idx]['收盘'])
+                                
+                                if buy_idx + 4 < len(weekly_df):
+                                    price_4w = float(weekly_df.iloc[buy_idx + 4]['收盘'])
+                                    gain_4w = (price_4w - buy_price_actual) / buy_price_actual * 100
+                                    predictions['gain_4w'] = round(gain_4w, 2)
+                                
+                                if buy_idx + 10 < len(weekly_df):
+                                    price_10w = float(weekly_df.iloc[buy_idx + 10]['收盘'])
+                                    gain_10w = (price_10w - buy_price_actual) / buy_price_actual * 100
+                                    predictions['gain_10w'] = round(gain_10w, 2)
+                                    
+                                    max_price_10w = float(weekly_df.iloc[buy_idx+1:buy_idx+11]['最高'].max())
+                                    max_gain_10w = (max_price_10w - buy_price_actual) / buy_price_actual * 100
+                                    predictions['max_gain_10w'] = round(max_gain_10w, 2)
+                                
+                                if buy_idx + 20 < len(weekly_df):
+                                    price_20w = float(weekly_df.iloc[buy_idx + 20]['收盘'])
+                                    gain_20w = (price_20w - buy_price_actual) / buy_price_actual * 100
+                                    predictions['gain_20w'] = round(gain_20w, 2)
+                                
+                                stop_loss_price = buy_price_actual * 0.90
+                                if 'MA20' in weekly_df.columns:
+                                    ma20 = float(weekly_df.iloc[buy_idx]['MA20'])
+                                    if ma20 > 0:
+                                        stop_loss_price = min(stop_loss_price, ma20 * 0.95)
+                                predictions['stop_loss_price'] = round(stop_loss_price, 2)
+                                
+                                if buy_idx + 1 < len(weekly_df):
+                                    future_window = weekly_df.iloc[buy_idx+1:]
+                                    if len(future_window) > 0:
+                                        max_price_pos = future_window['最高'].values.argmax()
+                                        max_price = float(future_window.iloc[max_price_pos]['最高'])
+                                        max_date = future_window.iloc[max_price_pos]['日期']
+                                        if isinstance(max_date, pd.Timestamp):
+                                            max_date_str = max_date.strftime('%Y-%m-%d')
+                                        else:
+                                            max_date_str = str(max_date)
+                                        predictions['best_sell_price'] = round(max_price, 2)
+                                        predictions['best_sell_date'] = max_date_str
+                                
+                                # 获取K线数据
+                                try:
+                                    start_idx = max(0, buy_idx - 20)
+                                    end_idx = min(len(weekly_df), buy_idx + 40)
+                                    kline_window = weekly_df.iloc[start_idx:end_idx]
+                                    
+                                    dates = []
+                                    values = []
+                                    for i, row in kline_window.iterrows():
+                                        date_col = row['日期'] if '日期' in row else row.index[0]
+                                        if isinstance(date_col, pd.Timestamp):
+                                            dates.append(date_col.strftime('%Y-%m-%d'))
+                                        else:
+                                            dates.append(str(date_col))
+                                        
+                                        open_price = float(row.get('开盘', 0))
+                                        close_price = float(row.get('收盘', 0))
+                                        high_price = float(row.get('最高', 0))
+                                        low_price = float(row.get('最低', 0))
+                                        values.append([open_price, close_price, low_price, high_price])
+                                    
+                                    kline_data = {
+                                        'dates': dates,
+                                        'values': values,
+                                        'buy_point_idx': buy_idx - start_idx
+                                    }
+                                except Exception as e:
+                                    print(f"[analyze_stock_detail] 获取K线数据失败: {e}")
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"[analyze_stock_detail] 获取股票详细信息失败: {error_detail}")
+        
+        # 获取股票名称
+        if not stock_name:
+            stock_name = analyzer._get_stock_name(stock_code) or stock_code
+        
+        # 构建返回数据
+        result_data = {
+            'stock_code': stock_code,
+            'stock_name': stock_name,
+            'match_score': match_score,
+            'buy_date': buy_date,
+            'buy_price': buy_price,
+            'features': features,
+            'match_details': match_details,
+            'predictions': predictions,
+            'kline_data': kline_data
+        }
+        
+        return jsonify({
+            'success': True,
+            'message': '深度分析数据获取成功',
+            'data': result_data
+        })
+        
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"[analyze_stock_detail] ❌ 深度分析失败: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'深度分析失败: {str(e)}'
+        }), 500
+
+
 @app.route('/api/get_analysis/<stock_code>', methods=['GET'])
 @require_login
 def get_analysis(stock_code):
