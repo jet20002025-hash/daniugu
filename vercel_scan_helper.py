@@ -5,6 +5,7 @@ Vercel 环境扫描辅助函数
 用于在 Vercel serverless 环境中分批处理扫描任务
 """
 import time
+import json
 from typing import Dict, List, Any
 import pandas as pd
 import scan_progress_store
@@ -236,11 +237,19 @@ def process_scan_batch_vercel(
     
     # 如果完成，保存最终结果
     if is_complete:
-        # 获取进度信息，检查是否是全局扫描
+        # 获取进度信息
         progress_info = scan_progress_store.get_scan_progress(scan_id)
         is_global_scan = progress_info and progress_info.get('is_global_scan', False)
         scan_type = progress_info.get('scan_type') if progress_info else None
         scan_date = progress_info.get('scan_date') if progress_info else None
+        username = progress_info.get('username', 'anonymous') if progress_info else 'anonymous'
+        user_tier = progress_info.get('user_tier') if progress_info else None
+        is_auto_scan = progress_info.get('is_auto_scan', False) if progress_info else False
+        
+        from datetime import datetime, timezone, timedelta
+        beijing_tz = timezone(timedelta(hours=8))
+        beijing_now = datetime.now(beijing_tz)
+        current_date = beijing_now.strftime('%Y-%m-%d')
         
         results = {
             'success': True,
@@ -250,15 +259,48 @@ def process_scan_batch_vercel(
             'found_count': len(candidates),
             'scan_id': scan_id,
             'scan_type': scan_type,
-            'scan_date': scan_date
+            'scan_date': scan_date or current_date,
+            'username': username,
+            'user_tier': user_tier,
+            'completed_at': beijing_now.strftime('%Y-%m-%d %H:%M:%S')
         }
         scan_progress_store.save_scan_results(scan_id, results)
         
+        # 如果是VIP用户的手动扫描，保存到用户历史记录（7天）
+        if user_tier == 'premium' and not is_auto_scan and username != 'anonymous':
+            try:
+                # 保存用户扫描历史（按日期和用户名）
+                user_history_key = f'user_scan_history:{username}:{current_date}'
+                existing_history = scan_progress_store._upstash_redis_get(user_history_key) if hasattr(scan_progress_store, '_upstash_redis_get') else None
+                
+                scan_ids_list = []
+                if existing_history:
+                    if isinstance(existing_history, list):
+                        scan_ids_list = existing_history
+                    elif isinstance(existing_history, str):
+                        try:
+                            import json
+                            scan_ids_list = json.loads(existing_history)
+                        except:
+                            scan_ids_list = [existing_history]
+                    else:
+                        scan_ids_list = [existing_history]
+                
+                # 添加当前扫描ID（如果不存在）
+                if scan_id not in scan_ids_list:
+                    scan_ids_list.append(scan_id)
+                    # 只保留最近10次扫描
+                    scan_ids_list = scan_ids_list[-10:]
+                    
+                    # 保存回Redis（TTL 7天 = 604800秒）
+                    if hasattr(scan_progress_store, '_upstash_redis_set'):
+                        scan_progress_store._upstash_redis_set(user_history_key, json.dumps(scan_ids_list, ensure_ascii=False), ttl=604800)
+                        print(f"[vercel_scan_helper] ✅ VIP用户扫描历史已保存 - 用户: {username}, 日期: {current_date}, 扫描ID: {scan_id}")
+            except Exception as e:
+                print(f"[vercel_scan_helper] ⚠️ 保存VIP用户扫描历史失败: {e}")
+        
         # 如果是全局扫描，保存到全局扫描结果存储（按类型和日期）
         if is_global_scan and scan_type and scan_date:
-            from datetime import datetime, timezone, timedelta
-            beijing_tz = timezone(timedelta(hours=8))
-            scan_time = datetime.now(beijing_tz).strftime('%H:%M')
             scan_time_display = '11:30' if scan_type == 'noon' else '15:00'
             
             global_results = {
@@ -271,7 +313,7 @@ def process_scan_batch_vercel(
                 'scan_type': scan_type,
                 'scan_date': scan_date,
                 'scan_time': scan_time_display,  # 显示时间（11:30 或 15:00）
-                'completed_at': datetime.now(beijing_tz).strftime('%Y-%m-%d %H:%M:%S')
+                'completed_at': beijing_now.strftime('%Y-%m-%d %H:%M:%S')
             }
             scan_progress_store.save_global_scan_results(scan_type, scan_date, global_results)
             print(f"[vercel_scan_helper] ✅ 全局扫描结果已保存 - 类型: {scan_type}, 日期: {scan_date}, 扫描时间: {scan_time_display}")

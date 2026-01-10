@@ -401,10 +401,13 @@
                     
                     <!-- 网络版本：根据用户等级显示 -->
                     <div id="webVersionButtons" style="display: none;">
-                        <!-- VIP用户：可以扫描全市场（每天一次） -->
+                        <!-- VIP用户：可以扫描全市场（无限次） -->
                         <div id="vipUserButtons" style="display: none;">
-                            <button class="btn btn-primary" onclick="scanAllStocks()" style="background: #e74c3c;" id="scanAllStocksBtnWeb">🔍 扫描全市场（VIP每日一次）</button>
+                            <button class="btn btn-primary" onclick="scanAllStocks()" style="background: #e74c3c;" id="scanAllStocksBtnWeb">🔍 扫描全市场（VIP无限次）</button>
                             <button class="btn btn-primary" onclick="stopScan()" style="background: #95a5a6;" id="stopScanBtnWeb" disabled>🛑 停止扫描</button>
+                            <button class="btn btn-primary" onclick="viewVipScanHistory()" style="background: #9b59b6; font-size: 13px; padding: 8px 15px;">
+                                📚 查看历史记录（7天）
+                            </button>
                         </div>
                         
                         <!-- 免费用户：只显示查看结果按钮 -->
@@ -1475,7 +1478,7 @@
                                     
                                     if (resultsResult.success) {
                                         if (resultsResult.candidates && resultsResult.candidates.length > 0) {
-                                            displayScanResults(resultsResult);
+                                            await displayScanResults(resultsResult);
                                             showMessage(`扫描已停止，已找到 ${resultsResult.found_count || resultsResult.candidates.length || 0} 只符合条件的股票。可以点击"扫描全市场"继续扫描。`, 'success');
                                         } else {
                                             const totalScanned = resultsResult.total_scanned || 0;
@@ -1969,7 +1972,7 @@
                                         const resultsResult = await resultsResponse.json();
                                         
                                         if (resultsResult.success && resultsResult.candidates) {
-                                            displayScanResults(resultsResult);
+                                            await displayScanResults(resultsResult);
                                             showMessage(`扫描完成！找到 ${resultsResult.found_count || 0} 只符合条件的股票`, 'success');
                                         } else {
                                             showMessage(resultsResult.message || '扫描完成，但未找到符合条件的股票', 'error');
@@ -1994,7 +1997,7 @@
                                                 
                                                 if (resultsResult.success) {
                                                     if (resultsResult.candidates && resultsResult.candidates.length > 0) {
-                                                        displayScanResults(resultsResult);
+                                                        await displayScanResults(resultsResult);
                                                         showMessage(`扫描已停止，已找到 ${resultsResult.found_count || resultsResult.candidates.length || 0} 只符合条件的股票`, 'success');
                                                     } else {
                                                         showMessage('扫描已停止，但未找到符合条件的股票', 'warning');
@@ -2629,7 +2632,7 @@
         }
         
         // 显示扫描结果
-        function displayScanResults(result) {
+        async function displayScanResults(result) {
             const container = document.getElementById('buyPointsResult');
             
             if (!result.candidates || result.candidates.length === 0) {
@@ -2637,9 +2640,37 @@
                 return;
             }
             
+            // 检查用户等级（VIP用户显示导出按钮）
+            let exportButtons = '';
+            try {
+                const user = await getUserInfo();
+                if (user && (user.tier === 'premium' || user.tier === 'super' || user.is_super)) {
+                    // 保存结果到全局变量，供导出函数使用
+                    window.currentScanResults = result;
+                    const candidatesJson = JSON.stringify(result.candidates).replace(/'/g, "\\'");
+                    exportButtons = `
+                        <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                            <span style="color: #666; font-size: 13px; font-weight: bold;">💎 VIP专享功能：</span>
+                            <button class="btn btn-primary" onclick="exportScanResults('excel')" style="background: #27ae60; font-size: 13px; padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer;">
+                                📥 导出Excel
+                            </button>
+                            <button class="btn btn-primary" onclick="exportScanResults('csv')" style="background: #3498db; font-size: 13px; padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer;">
+                                📥 导出CSV
+                            </button>
+                            <button class="btn btn-primary" onclick="exportScanResults('json')" style="background: #9b59b6; font-size: 13px; padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer;">
+                                📥 导出JSON
+                            </button>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('获取用户信息失败:', error);
+            }
+            
             let html = '<div style="margin-top: 15px; padding: 15px; background: white; border-radius: 6px;">';
             html += `<h4>🎯 扫描结果：找到 ${result.found_count} 只符合条件的股票（显示前 ${result.candidates.length} 只）</h4>`;
             html += `<p style="color: #666; font-size: 12px;">扫描总数: ${result.total_scanned} 只</p>`;
+            html += exportButtons;
             html += '<table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px;">';
             html += '<tr style="background: #f0f0f0;"><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">排名</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">股票代码</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">股票名称</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">匹配度</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">最佳买点日期</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">最佳买点价格</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">当前价格</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">市值(亿)</th></tr>';
             
@@ -2775,7 +2806,7 @@
                             if (vipButtons) vipButtons.style.display = 'none';
                             if (freeButtons) freeButtons.style.display = 'none';
                         } else if (tier === 'premium') {
-                            // VIP用户：显示扫描全市场（每天一次）
+                            // VIP用户：显示扫描全市场（无限次）
                             if (vipButtons) vipButtons.style.display = 'block';
                             if (freeButtons) freeButtons.style.display = 'none';
                             if (superButtons) superButtons.style.display = 'none';
@@ -3088,6 +3119,203 @@
             });
         }
         
+        // 查看VIP扫描历史记录（VIP专享功能）
+        async function viewVipScanHistory() {
+            try {
+                showMessage('正在加载历史记录...', 'success');
+                
+                const response = await fetch('/api/get_vip_scan_history', {
+                    method: 'GET',
+                    cache: 'no-store'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success && result.history && result.history.length > 0) {
+                    const container = document.getElementById('buyPointsResult');
+                    if (container) {
+                        let html = '<div style="margin-top: 15px; padding: 20px; background: white; border-radius: 8px;">';
+                        html += `<h3 style="margin: 0 0 15px 0; color: #333; font-size: 18px;">📚 VIP扫描历史记录（最近7天）</h3>`;
+                        html += `<p style="color: #666; font-size: 13px; margin-bottom: 20px;">共找到 ${result.history.length} 条历史记录</p>`;
+                        
+                        // 按日期分组显示
+                        const historyByDate = {};
+                        result.history.forEach(item => {
+                            const date = item.date || '未知日期';
+                            if (!historyByDate[date]) {
+                                historyByDate[date] = [];
+                            }
+                            historyByDate[date].push(item);
+                        });
+                        
+                        // 显示历史记录
+                        Object.keys(historyByDate).sort().reverse().forEach(date => {
+                            const items = historyByDate[date];
+                            html += `<div style="margin-bottom: 30px; padding: 15px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #9b59b6;">`;
+                            html += `<h4 style="margin: 0 0 10px 0; color: #333; font-size: 16px;">📅 ${date}</h4>`;
+                            
+                            items.forEach((item, idx) => {
+                                const time = item.completed_at || item.scan_time || '未知时间';
+                                html += `<div style="margin-bottom: 15px; padding: 10px; background: white; border-radius: 4px;">`;
+                                html += `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">`;
+                                html += `<span style="font-weight: bold; color: #667eea;">扫描 #${idx + 1}</span>`;
+                                html += `<span style="font-size: 12px; color: #999;">${time}</span>`;
+                                html += `</div>`;
+                                html += `<div style="font-size: 13px; color: #666;">`;
+                                html += `找到 ${item.found_count} 只符合条件的股票，扫描总数: ${item.total_scanned} 只`;
+                                html += `</div>`;
+                                
+                                // 显示前5只股票
+                                if (item.candidates && item.candidates.length > 0) {
+                                    html += `<div style="margin-top: 10px; padding: 10px; background: #f0f0f0; border-radius: 4px; font-size: 12px;">`;
+                                    html += `<strong>前5只股票：</strong><br/>`;
+                                    item.candidates.slice(0, 5).forEach((c, i) => {
+                                        const code = c.code || c.股票代码 || 'N/A';
+                                        const name = c.name || c.股票名称 || 'N/A';
+                                        const match = c.match_score || c.匹配度 || 0;
+                                        html += `${i + 1}. ${code} ${name} (匹配度: ${(match * 100).toFixed(2)}%)<br/>`;
+                                    });
+                                    html += `</div>`;
+                                }
+                                
+                                html += `</div>`;
+                            });
+                            
+                            html += `</div>`;
+                        });
+                        
+                        html += '</div>';
+                        container.innerHTML = html;
+                    }
+                    showMessage(`✅ 成功加载 ${result.history.length} 条历史记录`, 'success');
+                } else {
+                    showMessage('暂无历史记录', 'info');
+                    const container = document.getElementById('buyPointsResult');
+                    if (container) {
+                        container.innerHTML = `
+                            <div style="margin-top: 15px; padding: 40px; text-align: center; background: white; border-radius: 8px; color: #666;">
+                                <h3 style="margin-bottom: 10px;">暂无历史记录</h3>
+                                <p>您还没有扫描记录，请先进行扫描。</p>
+                                <p style="font-size: 12px; color: #999; margin-top: 10px;">历史记录会保存7天</p>
+                            </div>
+                        `;
+                    }
+                }
+            } catch (error) {
+                console.error('查看历史记录失败:', error);
+                showMessage(`查看历史记录失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 导出扫描结果（VIP专享功能）
+        async function exportScanResults(format) {
+            try {
+                // 检查用户等级
+                const user = await getUserInfo();
+                if (!user) {
+                    showMessage('请先登录', 'error');
+                    return;
+                }
+                
+                const tier = user.tier || 'free';
+                if (tier !== 'premium' && tier !== 'super' && !user.is_super) {
+                    showMessage('导出功能仅限VIP用户使用，请升级为VIP会员', 'error');
+                    return;
+                }
+                
+                showMessage(`正在导出${format.toUpperCase()}格式...`, 'success');
+                
+                // 获取当前扫描结果
+                let candidates = [];
+                
+                // 方法1: 从全局变量获取（displayScanResults函数保存的）
+                if (window.currentScanResults && window.currentScanResults.candidates) {
+                    candidates = window.currentScanResults.candidates;
+                } else {
+                    // 方法2: 从DOM中提取表格数据（如果表格存在）
+                    const table = document.querySelector('#buyPointsResult table');
+                    if (table) {
+                        const rows = table.querySelectorAll('tr');
+                        rows.forEach((row, idx) => {
+                            if (idx === 0) return; // 跳过表头
+                            const cells = row.querySelectorAll('td');
+                            if (cells.length >= 6) {
+                                // 提取表格数据，统一格式
+                                const matchScoreText = cells[3].textContent.trim();
+                                const matchScore = parseFloat(matchScoreText) || 0;
+                                
+                                candidates.push({
+                                    'code': cells[1].textContent.trim(),
+                                    'name': cells[2].textContent.trim(),
+                                    'match_score': matchScore < 1 ? matchScore : matchScore / 100, // 如果是百分比，转换为小数
+                                    'buy_date': cells[4].textContent.trim(),
+                                    'buy_price': parseFloat(cells[5].textContent.trim()) || 0,
+                                    'current_price': cells[6] ? parseFloat(cells[6].textContent.trim()) || 0 : 0,
+                                    'market_cap': cells[7] ? parseFloat(cells[7].textContent.trim()) || 0 : 0
+                                });
+                            }
+                        });
+                    }
+                }
+                
+                if (candidates.length === 0) {
+                    showMessage('没有可导出的数据，请先扫描股票', 'error');
+                    return;
+                }
+                
+                // 调用导出API
+                const response = await fetch('/api/export_scan_results', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        format: format,
+                        candidates: candidates
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || '导出失败');
+                }
+                
+                // 获取文件并下载
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                
+                // 从响应头获取文件名
+                const contentDisposition = response.headers.get('Content-Disposition');
+                let filename = `扫描结果_${new Date().getTime()}.${format}`;
+                if (contentDisposition) {
+                    const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                    if (filenameMatch && filenameMatch[1]) {
+                        filename = filenameMatch[1].replace(/['"]/g, '');
+                        // 处理URL编码的文件名
+                        try {
+                            filename = decodeURIComponent(filename);
+                        } catch (e) {
+                            // 如果解码失败，使用原始文件名
+                        }
+                    }
+                }
+                
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                showMessage(`✅ 导出成功！已下载 ${filename}`, 'success');
+                
+            } catch (error) {
+                console.error('导出失败:', error);
+                showMessage(`导出失败: ${error.message}`, 'error');
+            }
+        }
+        
         // 立即执行一次按钮显示更新（不等待异步操作）
         (function() {
             const isLocal = isLocalEnvironment();
@@ -3202,7 +3430,8 @@
                         html += `<div style="font-size: 10px; color: #999;">当前: ${restrictions.current_time.split(' ')[1]}</div>`;
                     }
                 } else if (user.tier === 'premium') {
-                    html += `<div style="font-size: 11px; color: #999; margin-top: 5px;">系统每天11:30自动扫描</div>`;
+                    html += `<div style="font-size: 11px; color: #999; margin-top: 5px;">💎 VIP专享：无限次扫描</div>`;
+                    html += `<div style="font-size: 11px; color: #999;">系统每天11:30自动扫描</div>`;
                     if (restrictions.current_time) {
                         html += `<div style="font-size: 10px; color: #999;">当前: ${restrictions.current_time.split(' ')[1]}</div>`;
                     }

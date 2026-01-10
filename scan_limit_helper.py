@@ -60,63 +60,8 @@ def check_daily_scan_limit(username: str, user_tier: str, scan_config: Dict, is_
         return True, None, 0
     
     if user_tier == 'premium':
-        # VIP用户：每天只能扫描一次
-        beijing_now = get_beijing_time()
-        today_str = beijing_now.strftime('%Y-%m-%d')
-        scan_key = f'vip_scan_count_{username}_{today_str}'
-        
-        try:
-            if is_vercel:
-                # Vercel 环境：从 Redis 读取
-                try:
-                    import scan_progress_store
-                    if hasattr(scan_progress_store, '_upstash_redis_get'):
-                        scan_count_data = scan_progress_store._upstash_redis_get(scan_key)
-                        today_scan_count = int(scan_count_data) if scan_count_data else 0
-                    else:
-                        # 直接使用 Upstash Redis REST API
-                        import os
-                        import requests
-                        redis_url = os.environ.get('UPSTASH_REDIS_REST_URL')
-                        redis_token = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
-                        if redis_url and redis_token:
-                            response = requests.get(
-                                f"{redis_url}/get/{scan_key}",
-                                headers={"Authorization": f"Bearer {redis_token}"},
-                                timeout=5
-                            )
-                            if response.status_code == 200:
-                                result = response.json()
-                                scan_count_data = result.get('result')
-                                today_scan_count = int(scan_count_data) if scan_count_data else 0
-                            else:
-                                today_scan_count = 0
-                        else:
-                            today_scan_count = 0
-                except Exception as e:
-                    print(f"[check_daily_scan_limit] 从 Redis 读取VIP扫描次数失败: {e}")
-                    today_scan_count = 0
-            else:
-                # 本地环境：从文件读取
-                import json
-                import os
-                scan_limit_file = 'scan_limit.json'
-                if os.path.exists(scan_limit_file):
-                    with open(scan_limit_file, 'r', encoding='utf-8') as f:
-                        scan_limits = json.load(f)
-                        today_scan_count = scan_limits.get(scan_key, 0)
-                else:
-                    today_scan_count = 0
-            
-            # VIP用户每天只能扫描一次
-            if today_scan_count >= 1:
-                return False, f'VIP用户每天只能扫描一次，今日已扫描 {today_scan_count} 次。请明天再试。', today_scan_count
-            
-            return True, None, today_scan_count
-        except Exception as e:
-            print(f"[check_daily_scan_limit] 检查VIP扫描限制失败: {e}")
-            # 出错时允许扫描（避免影响用户体验）
-            return True, None, 0
+        # VIP用户：无限制扫描（99元/月，无限次手动扫描）
+        return True, None, 0
     
     # 免费用户：不允许手动扫描（系统自动扫描）
     manual_scan_allowed = scan_config.get('manual_scan_allowed', False)

@@ -4,7 +4,7 @@
 大牛股分析器Web界面
 提供添加大牛股的功能
 """
-from flask import Flask, render_template, jsonify, request, session, redirect, url_for
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for, send_file
 from bull_stock_analyzer import BullStockAnalyzer
 from technical_analysis import TechnicalAnalysis
 from datetime import datetime
@@ -1420,27 +1420,8 @@ def scan_all_stocks():
         # VIP用户和超级用户可以手动扫描
         scan_config = get_scan_config()
         
-        # 检查扫描时间限制（仅对VIP用户，超级用户无限制）
-        if user_tier == 'premium':
-            from scan_limit_helper import check_scan_time_limit, check_daily_scan_limit
-            can_scan, time_error = check_scan_time_limit(user_tier, scan_config)
-            if not can_scan:
-                return jsonify({
-                    'success': False,
-                    'message': time_error,
-                    'error_code': 'TIME_LIMIT'
-                }), 403
-            
-            # VIP用户每天只能扫描一次
-            can_scan_daily, daily_error, today_count = check_daily_scan_limit(username, user_tier, scan_config, is_vercel)
-            if not can_scan_daily:
-                return jsonify({
-                    'success': False,
-                    'message': daily_error or f'VIP用户每天只能扫描一次，今日已扫描 {today_count} 次。请明天再试。',
-                    'error_code': 'DAILY_LIMIT'
-                }), 403
-        
-        # 超级用户无每日扫描次数限制
+        # VIP用户和超级用户：无扫描限制（无限次扫描）
+        # VIP用户已经移除了每日扫描次数限制，可以无限次手动扫描
         
         data = request.get_json() or {}
         min_match_score = float(data.get('min_match_score', 0.97))
@@ -2643,6 +2624,280 @@ def get_reversal_scan_results():
             'message': f'服务器错误: {str(e)}',
             'stocks': []
         }), 500
+
+@app.route('/api/export_scan_results', methods=['POST'])
+@require_login
+def export_scan_results():
+    """导出扫描结果API（支持Excel/CSV/JSON格式）- VIP专享功能"""
+    try:
+        import pandas as pd
+        import json as json_module
+        from datetime import datetime
+        import io
+        
+        # 获取用户信息和等级
+        user = get_current_user()
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': '请先登录'
+            }), 401
+        
+        user_tier = get_user_tier()
+        
+        # 检查用户等级（仅VIP和超级用户可以导出）
+        if user_tier != 'premium' and user_tier != 'super':
+            is_super = user.get('is_super', False)
+            if not is_super:
+                return jsonify({
+                    'success': False,
+                    'message': '导出功能仅限VIP用户使用，请升级为VIP会员'
+                }), 403
+        
+        data = request.get_json() or {}
+        
+        # 获取参数
+        export_format = data.get('format', 'excel').lower()  # excel, csv, json
+        scan_id = data.get('scan_id') or request.args.get('scan_id')
+        candidates = data.get('candidates', [])
+        
+        # 如果没有提供candidates，尝试从scan_id获取
+        if not candidates and scan_id and is_vercel:
+            import scan_progress_store
+            results = scan_progress_store.get_scan_results(scan_id)
+            if results:
+                candidates = results.get('candidates', [])
+        
+        # 如果还是没有数据，返回错误
+        if not candidates:
+            return jsonify({
+                'success': False,
+                'message': '没有可导出的数据，请先扫描股票或提供扫描结果'
+            }), 400
+        
+        # 转换为DataFrame（处理不同的数据格式）
+        df_data = []
+        for candidate in candidates:
+            # 处理两种数据格式：{'code': '...', 'name': '...'} 或 {'股票代码': '...', '股票名称': '...'}
+            row = {
+                '股票代码': candidate.get('code') or candidate.get('股票代码', ''),
+                '股票名称': candidate.get('name') or candidate.get('股票名称', ''),
+                '匹配度': float(candidate.get('match_score') or candidate.get('匹配度') or 0),
+                '买点价格': float(candidate.get('buy_price') or candidate.get('买点价格') or candidate.get('最佳买点价格') or 0),
+                '买点日期': candidate.get('buy_date') or candidate.get('买点日期') or candidate.get('最佳买点日期') or '',
+                '当前价格': float(candidate.get('current_price') or candidate.get('当前价格') or 0),
+                '市值(亿)': float(candidate.get('market_cap') or candidate.get('市值') or candidate.get('市值(亿)') or 0),
+            }
+            
+            # 可选字段
+            if candidate.get('gain_4w') is not None or candidate.get('4周涨幅') is not None:
+                row['4周涨幅(%)'] = float(candidate.get('gain_4w') or candidate.get('4周涨幅') or 0)
+            if candidate.get('gain_10w') is not None or candidate.get('10周涨幅') is not None:
+                row['10周涨幅(%)'] = float(candidate.get('gain_10w') or candidate.get('10周涨幅') or 0)
+            if candidate.get('gain_20w') is not None or candidate.get('20周涨幅') is not None:
+                row['20周涨幅(%)'] = float(candidate.get('gain_20w') or candidate.get('20周涨幅') or 0)
+            if candidate.get('max_gain_10w') is not None or candidate.get('最大涨幅') is not None:
+                row['最大涨幅(%)'] = float(candidate.get('max_gain_10w') or candidate.get('最大涨幅') or 0)
+            if candidate.get('stop_loss_price') is not None or candidate.get('止损价格') is not None:
+                row['止损价格'] = float(candidate.get('stop_loss_price') or candidate.get('止损价格') or 0)
+            if candidate.get('best_sell_price') is not None or candidate.get('最佳卖点价格') is not None:
+                row['最佳卖点价格'] = float(candidate.get('best_sell_price') or candidate.get('最佳卖点价格') or 0)
+            if candidate.get('best_sell_date') is not None or candidate.get('最佳卖点日期') is not None:
+                row['最佳卖点日期'] = candidate.get('best_sell_date') or candidate.get('最佳卖点日期') or ''
+            
+            df_data.append(row)
+        
+        df = pd.DataFrame(df_data)
+        
+        # 按匹配度排序
+        if '匹配度' in df.columns and len(df) > 0:
+            df = df.sort_values('匹配度', ascending=False)
+        
+        # 生成文件名
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        if export_format == 'excel':
+            # Excel格式
+            filename = f'扫描结果_{timestamp}.xlsx'
+            output = io.BytesIO()
+            
+            # 使用openpyxl引擎
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name='扫描结果')
+            
+            output.seek(0)
+            
+            return send_file(
+                output,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                as_attachment=True,
+                download_name=filename
+            )
+            
+        elif export_format == 'csv':
+            # CSV格式
+            filename = f'扫描结果_{timestamp}.csv'
+            output = io.StringIO()
+            df.to_csv(output, index=False, encoding='utf-8-sig')  # utf-8-sig用于Excel正确识别中文
+            csv_content = output.getvalue()
+            output.close()
+            
+            # 创建BytesIO对象
+            output_bytes = io.BytesIO()
+            output_bytes.write(csv_content.encode('utf-8-sig'))
+            output_bytes.seek(0)
+            
+            return send_file(
+                output_bytes,
+                mimetype='text/csv; charset=utf-8',
+                as_attachment=True,
+                download_name=filename
+            )
+            
+        elif export_format == 'json':
+            # JSON格式
+            filename = f'扫描结果_{timestamp}.json'
+            output = io.BytesIO()
+            
+            # 转换为JSON（确保可以序列化）
+            json_data = df.to_dict(orient='records')
+            json_str = json_module.dumps(json_data, ensure_ascii=False, indent=2, default=str)
+            output.write(json_str.encode('utf-8'))
+            output.seek(0)
+            
+            return send_file(
+                output,
+                mimetype='application/json; charset=utf-8',
+                as_attachment=True,
+                download_name=filename
+            )
+        else:
+            return jsonify({
+                'success': False,
+                'message': f'不支持的导出格式: {export_format}，支持格式: excel, csv, json'
+            }), 400
+            
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"导出扫描结果错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'导出失败: {str(e)}'
+        }), 500
+
+
+@app.route('/api/get_vip_scan_history', methods=['GET'])
+@require_login
+def get_vip_scan_history():
+    """获取VIP用户扫描历史记录（7天）- VIP专享功能"""
+    try:
+        import json as json_module
+        from scan_limit_helper import get_beijing_time
+        from datetime import timedelta
+        import scan_progress_store
+        
+        # 获取用户信息和等级
+        user = get_current_user()
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': '请先登录'
+            }), 401
+        
+        user_tier = get_user_tier()
+        username = user.get('username', 'anonymous')
+        
+        # 检查用户等级（仅VIP和超级用户可以查看历史记录）
+        if user_tier != 'premium' and user_tier != 'super':
+            is_super = user.get('is_super', False)
+            if not is_super:
+                return jsonify({
+                    'success': False,
+                    'message': '历史记录功能仅限VIP用户使用，请升级为VIP会员'
+                }), 403
+        
+        beijing_now = get_beijing_time()
+        history_results = []
+        
+        # 获取最近7天的扫描历史
+        for i in range(7):
+            date = (beijing_now - timedelta(days=i))
+            date_str = date.strftime('%Y-%m-%d')
+            
+            # 查找该用户的扫描结果（格式：user_scan_history:{username}:{date}）
+            user_scan_key = f'user_scan_history:{username}:{date_str}'
+            
+            if is_vercel:
+                # Vercel环境：从Redis获取
+                scan_ids = []
+                try:
+                    # 尝试获取该用户当天的所有扫描ID列表
+                    scan_ids_data = scan_progress_store._upstash_redis_get(user_scan_key) if hasattr(scan_progress_store, '_upstash_redis_get') else None
+                    if scan_ids_data:
+                        if isinstance(scan_ids_data, list):
+                            scan_ids = scan_ids_data
+                        elif isinstance(scan_ids_data, str):
+                            try:
+                                scan_ids = json_module.loads(scan_ids_data)
+                            except:
+                                scan_ids = [scan_ids_data]
+                        else:
+                            scan_ids = [scan_ids_data]
+                except Exception as e:
+                    print(f"[get_vip_scan_history] 获取扫描ID列表失败: {e}")
+                    scan_ids = []
+                
+                # 获取每个扫描的结果
+                for scan_id in scan_ids[:5]:  # 每天最多显示5次扫描
+                    if not scan_id:
+                        continue
+                    results = scan_progress_store.get_scan_results(scan_id)
+                    if results:
+                        progress = scan_progress_store.get_scan_progress(scan_id)
+                        if progress and progress.get('username') == username:
+                            # 格式化时间
+                            scan_time = progress.get('last_update_time') or progress.get('completed_at', '')
+                            if isinstance(scan_time, (int, float)):
+                                from datetime import datetime
+                                scan_time_str = datetime.fromtimestamp(scan_time).strftime('%Y-%m-%d %H:%M:%S') if scan_time > 1000000000 else ''
+                            else:
+                                scan_time_str = str(scan_time)
+                            
+                            history_results.append({
+                                'date': date_str,
+                                'scan_id': scan_id,
+                                'found_count': results.get('found_count', 0),
+                                'total_scanned': results.get('total_scanned', 0),
+                                'scan_time': scan_time_str,
+                                'completed_at': results.get('completed_at', scan_time_str),
+                                'candidates_count': len(results.get('candidates', [])),
+                                'candidates': results.get('candidates', [])[:10]  # 只返回前10只股票
+                            })
+            else:
+                # 本地环境：从文件读取（TODO: 实现本地历史记录存储）
+                pass
+        
+        # 按日期和扫描时间排序（最新的在前）
+        history_results.sort(key=lambda x: (x.get('date', ''), x.get('scan_time', '')), reverse=True)
+        
+        return jsonify({
+            'success': True,
+            'message': f'找到 {len(history_results)} 条历史记录',
+            'history': history_results,
+            'total_days': 7
+        })
+        
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"获取VIP扫描历史错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'获取历史记录失败: {str(e)}',
+            'history': []
+        }), 500
+
 
 @app.route('/api/search_stock', methods=['POST'])
 @require_login
