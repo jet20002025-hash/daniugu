@@ -3131,42 +3131,10 @@
             console.error('[initPageLoad] 设置事件监听器失败:', error);
         }
         
-        // 根据用户等级决定是否自动刷新（免费用户不需要自动刷新，因为显示的是扫描结果图表）
-        // 只在非网络环境或VIP/超级用户时自动刷新
-        (async function() {
-            try {
-                const isLocal = isLocalEnvironment();
-                if (!isLocal) {
-                    // 网络环境：检查用户等级
-                    const user = await getUserInfo();
-                    if (user) {
-                        const tier = user.tier || 'free';
-                        const isSuper = user.is_super || false;
-                        
-                        // 只有VIP用户或超级用户才自动刷新股票列表（免费用户显示扫描结果，不需要刷新）
-                        if (tier === 'premium' || tier === 'super' || isSuper) {
-                            setInterval(function() {
-                                console.log('[定时刷新] 自动刷新股票列表...');
-                                loadStocks();
-                            }, 30000); // VIP用户30秒刷新一次（减少频率）
-                        } else {
-                            console.log('[定时刷新] 免费用户不自动刷新股票列表（显示扫描结果图表）');
-                        }
-                    } else {
-                        // 无法获取用户信息，不自动刷新
-                        console.log('[定时刷新] 无法获取用户信息，不自动刷新');
-                    }
-                } else {
-                    // 本地环境：正常自动刷新（5秒）
-                    setInterval(function() {
-                        console.log('[定时刷新] 自动刷新股票列表...');
-                        loadStocks();
-                    }, 5000);
-                }
-            } catch (error) {
-                console.error('[定时刷新] 设置自动刷新失败:', error);
-            }
-        })();
+        // 所有用户都不自动刷新，只有用户有需求时才手动刷新
+        // 本地环境：提供手动刷新按钮（用户点击时刷新）
+        // 网络环境：所有用户都需要手动刷新
+        console.log('[定时刷新] 已禁用自动刷新，用户需要时手动刷新');
         
         // 获取用户信息
         async function getUserInfo() {
