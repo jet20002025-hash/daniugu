@@ -2236,7 +2236,83 @@
                         statusText: response.statusText,
                         body: errorText
                     });
-                    throw new Error(`HTTP错误 ${response.status}: ${response.statusText}\n响应内容: ${errorText.substring(0, 200)}`);
+                    
+                    // 尝试解析 JSON 响应，提取详细错误信息
+                    let errorResult = null;
+                    try {
+                        errorResult = JSON.parse(errorText);
+                    } catch (parseError) {
+                        // 如果不是 JSON，使用原始文本
+                        console.warn('[scanAllStocks] 错误响应不是 JSON 格式');
+                    }
+                    
+                    // 如果是 400 错误（缓存不存在），显示详细的错误消息
+                    if (response.status === 400 && errorResult && errorResult.message) {
+                        const errorMsg = errorResult.message;
+                        console.error('[scanAllStocks] 缓存不存在错误:', {
+                            cache_exists: errorResult.cache_exists,
+                            is_in_trading_time: errorResult.is_in_trading_time,
+                            is_vercel: errorResult.is_vercel,
+                            current_time: errorResult.current_time,
+                            suggestion: errorResult.suggestion
+                        });
+                        
+                        // 显示完整的错误消息（包含解决方案）
+                        showMessage(errorMsg, 'error');
+                        
+                        // 如果建议手动刷新缓存，提供快速操作按钮
+                        if (errorResult.suggestion === '手动刷新缓存' || errorResult.message.includes('手动触发缓存刷新')) {
+                            // 显示一个带有刷新缓存按钮的提示
+                            const refreshCacheDiv = document.createElement('div');
+                            refreshCacheDiv.id = 'refreshCachePrompt';
+                            refreshCacheDiv.style.cssText = `
+                                position: fixed;
+                                top: 50%;
+                                left: 50%;
+                                transform: translate(-50%, -50%);
+                                background: #fff3cd;
+                                border: 2px solid #ffc107;
+                                border-radius: 8px;
+                                padding: 20px;
+                                max-width: 600px;
+                                z-index: 10000;
+                                box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+                            `;
+                            refreshCacheDiv.innerHTML = `
+                                <h3 style="margin-top: 0; color: #856404;">⚠️ 缓存未生成</h3>
+                                <p style="color: #856404; margin-bottom: 15px;">需要先刷新股票列表缓存才能继续扫描。</p>
+                                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                                    <button id="cancelRefreshBtn" style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">取消</button>
+                                    <button id="refreshCacheBtn" style="padding: 8px 16px; background: #ffc107; color: #856404; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">手动刷新缓存</button>
+                                </div>
+                            `;
+                            document.body.appendChild(refreshCacheDiv);
+                            
+                            // 绑定按钮事件
+                            document.getElementById('cancelRefreshBtn').onclick = () => {
+                                refreshCacheDiv.remove();
+                            };
+                            document.getElementById('refreshCacheBtn').onclick = () => {
+                                refreshCacheDiv.remove();
+                                // 打开新窗口或直接跳转到刷新缓存的 API
+                                window.open('https://www.daniugu.online/api/refresh_stock_cache?force=true', '_blank');
+                                showMessage('正在手动刷新缓存，请等待约30秒后再次尝试扫描...', 'info');
+                            };
+                        }
+                        
+                        // 停止进度轮询和隐藏进度条
+                        stopProgressPolling();
+                        hideProgress();
+                        if (stopBtn) {
+                            stopBtn.disabled = true;
+                        }
+                        isScanning = false; // 重置标志
+                        return; // 直接返回，不抛出错误
+                    }
+                    
+                    // 其他错误，抛出异常（使用原始错误文本或解析后的消息）
+                    const errorMessage = errorResult?.message || errorText.substring(0, 500);
+                    throw new Error(`HTTP错误 ${response.status}: ${response.statusText}\n响应内容: ${errorMessage}`);
                 }
                 
                 let responseText;
