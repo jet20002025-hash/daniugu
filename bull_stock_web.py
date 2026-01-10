@@ -1968,10 +1968,16 @@ def scan_all_stocks():
             
             try:
                 print("[scan_all_stocks] 开始获取股票列表...")
+                import time as time_module
+                scan_start_time = time_module.time()
+                
                 # 在 Vercel 环境中，使用更短的超时时间（避免超过执行时间限制）
                 # get_all_stocks 内部会根据环境自动调整超时和重试次数
-                stock_list = analyzer.fetcher.get_all_stocks(timeout=8 if is_vercel else 15, max_retries=2 if is_vercel else 3)
-                print(f"[scan_all_stocks] 获取股票列表结果: {stock_list is not None}, 数量: {len(stock_list) if stock_list is not None else 0}")
+                # Vercel 中：超时5秒，只尝试1次；本地：超时15秒，最多重试3次
+                stock_list = analyzer.fetcher.get_all_stocks(timeout=5 if is_vercel else 15, max_retries=1 if is_vercel else 3)
+                
+                elapsed = time_module.time() - scan_start_time
+                print(f"[scan_all_stocks] 获取股票列表结果: {stock_list is not None}, 数量: {len(stock_list) if stock_list is not None else 0}, 耗时 {elapsed:.2f}秒")
             except Exception as e:
                 import traceback
                 error_detail = traceback.format_exc()
