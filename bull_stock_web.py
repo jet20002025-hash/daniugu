@@ -1970,16 +1970,20 @@ def scan_all_stocks():
             print("[scan_all_stocks] 🔍 检测缓存是否存在...")
             cache_exists = False
             cached_stock_count = 0
+            cache_status = "未知"
             try:
                 cached_stocks = analyzer.fetcher._get_stock_list_from_cache()
                 if cached_stocks is not None and len(cached_stocks) > 0:
                     cache_exists = True
                     cached_stock_count = len(cached_stocks)
+                    cache_status = f"缓存存在（{cached_stock_count} 只股票）"
                     print(f"[scan_all_stocks] ✅ 缓存存在，股票数: {cached_stock_count} 只，可以直接使用")
                 else:
+                    cache_status = "缓存不存在"
                     print(f"[scan_all_stocks] ⚠️ 缓存不存在或为空")
             except Exception as e:
-                print(f"[scan_all_stocks] ⚠️ 检测缓存时出错: {e}")
+                cache_status = f"检测缓存时出错: {e}"
+                print(f"[scan_all_stocks] ⚠️ {cache_status}")
             
             # 如果缓存不存在，在 Vercel 环境中提前返回错误（避免超时）
             if not cache_exists and is_vercel:
@@ -2037,9 +2041,16 @@ def scan_all_stocks():
                     print(f"[scan_all_stocks] ⚠️ 检查交易时间时出错: {e}")
             
             try:
-                print("[scan_all_stocks] 开始获取股票列表...")
                 import time as time_module
                 scan_start_time = time_module.time()
+                
+                # 根据缓存状态显示不同的提示信息
+                if cache_exists:
+                    print("[scan_all_stocks] 正在从缓存获取股票列表...")
+                    status_msg = f"正在从缓存获取股票数据（{cached_stock_count} 只股票）..."
+                else:
+                    print("[scan_all_stocks] 正在从 API 获取股票列表...")
+                    status_msg = "正在获取股票数据（从 API）..."
                 
                 # 在 Vercel 环境中，使用更短的超时时间（避免超过执行时间限制）
                 # get_all_stocks 内部会根据环境自动调整超时和重试次数
@@ -2047,7 +2058,10 @@ def scan_all_stocks():
                 stock_list = analyzer.fetcher.get_all_stocks(timeout=5 if is_vercel else 15, max_retries=1 if is_vercel else 3)
                 
                 elapsed = time_module.time() - scan_start_time
-                print(f"[scan_all_stocks] 获取股票列表结果: stock_list is not None: {stock_list is not None}, 数量: {len(stock_list) if stock_list is not None else 0}, 耗时 {elapsed:.2f}秒")
+                if cache_exists:
+                    print(f"[scan_all_stocks] ✅ 从缓存获取成功，股票数: {len(stock_list) if stock_list is not None else 0}, 耗时 {elapsed:.2f}秒")
+                else:
+                    print(f"[scan_all_stocks] ✅ 从 API 获取成功，股票数: {len(stock_list) if stock_list is not None else 0}, 耗时 {elapsed:.2f}秒")
             except Exception as e:
                 import traceback
                 error_detail = traceback.format_exc()

@@ -2057,9 +2057,47 @@
                 stopBtn.disabled = false;
             }
             
-            showMessage('开始扫描全市场，请稍候...', 'success');
+            // 先检测缓存状态，然后显示相应的提示
             showProgress();
-            updateProgress(0, '准备中', '开始扫描...');
+            updateProgress(0, '检测中', '正在检测缓存状态...');
+            
+            // 先检查缓存状态（通过一个轻量级的 API 调用）
+            let cacheStatus = '未知';
+            let cachedStockCount = 0;
+            try {
+                console.log('[scanAllStocks] 检测缓存状态...');
+                const cacheCheckResponse = await fetch('/api/check_cache_status', {
+                    method: 'GET',
+                    cache: 'no-store',
+                    headers: {
+                        'Cache-Control': 'no-cache'
+                    }
+                });
+                
+                if (cacheCheckResponse.ok) {
+                    const cacheResult = await cacheCheckResponse.json();
+                    if (cacheResult.success) {
+                        cacheStatus = cacheResult.cache_exists ? '存在' : '不存在';
+                        cachedStockCount = cacheResult.cached_stock_count || 0;
+                        console.log(`[scanAllStocks] 缓存状态: ${cacheStatus}, 股票数: ${cachedStockCount}`);
+                    }
+                }
+            } catch (e) {
+                console.warn('[scanAllStocks] 检测缓存状态失败（继续执行）:', e);
+            }
+            
+            // 根据缓存状态显示不同的提示
+            if (cacheStatus === '存在' && cachedStockCount > 0) {
+                showMessage(`正在从缓存获取股票数据（${cachedStockCount} 只股票）...`, 'success');
+                updateProgress(0, '获取中', `正在从缓存获取股票数据（${cachedStockCount} 只股票）...`);
+            } else if (cacheStatus === '不存在') {
+                showMessage('正在获取股票数据（从 API）...', 'info');
+                updateProgress(0, '获取中', '正在从 API 获取股票数据，可能需要较长时间...');
+            } else {
+                showMessage('开始扫描全市场，请稍候...', 'success');
+                updateProgress(0, '准备中', '开始扫描...');
+            }
+            
             startProgressPolling();
             
             try {
