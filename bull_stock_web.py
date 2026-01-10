@@ -2079,8 +2079,42 @@ def scan_all_stocks():
                             'is_in_trading_time': True
                         }), 400
                     else:
-                        # 非交易时间段，允许从 API 获取数据（虽然可能慢，但应该允许用户扫描）
-                        print(f"[scan_all_stocks] ⚠️ 非交易时间段缓存不存在，将从 API 获取数据（可能需要较长时间，但允许扫描）")
+                        # 非交易时间段，如果缓存不存在，在 Vercel 环境中也建议先手动刷新缓存
+                        # 因为从 API 获取数据在 Vercel 的 10 秒限制内很可能超时
+                        if is_vercel:
+                            error_msg = '⚠️ **缓存未生成（股票列表缓存不存在）**\n\n'
+                            error_msg += f'当前时间: {current_time_str}（非交易时间段）\n\n'
+                            error_msg += '💡 **问题分析：**\n'
+                            error_msg += '非交易时间段，缓存不存在，从 akshare API 获取股票列表可能需要较长时间（通常需要 10-30 秒）。\n'
+                            error_msg += 'Vercel 环境有 10 秒执行时间限制，从 API 直接获取很可能超时失败。\n\n'
+                            error_msg += '💡 **解决方案（按优先级）：**\n'
+                            error_msg += '**方案1（强烈推荐）：** 手动触发缓存刷新：访问 https://www.daniugu.online/api/refresh_stock_cache?force=true\n'
+                            error_msg += '   - 手动刷新可能需要30秒，但这是后台任务，不受10秒限制\n'
+                            error_msg += '   - 刷新成功后（约30秒后），再尝试扫描\n'
+                            error_msg += '   - 刷新后，下次扫描会使用缓存，速度很快\n\n'
+                            error_msg += '**方案2：** 等待到交易时间段（9:30-11:30, 13:00-15:00）后重试\n'
+                            error_msg += '   - 交易时间段内，系统会自动刷新缓存（中午11:30，下午15:00）\n\n'
+                            error_msg += '**方案3：** 尝试从 API 获取（可能超时，不建议）\n'
+                            error_msg += '   - 如果仍然想尝试，可以稍后重试\n'
+                            error_msg += '   - 但如果超时，建议使用方案1手动刷新缓存\n\n'
+                            error_msg += '📌 **说明：**\n'
+                            error_msg += '- Vercel 环境有 10 秒执行时间限制\n'
+                            error_msg += '- 从 akshare API 获取股票列表通常需要 10-30 秒\n'
+                            error_msg += '- 因此建议先手动刷新缓存，再尝试扫描\n'
+                            
+                            print(f"[scan_all_stocks] ❌ 非交易时间段缓存不存在（Vercel环境），建议先手动刷新缓存（避免超时）")
+                            return jsonify({
+                                'success': False,
+                                'message': error_msg,
+                                'cache_exists': False,
+                                'current_time': current_time_str,
+                                'is_in_trading_time': False,
+                                'is_vercel': True,
+                                'suggestion': '手动刷新缓存'
+                            }), 400
+                        else:
+                            # 本地环境，允许从 API 获取数据（虽然可能慢，但应该允许用户扫描）
+                            print(f"[scan_all_stocks] ⚠️ 非交易时间段缓存不存在（本地环境），将从 API 获取数据（可能需要较长时间，但允许扫描）")
                 except Exception as e:
                     print(f"[scan_all_stocks] ⚠️ 检查交易时间时出错: {e}，继续执行（从 API 获取数据）")
             
