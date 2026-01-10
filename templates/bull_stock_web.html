@@ -4,7 +4,63 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>大牛股分析器 - 添加大牛股</title>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <!-- ECharts CDN - 使用多个备用源 -->
+    <script>
+        // 加载ECharts的多个CDN源（按优先级，国内优先）
+        const echartsCDNs = [
+            'https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js',           // BootCDN（国内，首选，最快）
+            'https://unpkg.com/echarts@5.4.3/dist/echarts.min.js',                      // unpkg（国际，备用1，较稳定）
+            'https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js',           // jsDelivr（国际，备用2）
+            'https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js'      // Cloudflare（国际，备用3）
+        ];
+        
+        let echartsLoaded = false;
+        let currentCDNIndex = 0;
+        
+        function loadECharts(cdnIndex = 0) {
+            if (cdnIndex >= echartsCDNs.length) {
+                console.error('❌ 所有ECharts CDN源加载失败，请检查网络连接');
+                // 如果所有CDN都失败，显示错误提示
+                document.addEventListener('DOMContentLoaded', function() {
+                    const body = document.body;
+                    const errorDiv = document.createElement('div');
+                    errorDiv.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#ff4444;color:white;padding:15px;text-align:center;z-index:99999;';
+                    errorDiv.innerHTML = '⚠️ ECharts库加载失败，图表功能可能无法使用。请刷新页面或检查网络连接。';
+                    body.insertBefore(errorDiv, body.firstChild);
+                });
+                return;
+            }
+            
+            const script = document.createElement('script');
+            script.src = echartsCDNs[cdnIndex];
+            script.async = true;
+            
+            script.onload = function() {
+                if (typeof echarts !== 'undefined') {
+                    echartsLoaded = true;
+                    console.log('✅ ECharts加载成功，使用CDN:', echartsCDNs[cdnIndex]);
+                    // 触发自定义事件，通知ECharts已加载
+                    window.dispatchEvent(new Event('echartsLoaded'));
+                } else {
+                    // 加载成功但echarts未定义，尝试下一个
+                    loadECharts(cdnIndex + 1);
+                }
+            };
+            
+            script.onerror = function() {
+                console.warn('⚠️ CDN加载失败:', echartsCDNs[cdnIndex], '，尝试下一个CDN源...');
+                // 移除失败的script标签
+                script.remove();
+                // 尝试下一个CDN
+                loadECharts(cdnIndex + 1);
+            };
+            
+            document.head.appendChild(script);
+        }
+        
+        // 开始加载ECharts
+        loadECharts();
+    </script>
     <style>
         * {
             margin: 0;
@@ -2482,6 +2538,12 @@
                     return;
                 }
                 
+                // 检查 ECharts 是否已加载
+                if (typeof echarts === 'undefined') {
+                    chartDiv.innerHTML = '<div style="text-align: center; padding: 50px; color: #ff4444;">⚠️ ECharts库加载失败，请刷新页面重试</div>';
+                    return;
+                }
+                
                 // 绘制K线图
                 if (weeklyKlineChart) {
                     weeklyKlineChart.dispose();
@@ -3110,6 +3172,11 @@
                 // 创建 ECharts 图表
                 const chartDom = document.getElementById(chartId);
                 if (chartDom && candidates.length > 0) {
+                    // 检查 ECharts 是否已加载
+                    if (typeof echarts === 'undefined') {
+                        chartDom.innerHTML = '<div style="text-align: center; padding: 50px; color: #ff4444;">⚠️ ECharts库加载失败，请刷新页面重试</div>';
+                        return;
+                    }
                     const myChart = echarts.init(chartDom);
                     
                     // 准备数据：按匹配度排序，取前20只
@@ -3860,7 +3927,14 @@
             content.innerHTML = html;
             
             // 如果有K线数据，绘制K线图（使用ECharts）
-            if (klineData && typeof echarts !== 'undefined') {
+            if (klineData) {
+                if (typeof echarts === 'undefined') {
+                    const klineChartDom = document.getElementById('klineChart');
+                    if (klineChartDom) {
+                        klineChartDom.innerHTML = '<div style="text-align: center; padding: 50px; color: #ff4444;">⚠️ ECharts库加载失败，请刷新页面重试</div>';
+                    }
+                    return;
+                }
                 setTimeout(() => {
                     const klineChartDom = document.getElementById('klineChart');
                     if (klineChartDom) {
