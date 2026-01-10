@@ -546,6 +546,54 @@ def api_health():
         }), 500
 
 
+@app.route('/api/check_cache_status', methods=['GET'])
+@require_login
+def check_cache_status():
+    """检查股票列表缓存状态API"""
+    try:
+        init_analyzer()
+        
+        if analyzer is None or analyzer.fetcher is None:
+            return jsonify({
+                'success': False,
+                'message': '分析器未初始化',
+                'cache_exists': False,
+                'cached_stock_count': 0
+            }), 500
+        
+        # 检测缓存是否存在
+        cache_exists = False
+        cached_stock_count = 0
+        try:
+            cached_stocks = analyzer.fetcher._get_stock_list_from_cache()
+            if cached_stocks is not None and len(cached_stocks) > 0:
+                cache_exists = True
+                cached_stock_count = len(cached_stocks)
+                print(f"[check_cache_status] ✅ 缓存存在，股票数: {cached_stock_count} 只")
+            else:
+                print(f"[check_cache_status] ⚠️ 缓存不存在或为空")
+        except Exception as e:
+            print(f"[check_cache_status] ⚠️ 检测缓存时出错: {e}")
+        
+        return jsonify({
+            'success': True,
+            'cache_exists': cache_exists,
+            'cached_stock_count': cached_stock_count,
+            'message': f'缓存{"存在" if cache_exists else "不存在"}，股票数: {cached_stock_count} 只'
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"[check_cache_status] ❌ 错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'检查缓存状态失败: {str(e)}',
+            'cache_exists': False,
+            'cached_stock_count': 0
+        }), 500
+
+
 @app.route('/api/add_stock', methods=['POST'])
 @require_login
 def add_stock():
