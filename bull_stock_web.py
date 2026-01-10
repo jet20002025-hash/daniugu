@@ -4373,60 +4373,142 @@ def refresh_stock_cache():
         print("[refresh_stock_cache] 从 akshare API 获取股票列表...")
         # 注意：这是后台 Cron Job 任务，允许使用更长的超时时间
         # 直接调用 akshare API，不使用 get_all_stocks 的限制（因为它会自动限制 Vercel 环境的超时）
-        try:
-            import akshare as ak
-            import threading
-            import time as time_module
-            
-            result = [None]
-            error = [None]
-            start_time = time_module.time()
-            
-            def fetch_stocks():
-                try:
-                    print("[refresh_stock_cache] 开始调用 ak.stock_info_a_code_name()...")
-                    result[0] = ak.stock_info_a_code_name()
-                    elapsed = time_module.time() - start_time
-                    print(f"[refresh_stock_cache] ✅ ak.stock_info_a_code_name() 调用成功，耗时 {elapsed:.2f}秒")
-                except Exception as e:
-                    error[0] = e
-                    elapsed = time_module.time() - start_time
-                    print(f"[refresh_stock_cache] ❌ 调用失败（耗时 {elapsed:.2f}秒）: {e}")
-                    import traceback
-                    print(f"[refresh_stock_cache] 错误详情: {traceback.format_exc()}")
-            
-            fetch_thread = threading.Thread(target=fetch_stocks)
-            fetch_thread.daemon = True
-            fetch_thread.start()
-            fetch_thread.join(timeout=30)  # Cron Job 任务允许30秒超时
-            
-            elapsed_total = time_module.time() - start_time
-            
-            if fetch_thread.is_alive():
-                print(f"[refresh_stock_cache] ⏱️ 获取超时（>{30}秒，实际耗时 {elapsed_total:.2f}秒）")
-                return jsonify({
-                    'success': False,
-                    'message': f'获取股票列表超时（>{30}秒），请稍后重试',
-                    'current_time': current_time_str
-                }), 500
-            
-            if error[0]:
-                print(f"[refresh_stock_cache] ❌ 获取出错（耗时 {elapsed_total:.2f}秒）: {error[0]}")
-                return jsonify({
-                    'success': False,
-                    'message': f'获取股票列表失败: {str(error[0])}',
-                    'current_time': current_time_str
-                }), 500
-            
-            if result[0] is None or len(result[0]) == 0:
-                print(f"[refresh_stock_cache] ⚠️ 返回结果为空（耗时 {elapsed_total:.2f}秒）")
-                return jsonify({
-                    'success': False,
-                    'message': '获取股票列表返回空数据',
-                    'current_time': current_time_str
-                }), 500
-            
-            stock_list = result[0]
+        # 添加重试机制，最多重试3次，处理网络连接错误（如 ConnectionResetError）
+        import akshare as ak
+        import threading
+        import time as time_module
+        import traceback
+        
+        max_retries = 3
+        retry_delay = 2  # 重试间隔（秒）
+        timeout = 30  # 单次尝试的超时时间（秒）
+        stock_list = None
+        
+        for attempt in range(max_retries):
+            try:
+                result = [None]
+                error = [None]
+                start_time = time_module.time()
+                
+                def fetch_stocks():
+                    try:
+                        if attempt > 0:
+                            print(f"[refresh_stock_cache] 重试第 {attempt + 1}/{max_retries} 次，调用 ak.stock_info_a_code_name()...")
+                        else:
+                            print("[refresh_stock_cache] 开始调用 ak.stock_info_a_code_name()...")
+                        result[0] = ak.stock_info_a_code_name()
+                        elapsed = time_module.time() - start_time
+                        print(f"[refresh_stock_cache] ✅ ak.stock_info_a_code_name() 调用成功，耗时 {elapsed:.2f}秒")
+                    except Exception as e:
+                        error[0] = e
+                        elapsed = time_module.time() - start_time
+                        error_type = type(e).__name__
+                        print(f"[refresh_stock_cache] ❌ 调用失败（耗时 {elapsed:.2f}秒，错误类型: {error_type}）: {e}")
+                        if attempt < max_retries - 1:
+                            print(f"[refresh_stock_cache] 错误详情: {traceback.format_exc()}")
+                
+                fetch_thread = threading.Thread(target=fetch_stocks)
+                fetch_thread.daemon = True
+                fetch_thread.start()
+                fetch_thread.join(timeout=timeout)
+                
+                elapsed_total = time_module.time() - start_time
+                
+                if fetch_thread.is_alive():
+                    print(f"[refresh_stock_cache] ⏱️ 获取超时（>{timeout}秒，实际耗时 {elapsed_total:.2f}秒）")
+                    if attempt < max_retries - 1:
+                        print(f"[refresh_stock_cache] 等待 {retry_delay} 秒后重试...")
+                        time_module.sleep(retry_delay)
+                        continue  # 重试
+                    else:
+                        return jsonify({
+                            'success': False,
+                            'message': f'获取股票列表超时（>{timeout}秒），已重试 {max_retries} 次，请稍后重试',
+                            'current_time': current_time_str,
+                            'retries': max_retries,
+                            'error_type': 'timeout'
+                        }), 500
+                
+                if error[0]:
+                    error_type = type(error[0]).__name__
+                    error_msg_str = str(error[0])
+                    is_network_error = (
+                        'Connection' in error_type or 
+                        'Connection' in error_msg_str or
+                        'reset' in error_msg_str.lower() or
+                        'aborted' in error_msg_str.lower() or
+                        'timeout' in error_msg_str.lower() or
+                        '104' in error_msg_str  # Connection reset by peer (104)
+                    )
+                    
+                    print(f"[refresh_stock_cache] ❌ 获取出错（耗时 {elapsed_total:.2f}秒，错误类型: {error_type}，网络错误: {is_network_error}）: {error[0]}")
+                    
+                    if is_network_error and attempt < max_retries - 1:
+                        print(f"[refresh_stock_cache] 网络连接错误，等待 {retry_delay} 秒后重试（第 {attempt + 1}/{max_retries} 次）...")
+                        time_module.sleep(retry_delay)
+                        continue  # 重试
+                    else:
+                        # 最后一次尝试或非网络错误，返回错误
+                        if is_network_error:
+                            error_message = f'网络连接错误: {error_msg_str}\n\n已重试 {attempt + 1} 次，仍然失败。\n\n💡 **解决方案：**\n1. 稍后重试（可能是网络波动或 akshare 服务暂时不可用）\n2. 等待一段时间后再试（建议等待 1-2 分钟后重试）\n3. 如果问题持续，可能是 akshare 服务暂时不可用，请稍后再试'
+                        else:
+                            error_message = f'获取股票列表失败: {error_msg_str}'
+                        
+                        return jsonify({
+                            'success': False,
+                            'message': error_message,
+                            'current_time': current_time_str,
+                            'retries': attempt + 1,
+                            'error_type': error_type,
+                            'is_network_error': is_network_error
+                        }), 500
+                
+                if result[0] is None or len(result[0]) == 0:
+                    print(f"[refresh_stock_cache] ⚠️ 返回结果为空（耗时 {elapsed_total:.2f}秒）")
+                    if attempt < max_retries - 1:
+                        print(f"[refresh_stock_cache] 等待 {retry_delay} 秒后重试...")
+                        time_module.sleep(retry_delay)
+                        continue  # 重试
+                    else:
+                        return jsonify({
+                            'success': False,
+                            'message': f'获取股票列表失败: 返回结果为空（已重试 {max_retries} 次）',
+                            'current_time': current_time_str,
+                            'retries': max_retries,
+                            'error_type': 'empty_result'
+                        }), 500
+                
+                # 成功获取到数据，跳出重试循环
+                stock_list = result[0]
+                break
+                
+            except Exception as e:
+                error_type = type(e).__name__
+                error_detail = traceback.format_exc()
+                print(f"[refresh_stock_cache] ❌ 外层异常（第 {attempt + 1}/{max_retries} 次）: {error_detail}")
+                
+                if attempt < max_retries - 1:
+                    print(f"[refresh_stock_cache] 等待 {retry_delay} 秒后重试...")
+                    time_module.sleep(retry_delay)
+                    continue  # 重试
+                else:
+                    return jsonify({
+                        'success': False,
+                        'message': f'刷新股票列表缓存失败: {str(e)}（已重试 {max_retries} 次）',
+                        'current_time': current_time_str,
+                        'retries': max_retries,
+                        'error_type': error_type,
+                        'error_detail': error_detail
+                    }), 500
+        
+        if stock_list is None:
+            return jsonify({
+                'success': False,
+                'message': f'获取股票列表失败: 所有重试均失败（已重试 {max_retries} 次）',
+                'current_time': current_time_str,
+                'retries': max_retries,
+                'error_type': 'all_retries_failed'
+            }), 500
             
             # 将股票列表保存到缓存
             print(f"[refresh_stock_cache] 获取到 {len(stock_list)} 只股票，开始保存到缓存...")
