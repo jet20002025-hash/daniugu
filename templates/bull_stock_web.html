@@ -413,25 +413,6 @@
             <!-- 消息提示 -->
             <div id="message" class="message"></div>
             
-            <!-- 进度条 -->
-            <div id="progressContainer" class="progress-container">
-                <div class="progress-bar-wrapper">
-                    <div id="progressBarFill" class="progress-bar-fill" style="width: 0%;">0%</div>
-                </div>
-                <div class="progress-info">
-                    <span id="progressStatus" class="progress-status">准备中...</span>
-                    <span id="progressDetail">-</span>
-                </div>
-            </div>
-            
-            <!-- 统计信息 -->
-            <div class="stats">
-                <div class="stat-item">
-                    <div class="stat-value" id="stockCount">0</div>
-                    <div class="stat-label">已添加股票</div>
-                </div>
-            </div>
-            
             <!-- 个股检索功能 -->
             <div class="add-form" style="margin-bottom: 20px;">
                 <h2 style="margin-bottom: 20px; color: #333;">🔍 个股检索</h2>
@@ -453,7 +434,12 @@
             
             <!-- 添加表单 -->
             <div class="add-form">
-                <h2 style="margin-bottom: 20px; color: #333;">添加大牛股</h2>
+                <h2 style="margin-bottom: 20px; color: #333; display: flex; justify-content: space-between; align-items: center;">
+                    <span>添加大牛股</span>
+                    <span style="font-size: 14px; font-weight: normal; color: #666;">
+                        已添加 <span id="stockCount" style="font-weight: bold; color: #667eea;">0</span> 只股票
+                    </span>
+                </h2>
                 <div class="form-row">
                     <div class="form-group">
                         <label for="stockCode">股票代码 *</label>
@@ -627,6 +613,17 @@
                             <button onclick="closeWeeklyKline()" style="background: #e74c3c; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 16px;">关闭</button>
                         </div>
                         <div id="weeklyKlineChart" style="width: 100%; height: 600px;"></div>
+                    </div>
+                </div>
+                
+                <!-- 进度条 -->
+                <div id="progressContainer" class="progress-container" style="margin-top: 20px;">
+                    <div class="progress-bar-wrapper">
+                        <div id="progressBarFill" class="progress-bar-fill" style="width: 0%;">0%</div>
+                    </div>
+                    <div class="progress-info">
+                        <span id="progressStatus" class="progress-status">准备中...</span>
+                        <span id="progressDetail">-</span>
                     </div>
                 </div>
                 
@@ -1710,8 +1707,18 @@
         }
         
         // 扫描全市场
+        let isScanning = false; // 防止重复点击
         async function scanAllStocks() {
             console.log('[scanAllStocks] 开始执行扫描函数');
+            
+            // 防止重复点击
+            if (isScanning) {
+                console.warn('[scanAllStocks] 扫描已在进行中，忽略重复点击');
+                showMessage('扫描正在进行中，请勿重复点击', 'warning');
+                return;
+            }
+            
+            isScanning = true;
             
             // 先检查用户扫描权限
             try {
@@ -1757,6 +1764,7 @@
                         } else {
                             showMessage(errorMsg, 'error');
                         }
+                        isScanning = false; // 重置标志
                         return;
                     }
                     
@@ -1769,6 +1777,7 @@
                         } else {
                             showMessage(errorMsg, 'error');
                         }
+                        isScanning = false; // 重置标志
                         return;
                     }
                     
@@ -1784,6 +1793,7 @@
                     // 免费用户提示
                     if (user.tier === 'free') {
                         showMessage('免费用户由系统每天15:00自动扫描，请直接查看扫描结果', 'info');
+                        isScanning = false; // 重置标志
                         return;
                     }
                 }
@@ -1815,15 +1825,32 @@
                 const progressResult = await progressResponse.json();
                 console.log('[scanAllStocks] 当前进度状态:', progressResult);
                 
-                if (progressResult.success && progressResult.progress && progressResult.progress.status === '已停止') {
-                    if (confirm('检测到未完成的扫描，是否继续扫描？\n（点击"确定"继续，点击"取消"重新开始）')) {
-                        // 继续扫描
-                        showMessage('继续扫描...', 'success');
-                        // 继续使用相同的参数（从后端获取）
-                    } else {
-                        // 重新开始，清除状态
-                        // 这里可以添加一个清除状态的API调用
+                // 检查是否有正在进行的扫描（状态为"进行中"），如果有则询问是否继续
+                if (progressResult.success && progressResult.progress && progressResult.progress.status === '进行中') {
+                    const existingProgress = progressResult.progress;
+                    if (existingProgress.scan_id && existingProgress.total_batches > 1) {
+                        const currentBatch = existingProgress.batch || 0;
+                        const totalBatches = existingProgress.total_batches;
+                        if (confirm(`检测到未完成的扫描（已处理 ${currentBatch}/${totalBatches} 批），是否继续？\n点击"确定"继续，点击"取消"重新开始`)) {
+                            // 继续扫描
+                            showMessage('继续扫描...', 'success');
+                            showProgress();
+                            updateProgress(
+                                existingProgress.percentage || 0,
+                                existingProgress.status || '进行中',
+                                existingProgress.detail || '继续扫描...'
+                            );
+                            startProgressPolling();
+                            // 使用现有的 scan_id 继续扫描
+                            autoContinueScan(existingProgress.scan_id, currentBatch, totalBatches);
+                            isScanning = false; // 重置标志
+                            return; // 直接返回，不重新开始扫描
+                        }
+                        // 如果用户选择取消，继续执行下面的代码重新开始扫描
                     }
+                } else if (progressResult.success && progressResult.progress && progressResult.progress.status === '已停止') {
+                    // 如果扫描已停止，直接重新开始，不询问
+                    console.log('[scanAllStocks] 检测到已停止的扫描，重新开始');
                 }
             } catch (error) {
                 // 检查是否是 AbortError
@@ -1865,40 +1892,45 @@
                     clearTimeout(featuresTimeoutId);
                     // 检查是否是 AbortError
                     if (fetchError && (fetchError.name === 'AbortError' || fetchError.message?.includes('aborted') || fetchError.message?.includes('signal is aborted'))) {
-                        console.warn('[scanAllStocks] 检查特征模型请求被中断（AbortError），继续执行');
-                        // 不显示错误，继续执行（可能是网络问题，但扫描可能仍然可以继续）
-                        return; // 直接返回，避免后续错误
+                        console.warn('[scanAllStocks] 检查特征模型请求超时（AbortError），跳过检查，继续执行扫描');
+                        // 超时时跳过检查，继续执行扫描（可能是网络问题，但扫描可能仍然可以继续）
+                        // 不返回，继续执行后续代码
                     } else {
                         throw fetchError; // 重新抛出非 AbortError 的错误
                     }
                 }
                 
-                const featuresResult = await featuresResponse.json();
-                
-                console.log('特征模型检查结果:', featuresResult);
-                console.log('特征模型检查详情:', {
-                    success: featuresResult.success,
-                    hasCommonFeatures: !!featuresResult.common_features,
-                    commonFeaturesLength: featuresResult.common_features ? Object.keys(featuresResult.common_features).length : 0,
-                    message: featuresResult.message
-                });
-                
-                // 检查模型是否存在：success 为 true 且 common_features 存在且不为空
-                const hasFeatures = featuresResult.success && 
-                    featuresResult.common_features && 
-                    Object.keys(featuresResult.common_features).length > 0;
-                
-                console.log('hasFeatures (scanAllStocks):', hasFeatures);
-                
-                if (!hasFeatures) {
-                    showMessage('请先添加大牛股、分析股票并训练特征模型！', 'error');
-                    return;
+                // 如果请求成功，解析响应
+                if (featuresResponse && featuresResponse.ok) {
+                    const featuresResult = await featuresResponse.json();
+                    
+                    console.log('特征模型检查结果:', featuresResult);
+                    console.log('特征模型检查详情:', {
+                        success: featuresResult.success,
+                        hasCommonFeatures: !!featuresResult.common_features,
+                        commonFeaturesLength: featuresResult.common_features ? Object.keys(featuresResult.common_features).length : 0,
+                        message: featuresResult.message
+                    });
+                    
+                    // 检查模型是否存在：success 为 true 且 common_features 存在且不为空
+                    const hasFeatures = featuresResult.success && 
+                        featuresResult.common_features && 
+                        Object.keys(featuresResult.common_features).length > 0;
+                    
+                    console.log('hasFeatures (scanAllStocks):', hasFeatures);
+                    
+                    if (!hasFeatures) {
+                        showMessage('请先添加大牛股、分析股票并训练特征模型！', 'error');
+                        isScanning = false; // 重置标志
+                        return;
+                    }
                 }
             } catch (error) {
                 // 检查是否是 AbortError
                 if (error && (error.name === 'AbortError' || error.message?.includes('aborted') || error.message?.includes('signal is aborted'))) {
-                    console.warn('[scanAllStocks] 检查特征模型时请求被中断（AbortError），继续执行');
-                    // 不显示错误，继续执行（可能是网络问题，但扫描可能仍然可以继续）
+                    console.warn('[scanAllStocks] 检查特征模型时请求被中断（AbortError），跳过检查，继续执行扫描');
+                    // 超时时跳过检查，继续执行扫描（可能是网络问题，但扫描可能仍然可以继续）
+                    // 不返回，继续执行后续代码
                 } else {
                     console.error('❌ [scanAllStocks] 检查特征模型失败:', error);
                     // 安全地访问错误属性
@@ -1911,8 +1943,8 @@
                     } catch (e) {
                         console.error('❌ [scanAllStocks] 无法获取错误详情:', e);
                     }
-                    showMessage('无法检查特征模型状态: ' + (error?.message || '未知错误'), 'error');
-                    return;
+                    // 检查失败时，仍然继续执行，不要阻止扫描
+                    console.warn('[scanAllStocks] 检查特征模型失败，但继续执行扫描（可能在服务器端会有额外检查）');
                 }
             }
             
@@ -1941,6 +1973,7 @@
                 scanLimit = null; // VIP用户支持全市场扫描，不使用limit
                 
                 if (!confirm(`确定要开始扫描吗？\n\n扫描参数：\n- 匹配度阈值：${minMatch}\n- 最大市值：${maxCap}亿元\n- 排除ST股票：${excludeST ? '是' : '否'}\n- 排除停牌股票：${excludeSuspended ? '是' : '否'}\n${industryFilter ? `- 行业筛选：${industryFilter}\n` : ''}${customStockPool ? `- 自定义股票池：${customStockPool}\n` : ''}\n这可能需要较长时间（约5000只股票）。`)) {
+                    isScanning = false; // 重置标志
                     return;
                 }
             } else if (localParamsPanel && localParamsPanel.style.display !== 'none') {
@@ -1958,6 +1991,7 @@
                 customStockPool = '';
                 
                 if (!confirm(`确定要开始扫描吗？\n\n扫描参数：\n- 匹配度阈值：${minMatch}\n- 最大市值：${maxCap}亿元\n${scanLimit ? `- 扫描数量限制：${scanLimit}只\n` : ''}\n这可能需要较长时间。`)) {
+                    isScanning = false; // 重置标志
                     return;
                 }
             } else if (superParamsPanel && superParamsPanel.style.display !== 'none') {
@@ -1975,6 +2009,7 @@
                 customStockPool = '';
                 
                 if (!confirm(`确定要开始扫描吗？\n\n扫描参数：\n- 匹配度阈值：${minMatch}\n- 最大市值：${maxCap}亿元\n${scanLimit ? `- 扫描数量限制：${scanLimit}只\n` : ''}\n这可能需要较长时间。`)) {
+                    isScanning = false; // 重置标志
                     return;
                 }
             } else {
@@ -1988,6 +2023,7 @@
                 customStockPool = '';
                 
                 if (!confirm(`确定要开始扫描吗？\n\n扫描参数：\n- 匹配度阈值：${minMatch}（默认）\n- 最大市值：${maxCap}亿元（默认）\n这可能需要较长时间（约5000只股票）。`)) {
+                    isScanning = false; // 重置标志
                     return;
                 }
             }
@@ -2196,11 +2232,13 @@
                         window.currentScanBatches = totalBatches;
                         window.currentScanBatch = 1;
                         
+                        // 扫描成功启动，不重置 isScanning（扫描正在进行中）
                         // 开始自动处理下一批次
                         autoContinueScan(scanId, 1, totalBatches);
                     } else {
                         // 本地环境：传统轮询模式
                         showMessage('扫描已开始，请等待完成...', 'success');
+                        // 扫描成功启动，不重置 isScanning（扫描正在进行中）
                         
                         // 轮询扫描结果（移除固定超时，只要扫描在进行中就继续等待）
                         let checkCount = 0;
@@ -2276,6 +2314,11 @@
                                             stopBtn.disabled = true;
                                         }
                                         
+                                        // 重置扫描标志
+                                        if (typeof isScanning !== 'undefined') {
+                                            isScanning = false;
+                                        }
+                                        
                                         // 获取扫描结果
                                         const resultsResponse = await fetch('/api/get_scan_results');
                                         const resultsResult = await resultsResponse.json();
@@ -2294,6 +2337,11 @@
                                         // 禁用停止按钮
                                         if (stopBtn) {
                                             stopBtn.disabled = true;
+                                        }
+                                        
+                                        // 重置扫描标志
+                                        if (typeof isScanning !== 'undefined') {
+                                            isScanning = false;
                                         }
                                         
                                         if (progress.status === '已停止') {
@@ -2345,9 +2393,11 @@
                     if (stopBtn) {
                         stopBtn.disabled = true;
                     }
+                    isScanning = false; // 重置标志
                 }
             } catch (error) {
                 // 详细错误日志
+                isScanning = false; // 重置标志
                 const errorInfo = {
                     name: error.name,
                     message: error.message,
@@ -4044,6 +4094,11 @@
                         const stopBtn = document.getElementById('stopScanBtn');
                         if (stopBtn) stopBtn.disabled = true;
                         
+                        // 重置扫描标志
+                        if (typeof isScanning !== 'undefined') {
+                            isScanning = false;
+                        }
+                        
                         // 刷新股票列表
                         loadStocks();
                     }
@@ -4077,6 +4132,11 @@
                     const stopBtn = document.getElementById('stopScanBtn');
                     if (stopBtn) stopBtn.disabled = true;
                     
+                    // 重置扫描标志
+                    if (typeof isScanning !== 'undefined') {
+                        isScanning = false;
+                    }
+                    
                     // 如果已经处理了一些批次，提示用户可以查看部分结果
                     if (currentBatch > 0) {
                         console.log('部分结果已保存，可以尝试查看扫描结果');
@@ -4088,6 +4148,10 @@
                 // 检查是否是认证错误（401）
                 if (error.message && error.message.includes('401')) {
                     showMessage('登录已过期，请重新登录', 'error');
+                    // 重置扫描标志
+                    if (typeof isScanning !== 'undefined') {
+                        isScanning = false;
+                    }
                     setTimeout(() => {
                         window.location.href = '/login';
                     }, 2000);
@@ -4110,6 +4174,11 @@
                     stopProgressPolling();
                     const stopBtn = document.getElementById('stopScanBtn');
                     if (stopBtn) stopBtn.disabled = true;
+                    
+                    // 重置扫描标志
+                    if (typeof isScanning !== 'undefined') {
+                        isScanning = false;
+                    }
                 }
             }
         }
