@@ -2,19 +2,15 @@
   "crons": [
     {
       "path": "/api/cron?scan_type=noon",
-      "schedule": "30 11 * * 1-5",
-      "comment": "中午11:30自动扫描"
+      "schedule": "30 11 * * 1-5"
     },
     {
       "path": "/api/cron?scan_type=afternoon",
-      "schedule": "0 15 * * 1-5",
-      "comment": "下午15:00自动扫描"
+      "schedule": "0 15 * * 1-5"
     },
     {
       "path": "/api/refresh_stock_cache",
-      "schedule": "25 9 * * 1-5",
-      "comment": "每个交易日9:25（开盘前）刷新股票列表缓存，Hobby账户限制每天只能运行一次cron job。如需在交易时间段内刷新，请手动访问 /api/refresh_stock_cache?force=true 或升级到Pro计划"
+      "schedule": "25 9 * * 1-5"
     }
-  ],
-  "comment": "注意：Vercel Hobby账户限制每天只能运行一次cron job。如果需要更频繁的缓存刷新（如每5分钟），请升级到Pro计划，或使用外部服务（如GitHub Actions、UptimeRobot）定期调用API"
+  ]
 }
