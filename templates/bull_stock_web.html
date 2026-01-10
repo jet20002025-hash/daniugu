@@ -2880,11 +2880,11 @@
             // 页面加载时检查匹配度状态
             checkMatchScoreStatus();
             
-            // 每30秒刷新一次用户信息和按钮显示
+            // 每5分钟刷新一次用户信息和按钮显示（减少刷新频率，避免页面跳动）
             setInterval(async () => {
                 await displayUserInfo();
                 await updateFunctionButtonsVisibility();
-            }, 30000);
+            }, 300000); // 改为5分钟（300000毫秒）
         }
         
         // 加载并显示免费用户的扫描结果
@@ -3131,11 +3131,42 @@
             console.error('[initPageLoad] 设置事件监听器失败:', error);
         }
         
-        // 每5秒自动刷新列表
-        setInterval(function() {
-            console.log('[定时刷新] 自动刷新股票列表...');
-            loadStocks();
-        }, 5000);
+        // 根据用户等级决定是否自动刷新（免费用户不需要自动刷新，因为显示的是扫描结果图表）
+        // 只在非网络环境或VIP/超级用户时自动刷新
+        (async function() {
+            try {
+                const isLocal = isLocalEnvironment();
+                if (!isLocal) {
+                    // 网络环境：检查用户等级
+                    const user = await getUserInfo();
+                    if (user) {
+                        const tier = user.tier || 'free';
+                        const isSuper = user.is_super || false;
+                        
+                        // 只有VIP用户或超级用户才自动刷新股票列表（免费用户显示扫描结果，不需要刷新）
+                        if (tier === 'premium' || tier === 'super' || isSuper) {
+                            setInterval(function() {
+                                console.log('[定时刷新] 自动刷新股票列表...');
+                                loadStocks();
+                            }, 30000); // VIP用户30秒刷新一次（减少频率）
+                        } else {
+                            console.log('[定时刷新] 免费用户不自动刷新股票列表（显示扫描结果图表）');
+                        }
+                    } else {
+                        // 无法获取用户信息，不自动刷新
+                        console.log('[定时刷新] 无法获取用户信息，不自动刷新');
+                    }
+                } else {
+                    // 本地环境：正常自动刷新（5秒）
+                    setInterval(function() {
+                        console.log('[定时刷新] 自动刷新股票列表...');
+                        loadStocks();
+                    }, 5000);
+                }
+            } catch (error) {
+                console.error('[定时刷新] 设置自动刷新失败:', error);
+            }
+        })();
         
         // 获取用户信息
         async function getUserInfo() {
