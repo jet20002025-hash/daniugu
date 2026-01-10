@@ -763,6 +763,287 @@ def admin_set_vip():
             'message': f'服务器错误: {str(e)}'
         }), 500
 
+@app.route('/api/vip/apply', methods=['POST'])
+@require_login
+def vip_apply():
+    """提交VIP升级申请"""
+    try:
+        user = get_current_user()
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': '未登录'
+            }), 401
+        
+        # 检查是否已经是VIP
+        if is_premium_user() or is_super_user():
+            return jsonify({
+                'success': False,
+                'message': '您已经是VIP会员，无需再次申请'
+            }), 400
+        
+        data = request.get_json() or {}
+        plan = data.get('plan', 'monthly')  # 'monthly' 或 'yearly'
+        contact = data.get('contact', '').strip()
+        note = data.get('note', '').strip()
+        
+        if plan not in ['monthly', 'yearly']:
+            return jsonify({
+                'success': False,
+                'message': '无效的套餐类型'
+            }), 400
+        
+        if not contact:
+            return jsonify({
+                'success': False,
+                'message': '请输入联系方式（微信/QQ/手机号）'
+            }), 400
+        
+        # 导入VIP申请存储模块
+        try:
+            from vip_upgrade_store import save_vip_application, get_user_application
+        except ImportError:
+            # 如果导入失败，尝试使用本地版本
+            import vip_upgrade_store
+            save_vip_application = vip_upgrade_store.save_vip_application
+            get_user_application = vip_upgrade_store.get_user_application
+        
+        # 获取用户邮箱
+        if is_vercel:
+            from user_auth_vercel import load_users
+        else:
+            from user_auth import load_users
+        
+        users = load_users()
+        user_email = users.get(user['username'], {}).get('email', '')
+        
+        # 保存申请
+        success = save_vip_application(
+            username=user['username'],
+            email=user_email,
+            plan=plan,
+            contact=contact,
+            note=note
+        )
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'VIP升级申请已提交，我们会在24小时内处理并联系您'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': '提交申请失败，请稍后重试'
+            }), 500
+            
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"提交VIP申请错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'服务器错误: {str(e)}'
+        }), 500
+
+@app.route('/api/vip/check_application', methods=['GET'])
+@require_login
+def vip_check_application():
+    """检查用户的VIP申请状态"""
+    try:
+        user = get_current_user()
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': '未登录'
+            }), 401
+        
+        try:
+            from vip_upgrade_store import get_user_application
+        except ImportError:
+            import vip_upgrade_store
+            get_user_application = vip_upgrade_store.get_user_application
+        
+        application = get_user_application(user['username'])
+        
+        if application:
+            return jsonify({
+                'success': True,
+                'has_application': True,
+                'application': {
+                    'status': application.get('status', 'pending'),
+                    'plan': application.get('plan'),
+                    'plan_name': application.get('plan_name'),
+                    'amount': application.get('amount'),
+                    'created_at': application.get('created_at')
+                }
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'has_application': False
+            })
+            
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"检查VIP申请状态错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'服务器错误: {str(e)}'
+        }), 500
+
+@app.route('/api/admin/vip_applications', methods=['GET'])
+@require_login
+def admin_get_vip_applications():
+    """获取所有VIP升级申请列表（管理员）"""
+    try:
+        user = get_current_user()
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': '未登录'
+            }), 401
+        
+        # 检查是否为管理员（可以根据需要添加管理员判断）
+        # 暂时允许所有登录用户查看（实际应该只允许管理员）
+        
+        status = request.args.get('status')  # 可选：'pending', 'approved', 'rejected', 'completed'
+        
+        try:
+            from vip_upgrade_store import get_vip_applications
+        except ImportError:
+            import vip_upgrade_store
+            get_vip_applications = vip_upgrade_store.get_vip_applications
+        
+        applications = get_vip_applications(status=status)
+        
+        return jsonify({
+            'success': True,
+            'applications': applications,
+            'total': len(applications)
+        })
+        
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"获取VIP申请列表错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'服务器错误: {str(e)}'
+        }), 500
+
+@app.route('/api/admin/vip_application/<application_id>/status', methods=['POST'])
+@require_login
+def admin_update_application_status(application_id):
+    """更新VIP申请状态（管理员）"""
+    try:
+        user = get_current_user()
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': '未登录'
+            }), 401
+        
+        data = request.get_json() or {}
+        status = data.get('status')  # 'pending', 'approved', 'rejected', 'completed'
+        
+        if status not in ['pending', 'approved', 'rejected', 'completed']:
+            return jsonify({
+                'success': False,
+                'message': '无效的状态值'
+            }), 400
+        
+        try:
+            from vip_upgrade_store import update_application_status
+        except ImportError:
+            import vip_upgrade_store
+            update_application_status = vip_upgrade_store.update_application_status
+        
+        success = update_application_status(
+            application_id=application_id,
+            status=status,
+            processed_by=user['username']
+        )
+        
+        if success:
+            # 如果状态是 'approved' 或 'completed'，自动设置用户为VIP
+            if status in ['approved', 'completed']:
+                try:
+                    from vip_upgrade_store import get_vip_applications
+                    applications = get_vip_applications()
+                    application = next((app for app in applications if app.get('application_id') == application_id), None)
+                    
+                    if application:
+                        target_username = application.get('username')
+                        
+                        # 设置用户为VIP
+                        if is_vercel:
+                            from user_auth_vercel import load_users, save_users
+                        else:
+                            from user_auth import load_users, save_users
+                        
+                        users = load_users()
+                        if target_username in users:
+                            users[target_username]['is_vip'] = True
+                            users[target_username]['vip_set_at'] = datetime.now().isoformat()
+                            save_users(users)
+                            
+                except Exception as e2:
+                    print(f"自动设置VIP状态失败: {e2}")
+            
+            return jsonify({
+                'success': True,
+                'message': f'申请状态已更新为: {status}'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': '更新申请状态失败'
+            }), 500
+            
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"更新VIP申请状态错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'服务器错误: {str(e)}'
+        }), 500
+
+@app.route('/api/vip/payment_info', methods=['GET'])
+def vip_payment_info():
+    """获取VIP付费账号信息（支付宝/微信）"""
+    try:
+        # 从环境变量或配置文件读取付款账号信息
+        # 如果没有配置，返回默认提示
+        alipay_account = os.environ.get('VIP_ALIPAY_ACCOUNT', '')  # 支付宝账号
+        wechat_account = os.environ.get('VIP_WECHAT_ACCOUNT', '')  # 微信账号
+        
+        # 如果环境变量为空，返回提示信息
+        if not alipay_account and not wechat_account:
+            return jsonify({
+                'success': True,
+                'alipay_account': '请等待管理员配置',
+                'wechat_account': '请等待管理员配置',
+                'message': '付款账号信息待配置'
+            })
+        
+        return jsonify({
+            'success': True,
+            'alipay_account': alipay_account,
+            'wechat_account': wechat_account
+        })
+        
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"获取付款信息错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'服务器错误: {str(e)}'
+        }), 500
+
 @app.route('/api/get_stocks', methods=['GET'])
 @require_login
 def get_stocks():

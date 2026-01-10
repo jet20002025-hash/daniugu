@@ -3404,7 +3404,8 @@
                 
                 const tier = user.tier || 'free';
                 if (tier !== 'premium' && tier !== 'super' && !user.is_super) {
-                    showMessage('导出功能仅限VIP用户使用，请升级为VIP会员', 'error');
+                    showMessage('导出功能仅限VIP用户使用', 'error');
+                    showVipUpgradeModal();  // 显示升级引导
                     return;
                 }
                 
@@ -3764,7 +3765,8 @@
                 // 检查用户等级（仅VIP和超级用户可以查看深度分析）
                 const user = await getUserInfo();
                 if (!user || (user.tier !== 'premium' && user.tier !== 'super' && !user.is_super)) {
-                    showMessage('个股深度分析功能仅限VIP用户使用，请升级为VIP会员', 'error');
+                    showMessage('个股深度分析功能仅限VIP用户使用', 'error');
+                    showVipUpgradeModal();  // 显示升级引导
                     return;
                 }
                 
@@ -3993,7 +3995,8 @@
                 // 检查用户等级
                 const user = await getUserInfo();
                 if (!user || (user.tier !== 'premium' && user.tier !== 'super' && !user.is_super)) {
-                    showMessage('关注列表功能仅限VIP用户使用，请升级为VIP会员', 'error');
+                    showMessage('关注列表功能仅限VIP用户使用', 'error');
+                    showVipUpgradeModal();  // 显示升级引导
                     return;
                 }
                 
@@ -4032,7 +4035,8 @@
                 // 检查用户等级
                 const user = await getUserInfo();
                 if (!user || (user.tier !== 'premium' && user.tier !== 'super' && !user.is_super)) {
-                    showMessage('关注列表功能仅限VIP用户使用，请升级为VIP会员', 'error');
+                    showMessage('关注列表功能仅限VIP用户使用', 'error');
+                    showVipUpgradeModal();  // 显示升级引导
                     return;
                 }
                 
@@ -4268,6 +4272,182 @@
                 modal.style.display = 'none';
             }
         }
+        
+        // VIP升级引导功能
+        async function showVipUpgradeModal() {
+            const modal = document.getElementById('vipUpgradeModal');
+            if (modal) {
+                modal.style.display = 'block';
+                // 加载付款信息
+                await loadPaymentInfo();
+                // 检查申请状态
+                checkVipApplicationStatus();
+            }
+        }
+        
+        // 加载付款信息
+        async function loadPaymentInfo() {
+            try {
+                const response = await fetch('/api/vip/payment_info', {
+                    method: 'GET',
+                    credentials: 'same-origin'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    const alipayEl = document.getElementById('alipayAccount');
+                    const wechatEl = document.getElementById('wechatAccount');
+                    
+                    if (alipayEl) {
+                        alipayEl.textContent = result.alipay_account || '请等待管理员配置';
+                    }
+                    if (wechatEl) {
+                        wechatEl.textContent = result.wechat_account || '请等待管理员配置';
+                    }
+                }
+            } catch (error) {
+                console.error('加载付款信息失败:', error);
+                const alipayEl = document.getElementById('alipayAccount');
+                const wechatEl = document.getElementById('wechatAccount');
+                if (alipayEl) alipayEl.textContent = '加载失败';
+                if (wechatEl) wechatEl.textContent = '加载失败';
+            }
+        }
+        
+        function closeVipUpgradeModal() {
+            const modal = document.getElementById('vipUpgradeModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+        
+        // 检查VIP申请状态
+        async function checkVipApplicationStatus() {
+            try {
+                const response = await fetch('/api/vip/check_application', {
+                    method: 'GET',
+                    credentials: 'same-origin'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success && result.has_application) {
+                    // 显示申请状态
+                    const formDiv = document.getElementById('vipApplicationForm');
+                    const statusDiv = document.getElementById('vipApplicationStatus');
+                    const statusContent = document.getElementById('applicationStatusContent');
+                    
+                    if (formDiv && statusDiv && statusContent) {
+                        formDiv.style.display = 'none';
+                        statusDiv.style.display = 'block';
+                        
+                        const status = result.application.status;
+                        const statusText = {
+                            'pending': '⏳ 待处理',
+                            'approved': '✅ 已批准',
+                            'rejected': '❌ 已拒绝',
+                            'completed': '✅ 已完成'
+                        }[status] || '未知';
+                        
+                        const statusColors = {
+                            'pending': '#ffc107',
+                            'approved': '#28a745',
+                            'rejected': '#dc3545',
+                            'completed': '#28a745'
+                        }[status] || '#999';
+                        
+                        statusContent.innerHTML = `
+                            <div style="margin-bottom: 15px;">
+                                <div style="font-size: 18px; font-weight: bold; color: ${statusColors}; margin-bottom: 10px;">${statusText}</div>
+                                <div style="font-size: 14px; color: #666; margin-bottom: 10px;">
+                                    <div><strong>套餐：</strong>${result.application.plan_name}</div>
+                                    <div><strong>金额：</strong>${result.application.amount}元</div>
+                                    <div><strong>申请时间：</strong>${new Date(result.application.created_at).toLocaleString('zh-CN')}</div>
+                                </div>
+                                ${status === 'pending' ? '<div style="font-size: 12px; color: #856404; background: #fff3cd; padding: 10px; border-radius: 5px; margin-top: 10px;">💡 我们会在24小时内处理您的申请，并通过您提供的联系方式与您确认付款信息。</div>' : ''}
+                            </div>
+                        `;
+                    }
+                } else {
+                    // 显示申请表单
+                    const formDiv = document.getElementById('vipApplicationForm');
+                    const statusDiv = document.getElementById('vipApplicationStatus');
+                    
+                    if (formDiv && statusDiv) {
+                        formDiv.style.display = 'block';
+                        statusDiv.style.display = 'none';
+                        // 清空表单
+                        document.getElementById('vipContact').value = '';
+                        document.getElementById('vipNote').value = '';
+                    }
+                }
+            } catch (error) {
+                console.error('检查VIP申请状态失败:', error);
+            }
+        }
+        
+        // 提交VIP申请
+        async function submitVipApplication() {
+            const plan = document.getElementById('vipPlan').value;
+            const contact = document.getElementById('vipContact').value.trim();
+            const note = document.getElementById('vipNote').value.trim();
+            
+            if (!contact) {
+                showMessage('请输入联系方式（微信/QQ/手机号）', 'error');
+                return;
+            }
+            
+            try {
+                showMessage('正在提交申请...', 'info');
+                
+                const response = await fetch('/api/vip/apply', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        plan: plan,
+                        contact: contact,
+                        note: note
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage(result.message, 'success');
+                    // 刷新申请状态
+                    setTimeout(() => {
+                        checkVipApplicationStatus();
+                    }, 1000);
+                } else {
+                    showMessage(result.message || '提交申请失败', 'error');
+                }
+            } catch (error) {
+                console.error('提交VIP申请失败:', error);
+                showMessage('提交申请失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 点击模态框外部关闭
+        window.onclick = function(event) {
+            const vipModal = document.getElementById('vipUpgradeModal');
+            if (event.target === vipModal) {
+                closeVipUpgradeModal();
+            }
+            
+            const watchlistModal = document.getElementById('watchlistModal');
+            if (event.target === watchlistModal) {
+                closeWatchlistModal();
+            }
+            
+            const stockDetailModal = document.getElementById('stockDetailModal');
+            if (event.target === stockDetailModal) {
+                closeStockDetailModal();
+            }
+        }
     </script>
     <div id="versionInfo"></div>
     
@@ -4289,6 +4469,114 @@
     
     <!-- 关注列表模态框 -->
     <div id="watchlistModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10001; overflow-y: auto;">
+        
+    <!-- VIP升级引导模态框 -->
+    <div id="vipUpgradeModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10002; overflow-y: auto;">
+        <div style="position: relative; width: 90%; max-width: 900px; margin: 20px auto; background: white; border-radius: 12px; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 2px solid #eee; padding-bottom: 15px;">
+                <h2 style="margin: 0; color: #333; font-size: 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">💎 升级VIP会员</h2>
+                <button onclick="closeVipUpgradeModal()" style="background: #e74c3c; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 16px;">✕ 关闭</button>
+            </div>
+            
+            <!-- VIP功能列表 -->
+            <div style="margin-bottom: 30px;">
+                <h3 style="color: #667eea; margin-bottom: 15px; font-size: 18px;">✨ VIP专享功能</h3>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 20px;">
+                    <div style="padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+                        <div style="font-weight: bold; color: #333; margin-bottom: 5px;">🔍 无限次手动扫描</div>
+                        <div style="font-size: 12px; color: #666;">随时随地扫描全市场，无次数限制</div>
+                    </div>
+                    <div style="padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+                        <div style="font-weight: bold; color: #333; margin-bottom: 5px;">⚡ 扫描速度提升2-3倍</div>
+                        <div style="font-size: 12px; color: #666;">20-30分钟完成全市场扫描</div>
+                    </div>
+                    <div style="padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+                        <div style="font-weight: bold; color: #333; margin-bottom: 5px;">🔬 个股深度分析</div>
+                        <div style="font-size: 12px; color: #666;">详细特征分析、涨跌幅预测</div>
+                    </div>
+                    <div style="padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+                        <div style="font-weight: bold; color: #333; margin-bottom: 5px;">⭐ 关注列表和价格预警</div>
+                        <div style="font-size: 12px; color: #666;">最多关注50只股票，价格提醒</div>
+                    </div>
+                    <div style="padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+                        <div style="font-weight: bold; color: #333; margin-bottom: 5px;">📊 历史记录30天</div>
+                        <div style="font-size: 12px; color: #666;">查看30天内的所有扫描结果</div>
+                    </div>
+                    <div style="padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+                        <div style="font-weight: bold; color: #333; margin-bottom: 5px;">📤 扫描结果导出</div>
+                        <div style="font-size: 12px; color: #666;">Excel/CSV格式导出</div>
+                    </div>
+                    <div style="padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+                        <div style="font-weight: bold; color: #333; margin-bottom: 5px;">🎯 自定义扫描参数</div>
+                        <div style="font-size: 12px; color: #666;">匹配度、市值、行业等筛选</div>
+                    </div>
+                    <div style="padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+                        <div style="font-weight: bold; color: #333; margin-bottom: 5px;">🔄 扫描结果对比</div>
+                        <div style="font-size: 12px; color: #666;">对比不同时间的扫描结果</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 价格方案 -->
+            <div style="margin-bottom: 30px; padding: 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 10px;">
+                <h3 style="color: #667eea; margin-bottom: 20px; font-size: 18px; text-align: center;">💰 价格方案</h3>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
+                    <div style="padding: 20px; background: white; border-radius: 8px; border: 2px solid #667eea; text-align: center;">
+                        <div style="font-size: 28px; font-weight: bold; color: #667eea; margin-bottom: 5px;">99元</div>
+                        <div style="font-size: 14px; color: #666; margin-bottom: 15px;">月费</div>
+                        <div style="font-size: 12px; color: #999;">适合偶尔使用的用户</div>
+                    </div>
+                    <div style="padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; border: 2px solid #764ba2; text-align: center; color: white; position: relative;">
+                        <div style="position: absolute; top: -10px; right: 10px; background: #ff4444; color: white; padding: 5px 10px; border-radius: 15px; font-size: 12px; font-weight: bold;">推荐</div>
+                        <div style="font-size: 28px; font-weight: bold; margin-bottom: 5px;">999元</div>
+                        <div style="font-size: 14px; margin-bottom: 5px;">年费（约83元/月）</div>
+                        <div style="font-size: 12px; opacity: 0.9;">节省16%，适合长期使用</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 付费申请表单 -->
+            <div id="vipApplicationForm">
+                <h3 style="color: #667eea; margin-bottom: 15px; font-size: 18px;">📝 填写申请信息</h3>
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; color: #333; font-weight: 500;">选择套餐 *</label>
+                    <select id="vipPlan" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;">
+                        <option value="monthly">月费：99元/月</option>
+                        <option value="yearly" selected>年费：999元/年（推荐，节省16%）</option>
+                    </select>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; color: #333; font-weight: 500;">联系方式 *</label>
+                    <input type="text" id="vipContact" placeholder="请输入微信/QQ/手机号" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;">
+                    <small style="color: #999; font-size: 12px;">我们将通过此联系方式与您确认付款和开通VIP</small>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 5px; color: #333; font-weight: 500;">备注信息（选填）</label>
+                    <textarea id="vipNote" placeholder="如有特殊需求，请在此填写" rows="3" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px; resize: vertical;"></textarea>
+                </div>
+                
+                <!-- 付款信息（管理员配置） -->
+                <div style="margin-bottom: 20px; padding: 15px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107;">
+                    <div style="font-weight: bold; color: #856404; margin-bottom: 10px;">💳 付款方式</div>
+                    <div style="font-size: 14px; color: #856404; line-height: 1.8;">
+                        <div><strong>支付宝账号：</strong><span id="alipayAccount">加载中...</span></div>
+                        <div><strong>微信账号：</strong><span id="wechatAccount">加载中...</span></div>
+                        <div style="margin-top: 10px; font-size: 12px; color: #856404;">💡 提交申请后，我们会通过您提供的联系方式与您确认付款信息。付款完成后，我们会在24小时内为您开通VIP。</div>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button onclick="closeVipUpgradeModal()" style="padding: 12px 24px; background: #95a5a6; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">取消</button>
+                    <button onclick="submitVipApplication()" style="padding: 12px 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;">提交申请</button>
+                </div>
+            </div>
+            
+            <!-- 申请状态显示 -->
+            <div id="vipApplicationStatus" style="display: none; padding: 20px; background: #f8f9fa; border-radius: 8px; text-align: center;">
+                <div id="applicationStatusContent"></div>
+            </div>
+        </div>
+    </div>
         <div style="position: relative; width: 90%; max-width: 1400px; margin: 20px auto; background: white; border-radius: 8px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 15px;">
                 <h2 style="margin: 0; color: #333; font-size: 20px;">⭐ 我的关注列表（VIP专享）</h2>
