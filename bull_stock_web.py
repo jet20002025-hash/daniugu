@@ -5,6 +5,8 @@
 提供添加大牛股的功能
 """
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for, send_file
+import requests
+import threading
 from bull_stock_analyzer import BullStockAnalyzer
 from technical_analysis import TechnicalAnalysis
 from datetime import datetime
