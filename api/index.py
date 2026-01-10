@@ -64,6 +64,10 @@ except Exception as e:
     from flask import Flask, jsonify
     app = Flask(__name__)
     
+    # 保存导入错误信息，以便在函数内部使用（使用闭包）
+    import_error = str(e)
+    import_error_type = type(e).__name__
+    
     # 添加全局错误处理器，确保所有错误都返回 JSON 格式
     @app.errorhandler(Exception)
     def handle_import_error(error):
@@ -81,7 +85,8 @@ except Exception as e:
                 'error': str(error),
                 'message': '导入 bull_stock_web 失败',
                 'error_type': error_type,
-                'import_error': str(e),
+                'import_error': import_error,
+                'import_error_type': import_error_type,
                 'path': request.path,
                 'method': request.method
             }), 500
@@ -101,22 +106,24 @@ except Exception as e:
         if has_request_context() and request.path.startswith('/api/'):
             return jsonify({
                 'success': False,
-                'error': str(e),
+                'error': import_error,
                 'message': '导入 bull_stock_web 失败',
+                'import_error_type': import_error_type,
                 'path': request.path,
                 'method': request.method
             }), 500
-        return f"<h1>服务器错误</h1><p>导入 bull_stock_web 失败: {e}</p>", 500
+        return f"<h1>服务器错误</h1><p>导入 bull_stock_web 失败: {import_error}</p>", 500
     
     @app.route('/api/health', methods=['GET'])
     def health():
         return jsonify({
             'success': False,
-            'error': str(e),
-            'message': '导入 bull_stock_web 失败'
+            'error': import_error,
+            'message': '导入 bull_stock_web 失败',
+            'import_error_type': import_error_type
         }), 500
     
-    print(f"❌ 导入 bull_stock_web 失败: {e}")
+    print(f"❌ 导入 bull_stock_web 失败: {import_error}")
     import traceback
     traceback.print_exc()
 
