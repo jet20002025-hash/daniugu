@@ -3157,6 +3157,371 @@ def get_vip_scan_history():
         }), 500
 
 
+@app.route('/api/add_to_watchlist', methods=['POST'])
+@require_login
+def add_to_watchlist():
+    """添加到关注列表（VIP专享功能）"""
+    try:
+        import watchlist_store
+        
+        # 获取用户信息和等级
+        user = get_current_user()
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': '请先登录'
+            }), 401
+        
+        user_tier = get_user_tier()
+        username = user.get('username', 'anonymous')
+        
+        # 检查用户等级（仅VIP和超级用户可以使用关注列表）
+        if user_tier != 'premium' and user_tier != 'super':
+            is_super = user.get('is_super', False)
+            if not is_super:
+                return jsonify({
+                    'success': False,
+                    'message': '关注列表功能仅限VIP用户使用，请升级为VIP会员'
+                }), 403
+        
+        data = request.get_json() or {}
+        stock_info = data.get('stock_info', {})
+        
+        if not stock_info:
+            return jsonify({
+                'success': False,
+                'message': '股票信息不能为空'
+            }), 400
+        
+        # 添加到关注列表
+        success = watchlist_store.add_to_watchlist(username, stock_info)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '已添加到关注列表'
+            })
+        else:
+            # 检查是否是已存在或已达到上限
+            watchlist = watchlist_store.get_watchlist(username)
+            if len(watchlist) >= 50:
+                return jsonify({
+                    'success': False,
+                    'message': '关注列表已满（最多50只股票），请先删除一些股票'
+                }), 400
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': '该股票已在关注列表中'
+                }), 400
+        
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"[add_to_watchlist] ❌ 添加关注列表失败: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'添加关注列表失败: {str(e)}'
+        }), 500
+
+
+@app.route('/api/remove_from_watchlist', methods=['POST'])
+@require_login
+def remove_from_watchlist():
+    """从关注列表删除（VIP专享功能）"""
+    try:
+        import watchlist_store
+        
+        # 获取用户信息和等级
+        user = get_current_user()
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': '请先登录'
+            }), 401
+        
+        user_tier = get_user_tier()
+        username = user.get('username', 'anonymous')
+        
+        # 检查用户等级（仅VIP和超级用户可以使用关注列表）
+        if user_tier != 'premium' and user_tier != 'super':
+            is_super = user.get('is_super', False)
+            if not is_super:
+                return jsonify({
+                    'success': False,
+                    'message': '关注列表功能仅限VIP用户使用，请升级为VIP会员'
+                }), 403
+        
+        data = request.get_json() or {}
+        stock_code = (data.get('stock_code') or '').strip()
+        
+        if not stock_code:
+            return jsonify({
+                'success': False,
+                'message': '股票代码不能为空'
+            }), 400
+        
+        # 从关注列表删除
+        success = watchlist_store.remove_from_watchlist(username, stock_code)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '已从关注列表删除'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': '删除失败'
+            }), 400
+        
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"[remove_from_watchlist] ❌ 删除关注列表失败: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'删除关注列表失败: {str(e)}'
+        }), 500
+
+
+@app.route('/api/get_watchlist', methods=['GET'])
+@require_login
+def get_watchlist():
+    """获取关注列表（VIP专享功能）"""
+    try:
+        import watchlist_store
+        
+        # 获取用户信息和等级
+        user = get_current_user()
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': '请先登录'
+            }), 401
+        
+        user_tier = get_user_tier()
+        username = user.get('username', 'anonymous')
+        
+        # 检查用户等级（仅VIP和超级用户可以使用关注列表）
+        if user_tier != 'premium' and user_tier != 'super':
+            is_super = user.get('is_super', False)
+            if not is_super:
+                return jsonify({
+                    'success': False,
+                    'message': '关注列表功能仅限VIP用户使用，请升级为VIP会员'
+                }), 403
+        
+        # 获取关注列表
+        watchlist = watchlist_store.get_watchlist(username)
+        
+        # 可选：更新当前价格（如果需要）
+        # 这里暂时不更新，用户可以在查看时手动刷新
+        
+        return jsonify({
+            'success': True,
+            'message': f'找到 {len(watchlist)} 只关注的股票',
+            'watchlist': watchlist,
+            'count': len(watchlist),
+            'max_count': 50
+        })
+        
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"[get_watchlist] ❌ 获取关注列表失败: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'获取关注列表失败: {str(e)}',
+            'watchlist': []
+        }), 500
+
+
+@app.route('/api/set_price_alert', methods=['POST'])
+@require_login
+def set_price_alert():
+    """设置价格预警（VIP专享功能）"""
+    try:
+        import watchlist_store
+        
+        # 获取用户信息和等级
+        user = get_current_user()
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': '请先登录'
+            }), 401
+        
+        user_tier = get_user_tier()
+        username = user.get('username', 'anonymous')
+        
+        # 检查用户等级（仅VIP和超级用户可以使用价格预警）
+        if user_tier != 'premium' and user_tier != 'super':
+            is_super = user.get('is_super', False)
+            if not is_super:
+                return jsonify({
+                    'success': False,
+                    'message': '价格预警功能仅限VIP用户使用，请升级为VIP会员'
+                }), 403
+        
+        data = request.get_json() or {}
+        stock_code = (data.get('stock_code') or '').strip()
+        stock_name = data.get('stock_name', '').strip()
+        price_high = data.get('price_high')  # 价格上限（可选）
+        price_low = data.get('price_low')  # 价格下限（可选）
+        
+        if not stock_code:
+            return jsonify({
+                'success': False,
+                'message': '股票代码不能为空'
+            }), 400
+        
+        if price_high is None and price_low is None:
+            return jsonify({
+                'success': False,
+                'message': '请至少设置价格上限或下限'
+            }), 400
+        
+        # 构建预警信息
+        alert_info = {
+            'stock_code': stock_code,
+            'stock_name': stock_name,
+            'price_high': float(price_high) if price_high is not None else None,
+            'price_low': float(price_low) if price_low is not None else None
+        }
+        
+        # 保存价格预警
+        success = watchlist_store.save_price_alert(username, alert_info)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '价格预警设置成功'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': '价格预警设置失败'
+            }), 500
+        
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"[set_price_alert] ❌ 设置价格预警失败: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'设置价格预警失败: {str(e)}'
+        }), 500
+
+
+@app.route('/api/get_price_alerts', methods=['GET'])
+@require_login
+def get_price_alerts():
+    """获取价格预警列表（VIP专享功能）"""
+    try:
+        import watchlist_store
+        
+        # 获取用户信息和等级
+        user = get_current_user()
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': '请先登录'
+            }), 401
+        
+        user_tier = get_user_tier()
+        username = user.get('username', 'anonymous')
+        
+        # 检查用户等级（仅VIP和超级用户可以使用价格预警）
+        if user_tier != 'premium' and user_tier != 'super':
+            is_super = user.get('is_super', False)
+            if not is_super:
+                return jsonify({
+                    'success': False,
+                    'message': '价格预警功能仅限VIP用户使用，请升级为VIP会员'
+                }), 403
+        
+        # 获取价格预警列表
+        alerts = watchlist_store.get_price_alerts(username)
+        
+        return jsonify({
+            'success': True,
+            'message': f'找到 {len(alerts)} 个价格预警',
+            'alerts': alerts,
+            'count': len(alerts)
+        })
+        
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"[get_price_alerts] ❌ 获取价格预警失败: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'获取价格预警失败: {str(e)}',
+            'alerts': []
+        }), 500
+
+
+@app.route('/api/remove_price_alert', methods=['POST'])
+@require_login
+def remove_price_alert():
+    """删除价格预警（VIP专享功能）"""
+    try:
+        import watchlist_store
+        
+        # 获取用户信息和等级
+        user = get_current_user()
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': '请先登录'
+            }), 401
+        
+        user_tier = get_user_tier()
+        username = user.get('username', 'anonymous')
+        
+        # 检查用户等级（仅VIP和超级用户可以使用价格预警）
+        if user_tier != 'premium' and user_tier != 'super':
+            is_super = user.get('is_super', False)
+            if not is_super:
+                return jsonify({
+                    'success': False,
+                    'message': '价格预警功能仅限VIP用户使用，请升级为VIP会员'
+                }), 403
+        
+        data = request.get_json() or {}
+        stock_code = (data.get('stock_code') or '').strip()
+        
+        if not stock_code:
+            return jsonify({
+                'success': False,
+                'message': '股票代码不能为空'
+            }), 400
+        
+        # 删除价格预警
+        success = watchlist_store.remove_price_alert(username, stock_code)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': '价格预警已删除'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': '删除失败'
+            }), 400
+        
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"[remove_price_alert] ❌ 删除价格预警失败: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'删除价格预警失败: {str(e)}'
+        }), 500
+
+
 @app.route('/api/search_stock', methods=['POST'])
 @require_login
 def search_stock():
