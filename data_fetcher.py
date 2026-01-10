@@ -138,14 +138,16 @@ class DataFetcher:
         import threading
         import os
         
-        # 首先尝试从缓存获取
+        # 首先尝试从缓存获取（优先从缓存读取，避免每次调用 akshare API）
         print("[get_all_stocks] 尝试从缓存获取股票列表...")
         cached_stocks = self._get_stock_list_from_cache()
         if cached_stocks is not None and len(cached_stocks) > 0:
             self.stock_list = cached_stocks
+            print(f"[get_all_stocks] ✅ 从缓存获取成功，股票数: {len(cached_stocks)} 只（无需调用 akshare API）")
             return cached_stocks
         
-        print("[get_all_stocks] 缓存中没有股票列表，开始从 akshare API 获取...")
+        print("[get_all_stocks] ⚠️ 缓存中没有股票列表，开始从 akshare API 获取...")
+        print("[get_all_stocks] 💡 提示：建议在交易时间段通过 Cron Job 自动刷新缓存，避免扫描时超时")
         
         # 检测 Vercel 环境，在 Vercel 中使用更短的超时和更少的重试
         is_vercel = (
@@ -160,6 +162,7 @@ class DataFetcher:
             timeout = min(timeout, 5)  # Vercel 中最多5秒，留出5秒给其他处理
             max_retries = 1  # Vercel 中只尝试1次，避免超过执行时间限制
             print(f"[get_all_stocks] Vercel 环境检测到，使用超短超时时间: {timeout}秒，只尝试 {max_retries} 次（避免超过10秒限制）")
+            print(f"[get_all_stocks] ⚠️ 如果缓存不存在，可能会因为 akshare API 响应慢而导致超时")
         else:
             max_retries = min(max_retries, 3)  # 本地环境中最多重试3次
             print(f"[get_all_stocks] 本地环境，超时时间: {timeout}秒，最多重试 {max_retries} 次")

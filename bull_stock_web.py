@@ -1989,9 +1989,9 @@ def scan_all_stocks():
             
             if stock_list is None or len(stock_list) == 0:
                 print(f"[scan_all_stocks] ❌ 股票列表为空: stock_list={stock_list}, len={len(stock_list) if stock_list is not None else 0}")
-                error_msg = '无法获取股票列表\n\n可能的原因：\n1. 网络连接问题（Vercel 环境网络限制）\n2. akshare 服务暂时不可用\n3. 超时（Vercel 函数执行时间限制为 10 秒）\n\n建议：\n- 请稍后重试\n- 如果问题持续，可能是 akshare 服务暂时不可用\n- 可以尝试在非高峰时段重试'
+                error_msg = '无法获取股票列表\n\n可能的原因：\n1. 缓存未刷新（股票列表缓存可能尚未生成）\n2. 网络连接问题（Vercel 环境网络限制）\n3. akshare 服务暂时不可用\n4. 超时（Vercel 函数执行时间限制为 10 秒）\n\n建议：\n- 股票列表缓存会在交易时间段（9:30-11:30, 13:00-15:00）每5分钟自动刷新，请稍候再试\n- 盘后（15:05）也会自动刷新一次缓存\n- 如果问题持续，可能是 akshare 服务暂时不可用'
                 if is_vercel:
-                    error_msg += '\n\n注意：Vercel serverless 函数有 10 秒执行时间限制，如果 akshare 服务响应慢，可能导致超时。'
+                    error_msg += '\n\n💡 提示：系统会在交易时间段自动刷新股票列表缓存，扫描时优先从缓存读取，避免超时。'
                 return jsonify({
                     'success': False,
                     'message': error_msg
@@ -3958,6 +3958,186 @@ def search_stock():
         return jsonify({
             'success': False,
             'message': f'检索失败: {str(e)}'
+        }), 500
+
+
+@app.route('/api/refresh_stock_cache', methods=['GET', 'POST'])
+def refresh_stock_cache():
+    """
+    刷新股票列表缓存的 Cron Job 端点
+    在交易时间段（9:30-11:30, 13:00-15:00）每5分钟刷新一次
+    盘后（15:05）刷新一次
+    无需登录（Cron Job 调用）
+    """
+    try:
+        from datetime import datetime, timezone, timedelta
+        
+        def get_beijing_time():
+            """获取北京时间（UTC+8）"""
+            utc_now = datetime.now(timezone.utc)
+            beijing_tz = timezone(timedelta(hours=8))
+            beijing_now = utc_now.astimezone(beijing_tz)
+            return beijing_now
+        
+        def is_trading_time(beijing_now):
+            """判断是否在交易时间段（9:30-11:30, 13:00-15:00）或盘后时间（15:05）"""
+            current_hour = beijing_now.hour
+            current_minute = beijing_now.minute
+            
+            # 上午交易时间：9:30-11:30
+            if current_hour == 9 and current_minute >= 30:
+                return True
+            if current_hour == 10:
+                return True
+            if current_hour == 11 and current_minute <= 30:
+                return True
+            
+            # 下午交易时间：13:00-15:00
+            if current_hour == 13 or current_hour == 14:
+                return True
+            if current_hour == 15 and current_minute == 0:
+                return True
+            
+            # 盘后时间：15:05（15:05执行一次）
+            if current_hour == 15 and current_minute == 5:
+                return True
+            
+            return False
+        
+        beijing_now = get_beijing_time()
+        current_time_str = beijing_now.strftime('%Y-%m-%d %H:%M:%S')
+        
+        # 检查是否在交易时间或盘后时间
+        if not is_trading_time(beijing_now):
+            return jsonify({
+                'success': False,
+                'message': f'当前时间不在交易时间段或盘后时间（当前时间: {current_time_str}）',
+                'current_time': current_time_str,
+                'trading_hours': '9:30-11:30, 13:00-15:00（每5分钟刷新），15:05（盘后刷新）'
+            }), 200
+        
+        print(f"[refresh_stock_cache] 开始刷新股票列表缓存 - 时间: {current_time_str}")
+        
+        # 确保分析器已初始化
+        init_analyzer()
+        
+        if analyzer is None or analyzer.fetcher is None:
+            return jsonify({
+                'success': False,
+                'message': '分析器未初始化',
+                'current_time': current_time_str
+            }), 500
+        
+        # 从 akshare API 获取股票列表（后台任务可以使用更长的超时）
+        print("[refresh_stock_cache] 从 akshare API 获取股票列表...")
+        # 注意：这是后台 Cron Job 任务，允许使用更长的超时时间
+        # 直接调用 akshare API，不使用 get_all_stocks 的限制（因为它会自动限制 Vercel 环境的超时）
+        try:
+            import akshare as ak
+            import threading
+            import time as time_module
+            
+            result = [None]
+            error = [None]
+            start_time = time_module.time()
+            
+            def fetch_stocks():
+                try:
+                    print("[refresh_stock_cache] 开始调用 ak.stock_info_a_code_name()...")
+                    result[0] = ak.stock_info_a_code_name()
+                    elapsed = time_module.time() - start_time
+                    print(f"[refresh_stock_cache] ✅ ak.stock_info_a_code_name() 调用成功，耗时 {elapsed:.2f}秒")
+                except Exception as e:
+                    error[0] = e
+                    elapsed = time_module.time() - start_time
+                    print(f"[refresh_stock_cache] ❌ 调用失败（耗时 {elapsed:.2f}秒）: {e}")
+                    import traceback
+                    print(f"[refresh_stock_cache] 错误详情: {traceback.format_exc()}")
+            
+            fetch_thread = threading.Thread(target=fetch_stocks)
+            fetch_thread.daemon = True
+            fetch_thread.start()
+            fetch_thread.join(timeout=30)  # Cron Job 任务允许30秒超时
+            
+            elapsed_total = time_module.time() - start_time
+            
+            if fetch_thread.is_alive():
+                print(f"[refresh_stock_cache] ⏱️ 获取超时（>{30}秒，实际耗时 {elapsed_total:.2f}秒）")
+                return jsonify({
+                    'success': False,
+                    'message': f'获取股票列表超时（>{30}秒），请稍后重试',
+                    'current_time': current_time_str
+                }), 500
+            
+            if error[0]:
+                print(f"[refresh_stock_cache] ❌ 获取出错（耗时 {elapsed_total:.2f}秒）: {error[0]}")
+                return jsonify({
+                    'success': False,
+                    'message': f'获取股票列表失败: {str(error[0])}',
+                    'current_time': current_time_str
+                }), 500
+            
+            if result[0] is None or len(result[0]) == 0:
+                print(f"[refresh_stock_cache] ⚠️ 返回结果为空（耗时 {elapsed_total:.2f}秒）")
+                return jsonify({
+                    'success': False,
+                    'message': '获取股票列表返回空数据',
+                    'current_time': current_time_str
+                }), 500
+            
+            stock_list = result[0]
+            
+            # 将股票列表保存到缓存
+            print(f"[refresh_stock_cache] 获取到 {len(stock_list)} 只股票，开始保存到缓存...")
+            cache_success = analyzer.fetcher._save_stock_list_to_cache(stock_list)
+            if cache_success:
+                print(f"[refresh_stock_cache] ✅ 股票列表已保存到缓存（耗时 {elapsed_total:.2f}秒）")
+            else:
+                print(f"[refresh_stock_cache] ⚠️ 保存到缓存失败，但已获取股票列表（耗时 {elapsed_total:.2f}秒）")
+            
+            # 更新分析器的股票列表
+            analyzer.fetcher.stock_list = stock_list
+            
+            # 保存到缓存（已经在上面保存了，这里只是确认）
+            print(f"[refresh_stock_cache] ✅ 成功刷新股票列表缓存，股票数: {len(stock_list)}")
+            
+            return jsonify({
+                'success': True,
+                'message': f'股票列表缓存已刷新（{len(stock_list)} 只股票）',
+                'stock_count': len(stock_list),
+                'current_time': current_time_str,
+                'cache_ttl': '24小时'
+            }), 200
+            
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"[refresh_stock_cache] ❌ 获取股票列表异常: {error_detail}")
+            return jsonify({
+                'success': False,
+                'message': f'获取股票列表异常: {str(e)}',
+                'error': error_detail,
+                'current_time': current_time_str
+            }), 500
+            
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"[refresh_stock_cache] ❌ 错误: {error_detail}")
+        from datetime import datetime, timezone, timedelta
+        try:
+            utc_now = datetime.now(timezone.utc)
+            beijing_tz = timezone(timedelta(hours=8))
+            beijing_now = utc_now.astimezone(beijing_tz)
+            current_time_str = beijing_now.strftime('%Y-%m-%d %H:%M:%S')
+        except:
+            current_time_str = 'unknown'
+        
+        return jsonify({
+            'success': False,
+            'message': f'刷新股票列表缓存失败: {str(e)}',
+            'error': error_detail,
+            'current_time': current_time_str
         }), 500
 
 
