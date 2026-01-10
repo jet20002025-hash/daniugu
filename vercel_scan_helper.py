@@ -292,9 +292,9 @@ def process_scan_batch_vercel(
                     # 只保留最近10次扫描
                     scan_ids_list = scan_ids_list[-10:]
                     
-                    # 保存回Redis（TTL 7天 = 604800秒）
+                    # 保存回Redis（TTL 30天 = 2592000秒）
                     if hasattr(scan_progress_store, '_upstash_redis_set'):
-                        scan_progress_store._upstash_redis_set(user_history_key, json.dumps(scan_ids_list, ensure_ascii=False), ttl=604800)
+                        scan_progress_store._upstash_redis_set(user_history_key, json.dumps(scan_ids_list, ensure_ascii=False), ttl=2592000)
                         print(f"[vercel_scan_helper] ✅ VIP用户扫描历史已保存 - 用户: {username}, 日期: {current_date}, 扫描ID: {scan_id}")
             except Exception as e:
                 print(f"[vercel_scan_helper] ⚠️ 保存VIP用户扫描历史失败: {e}")

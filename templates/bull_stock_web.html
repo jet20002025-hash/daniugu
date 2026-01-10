@@ -403,11 +403,54 @@
                     <div id="webVersionButtons" style="display: none;">
                         <!-- VIP用户：可以扫描全市场（无限次） -->
                         <div id="vipUserButtons" style="display: none;">
-                            <button class="btn btn-primary" onclick="scanAllStocks()" style="background: #e74c3c;" id="scanAllStocksBtnWeb">🔍 扫描全市场（VIP无限次）</button>
-                            <button class="btn btn-primary" onclick="stopScan()" style="background: #95a5a6;" id="stopScanBtnWeb" disabled>🛑 停止扫描</button>
-                            <button class="btn btn-primary" onclick="viewVipScanHistory()" style="background: #9b59b6; font-size: 13px; padding: 8px 15px;">
-                                📚 查看历史记录（7天）
-                            </button>
+                            <!-- VIP自定义扫描参数（可折叠） -->
+                            <div id="vipScanParams" style="margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #9b59b6;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; cursor: pointer;" onclick="toggleVipScanParams()">
+                                    <h3 style="margin: 0; color: #333; font-size: 14px; font-weight: 600;">⚙️ 自定义扫描参数（VIP专享）</h3>
+                                    <span id="vipScanParamsToggle" style="color: #666; font-size: 12px;">▼ 展开</span>
+                                </div>
+                                <div id="vipScanParamsContent" style="display: none;">
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 10px;">
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">匹配度阈值</label>
+                                            <input type="number" id="minMatchScore" placeholder="0.97" value="0.97" min="0.8" max="1.0" step="0.01" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                                            <small style="color: #999; font-size: 11px;">范围：0.8-1.0</small>
+                                        </div>
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">最大市值（亿元）</label>
+                                            <input type="number" id="maxMarketCap" placeholder="100" value="100" min="0" max="500" step="1" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                                            <small style="color: #999; font-size: 11px;">范围：0-500亿</small>
+                                        </div>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 10px;">
+                                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 13px;">
+                                            <input type="checkbox" id="excludeST" checked style="cursor: pointer;">
+                                            <span>排除ST股票</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 13px;">
+                                            <input type="checkbox" id="excludeSuspended" checked style="cursor: pointer;">
+                                            <span>排除停牌股票</span>
+                                        </label>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 10px;">
+                                        <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">行业筛选（可选，留空表示全部）</label>
+                                        <input type="text" id="industryFilter" placeholder="例如：计算机、医药、电子" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                                        <small style="color: #999; font-size: 11px;">输入行业关键词，多个用逗号分隔</small>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">自定义股票池（可选，股票代码用逗号分隔）</label>
+                                        <textarea id="customStockPool" placeholder="例如：000001,000002,600000" rows="2" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px; resize: vertical;"></textarea>
+                                        <small style="color: #999; font-size: 11px;">留空表示扫描全市场</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                <button class="btn btn-primary" onclick="scanAllStocks()" style="background: #e74c3c;" id="scanAllStocksBtnWeb">🔍 扫描全市场（VIP无限次）</button>
+                                <button class="btn btn-primary" onclick="stopScan()" style="background: #95a5a6;" id="stopScanBtnWeb" disabled>🛑 停止扫描</button>
+                                <button class="btn btn-primary" onclick="viewVipScanHistory()" style="background: #9b59b6; font-size: 13px; padding: 8px 15px;">
+                                    📚 查看历史记录（30天）
+                                </button>
+                            </div>
                         </div>
                         
                         <!-- 免费用户：只显示查看结果按钮 -->
@@ -1714,28 +1757,58 @@
                 }
             }
             
-            if (!confirm('确定要扫描所有A股吗？这可能需要较长时间（约5000只股票）。')) {
-                return;
-            }
+            // 检查是否是VIP用户（是否有自定义参数面板）
+            const vipParamsPanel = document.getElementById('vipScanParams');
+            let minMatch, maxCap, scanLimit, excludeST, excludeSuspended, industryFilter, customStockPool;
             
-            // 获取参数
-            const minMatchInput = prompt('请输入最小匹配度（0-1，默认0.93）:', '0.93');
-            if (minMatchInput === null) {
-                return; // 用户取消
+            if (vipParamsPanel && vipParamsPanel.style.display !== 'none') {
+                // VIP用户：从表单获取参数
+                const minMatchScoreInput = document.getElementById('minMatchScore');
+                const maxMarketCapInput = document.getElementById('maxMarketCap');
+                const excludeSTInput = document.getElementById('excludeST');
+                const excludeSuspendedInput = document.getElementById('excludeSuspended');
+                const industryFilterInput = document.getElementById('industryFilter');
+                const customStockPoolInput = document.getElementById('customStockPool');
+                
+                minMatch = parseFloat(minMatchScoreInput?.value) || 0.97;
+                maxCap = parseFloat(maxMarketCapInput?.value) || 100;
+                excludeST = excludeSTInput?.checked !== false; // 默认true
+                excludeSuspended = excludeSuspendedInput?.checked !== false; // 默认true
+                industryFilter = (industryFilterInput?.value || '').trim();
+                customStockPool = (customStockPoolInput?.value || '').trim();
+                scanLimit = null; // VIP用户支持全市场扫描，不使用limit
+                
+                if (!confirm(`确定要开始扫描吗？\n\n扫描参数：\n- 匹配度阈值：${minMatch}\n- 最大市值：${maxCap}亿元\n- 排除ST股票：${excludeST ? '是' : '否'}\n- 排除停牌股票：${excludeSuspended ? '是' : '否'}\n${industryFilter ? `- 行业筛选：${industryFilter}\n` : ''}${customStockPool ? `- 自定义股票池：${customStockPool}\n` : ''}\n这可能需要较长时间（约5000只股票）。`)) {
+                    return;
+                }
+            } else {
+                // 非VIP用户或本地版本：使用prompt（保持兼容性）
+                if (!confirm('确定要扫描所有A股吗？这可能需要较长时间（约5000只股票）。')) {
+                    return;
+                }
+                
+                const minMatchInput = prompt('请输入最小匹配度（0-1，默认0.93）:', '0.93');
+                if (minMatchInput === null) {
+                    return; // 用户取消
+                }
+                minMatch = parseFloat(minMatchInput) || 0.93;
+                
+                const maxCapInput = prompt('请输入最大市值（亿元，默认100）:', '100');
+                if (maxCapInput === null) {
+                    return; // 用户取消
+                }
+                maxCap = parseFloat(maxCapInput) || 100;
+                
+                const limitInput = prompt('限制扫描数量（留空表示全部，建议先测试100只）:', '');
+                if (limitInput === null) {
+                    return; // 用户取消
+                }
+                scanLimit = limitInput ? parseInt(limitInput) : null;
+                excludeST = true;
+                excludeSuspended = true;
+                industryFilter = '';
+                customStockPool = '';
             }
-            const minMatch = parseFloat(minMatchInput) || 0.93;
-            
-            const maxCapInput = prompt('请输入最大市值（亿元，默认100）:', '100');
-            if (maxCapInput === null) {
-                return; // 用户取消
-            }
-            const maxCap = parseFloat(maxCapInput) || 100;
-            
-            const limitInput = prompt('限制扫描数量（留空表示全部，建议先测试100只）:', '');
-            if (limitInput === null) {
-                return; // 用户取消
-            }
-            const scanLimit = limitInput ? parseInt(limitInput) : null;
             
             console.log('开始扫描，参数:', { minMatch, maxCap, scanLimit });
             
@@ -1774,7 +1847,11 @@
                         body: JSON.stringify({
                             min_match_score: minMatch,
                             max_market_cap: maxCap,
-                            limit: scanLimit
+                            limit: scanLimit,
+                            exclude_st: excludeST,
+                            exclude_suspended: excludeSuspended,
+                            industry_filter: industryFilter,
+                            custom_stock_pool: customStockPool
                         }),
                         signal: controller.signal
                     });
@@ -3119,6 +3196,21 @@
             });
         }
         
+        // 切换VIP扫描参数面板
+        function toggleVipScanParams() {
+            const content = document.getElementById('vipScanParamsContent');
+            const toggle = document.getElementById('vipScanParamsToggle');
+            if (content && toggle) {
+                if (content.style.display === 'none' || !content.style.display) {
+                    content.style.display = 'block';
+                    toggle.textContent = '▲ 收起';
+                } else {
+                    content.style.display = 'none';
+                    toggle.textContent = '▼ 展开';
+                }
+            }
+        }
+        
         // 查看VIP扫描历史记录（VIP专享功能）
         async function viewVipScanHistory() {
             try {
@@ -3135,7 +3227,7 @@
                     const container = document.getElementById('buyPointsResult');
                     if (container) {
                         let html = '<div style="margin-top: 15px; padding: 20px; background: white; border-radius: 8px;">';
-                        html += `<h3 style="margin: 0 0 15px 0; color: #333; font-size: 18px;">📚 VIP扫描历史记录（最近7天）</h3>`;
+                        html += `<h3 style="margin: 0 0 15px 0; color: #333; font-size: 18px;">📚 VIP扫描历史记录（最近30天）</h3>`;
                         html += `<p style="color: #666; font-size: 13px; margin-bottom: 20px;">共找到 ${result.history.length} 条历史记录</p>`;
                         
                         // 按日期分组显示

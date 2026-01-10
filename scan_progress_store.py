@@ -268,11 +268,11 @@ def save_global_scan_results(scan_type: str, date_str: str, results: Dict) -> bo
         key = f'global_scan_results:{scan_type}:{date_str}'
         
         if _storage_type == 'upstash_redis':
-            # 全局扫描结果保存7天（604800秒）
-            return _upstash_redis_set(key, results, ttl=604800)
+            # 全局扫描结果保存30天（2592000秒）
+            return _upstash_redis_set(key, results, ttl=2592000)
         elif _storage_type == 'vercel_kv':
             from vercel_kv import kv
-            kv.set(key, json.dumps(results, default=str, ensure_ascii=False), ex=604800)
+            kv.set(key, json.dumps(results, default=str, ensure_ascii=False), ex=2592000)
             return True
         else:
             # 内存存储

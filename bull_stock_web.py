@@ -1430,6 +1430,12 @@ def scan_all_stocks():
         if limit:
             limit = int(limit)
         
+        # VIP用户自定义参数（第二阶段功能）
+        exclude_st = data.get('exclude_st', True)  # 默认排除ST股票
+        exclude_suspended = data.get('exclude_suspended', True)  # 默认排除停牌股票（暂不支持，预留）
+        industry_filter = data.get('industry_filter', '').strip()  # 行业筛选（暂不支持，预留）
+        custom_stock_pool = data.get('custom_stock_pool', '').strip()  # 自定义股票池（暂不支持，预留）
+        
         # 在 Vercel 环境中，使用分批处理方案
         if is_vercel:
             import uuid
@@ -1481,6 +1487,52 @@ def scan_all_stocks():
                     'success': False,
                     'message': '无法获取股票列表\n\n可能的原因：\n1. 网络连接问题\n2. akshare 服务暂时不可用\n3. Vercel 环境网络限制\n\n请稍后重试或检查网络连接。'
                 }), 500
+            
+            # VIP用户自定义筛选：排除ST股票
+            if exclude_st:
+                # 获取股票名称列（可能是 'name' 或 '名称'）
+                name_col = None
+                for col in stock_list.columns:
+                    col_lower = str(col).lower()
+                    if 'name' in col_lower or '名称' in col:
+                        name_col = col
+                        break
+                if name_col:
+                    stock_list = stock_list[~stock_list[name_col].astype(str).str.contains('ST', na=False)]
+                    print(f"[scan_all_stocks] 排除ST股票后，剩余股票数: {len(stock_list)}")
+            
+            # VIP用户自定义筛选：自定义股票池（如果指定）
+            if custom_stock_pool:
+                try:
+                    stock_codes = [code.strip() for code in custom_stock_pool.split(',') if code.strip()]
+                    if stock_codes:
+                        # 获取股票代码列
+                        code_col = None
+                        for col in stock_list.columns:
+                            col_lower = str(col).lower()
+                            if 'code' in col_lower or '代码' in col:
+                                code_col = col
+                                break
+                        if code_col:
+                            # 只保留指定代码的股票（去除前缀和后缀，只匹配6位数字）
+                            filtered_list = stock_list[stock_list[code_col].astype(str).str.replace(r'\.(SZ|SH)$', '', regex=True).str.replace(r'[^0-9]', '', regex=True).isin([code.replace('.SZ', '').replace('.SH', '').replace(r'[^0-9]', '') for code in stock_codes])]
+                            if len(filtered_list) > 0:
+                                stock_list = filtered_list
+                                print(f"[scan_all_stocks] 使用自定义股票池，股票数: {len(stock_list)}")
+                            else:
+                                print(f"[scan_all_stocks] ⚠️ 自定义股票池未找到匹配的股票")
+                except Exception as e:
+                    print(f"[scan_all_stocks] ⚠️ 处理自定义股票池失败: {e}")
+            
+            # VIP用户自定义筛选：行业筛选（暂不支持，预留接口）
+            # TODO: 实现行业筛选功能（需要获取股票行业信息）
+            if industry_filter:
+                print(f"[scan_all_stocks] ⚠️ 行业筛选功能暂未实现，参数: {industry_filter}")
+            
+            # VIP用户自定义筛选：排除停牌股票（暂不支持，预留接口）
+            # TODO: 实现停牌股票判断（需要实时查询股票状态）
+            if exclude_suspended:
+                print(f"[scan_all_stocks] ⚠️ 排除停牌股票功能暂未实现")
             
             total_stocks = len(stock_list)
             if limit:
@@ -2788,7 +2840,7 @@ def export_scan_results():
 @app.route('/api/get_vip_scan_history', methods=['GET'])
 @require_login
 def get_vip_scan_history():
-    """获取VIP用户扫描历史记录（7天）- VIP专享功能"""
+    """获取VIP用户扫描历史记录（30天）- VIP专享功能"""
     try:
         import json as json_module
         from scan_limit_helper import get_beijing_time
@@ -2818,8 +2870,8 @@ def get_vip_scan_history():
         beijing_now = get_beijing_time()
         history_results = []
         
-        # 获取最近7天的扫描历史
-        for i in range(7):
+        # 获取最近30天的扫描历史
+        for i in range(30):
             date = (beijing_now - timedelta(days=i))
             date_str = date.strftime('%Y-%m-%d')
             
