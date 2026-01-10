@@ -4628,14 +4628,16 @@ def refresh_stock_cache():
                 'retries': max_retries,
                 'error_type': 'all_retries_failed'
             }), 500
-            
+        
+        # 成功获取到股票列表，开始保存到缓存
+        try:
             # 将股票列表保存到缓存
             print(f"[refresh_stock_cache] 获取到 {len(stock_list)} 只股票，开始保存到缓存...")
             cache_success = analyzer.fetcher._save_stock_list_to_cache(stock_list)
             if cache_success:
-                print(f"[refresh_stock_cache] ✅ 股票列表已保存到缓存（耗时 {elapsed_total:.2f}秒）")
+                print(f"[refresh_stock_cache] ✅ 股票列表已保存到缓存")
             else:
-                print(f"[refresh_stock_cache] ⚠️ 保存到缓存失败，但已获取股票列表（耗时 {elapsed_total:.2f}秒）")
+                print(f"[refresh_stock_cache] ⚠️ 保存到缓存失败，但已获取股票列表")
             
             # 更新分析器的股票列表
             analyzer.fetcher.stock_list = stock_list
@@ -4654,10 +4656,10 @@ def refresh_stock_cache():
         except Exception as e:
             import traceback
             error_detail = traceback.format_exc()
-            print(f"[refresh_stock_cache] ❌ 获取股票列表异常: {error_detail}")
+            print(f"[refresh_stock_cache] ❌ 保存股票列表到缓存时异常: {error_detail}")
             return jsonify({
                 'success': False,
-                'message': f'获取股票列表异常: {str(e)}',
+                'message': f'保存股票列表到缓存时异常: {str(e)}',
                 'error': error_detail,
                 'current_time': current_time_str
             }), 500
