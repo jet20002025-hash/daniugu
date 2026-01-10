@@ -2099,8 +2099,10 @@ def scan_all_stocks():
                 
                 # 在 Vercel 环境中，使用更短的超时时间（避免超过执行时间限制）
                 # get_all_stocks 内部会根据环境自动调整超时和重试次数，并且会智能检查缓存年龄
-                # Vercel 中：超时5秒，只尝试1次；本地：超时15秒，最多重试3次
+                # 注意：即使在非交易时间段允许从 API 获取，Vercel 环境仍有 10 秒限制，可能超时
+                # Vercel 中：超时5秒（留出5秒给其他处理），只尝试1次；本地：超时15秒，最多重试3次
                 # 交易时间段内，如果缓存超过5分钟，会自动从API获取最新数据
+                # 非交易时间段，如果缓存不存在，会尝试从 API 获取（但可能超时，建议先手动刷新缓存）
                 stock_list = analyzer.fetcher.get_all_stocks(timeout=5 if is_vercel else 15, max_retries=1 if is_vercel else 3)
                 
                 elapsed = time_module.time() - scan_start_time
