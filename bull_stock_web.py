@@ -2120,44 +2120,88 @@ def scan_all_stocks():
             if stock_list is None or len(stock_list) == 0:
                 print(f"[scan_all_stocks] ❌ 股票列表为空: stock_list={stock_list}, len={len(stock_list) if stock_list is not None else 0}")
                 
+                # 检查当前时间，判断是否在交易时间段
+                from datetime import datetime, timezone, timedelta
+                try:
+                    utc_now = datetime.now(timezone.utc)
+                    beijing_tz = timezone(timedelta(hours=8))
+                    beijing_now = utc_now.astimezone(beijing_tz)
+                    current_time_str = beijing_now.strftime('%Y-%m-%d %H:%M:%S')
+                    current_hour = beijing_now.hour
+                    current_minute = beijing_now.minute
+                    is_in_trading_time = (
+                        (current_hour == 9 and current_minute >= 30) or
+                        (current_hour == 10) or
+                        (current_hour == 11 and current_minute <= 30) or
+                        (current_hour == 13) or
+                        (current_hour == 14) or
+                        (current_hour == 15 and current_minute <= 0)
+                    )
+                except Exception as e:
+                    print(f"[scan_all_stocks] ⚠️ 获取当前时间失败: {e}")
+                    is_in_trading_time = False
+                    current_time_str = "未知"
+                
                 # 检查缓存是否存在
                 cache_exists = False
                 try:
-                    cached_stocks = analyzer.fetcher._get_stock_list_from_cache()
+                    cached_stocks = analyzer.fetcher._get_stock_list_from_cache(check_age=False)
                     if cached_stocks is not None and len(cached_stocks) > 0:
                         cache_exists = True
-                        print(f"[scan_all_stocks] ⚠️ 缓存中存在股票列表，但读取后为空，尝试重新从 API 获取...")
+                        print(f"[scan_all_stocks] ⚠️ 缓存中存在股票列表，但 get_all_stocks 返回为空，可能是 API 调用失败")
                     else:
                         print(f"[scan_all_stocks] ⚠️ 缓存中不存在股票列表")
                 except Exception as e:
                     print(f"[scan_all_stocks] ⚠️ 检查缓存时出错: {e}")
                 
-                error_msg = '无法获取股票列表\n\n可能的原因：\n'
+                error_msg = '无法获取股票列表\n\n'
+                error_msg += f'当前时间: {current_time_str}\n'
+                error_msg += f'时间段: {"交易时间段内" if is_in_trading_time else "非交易时间段"}\n'
+                error_msg += f'缓存状态: {"存在" if cache_exists else "不存在"}\n\n'
+                
                 if not cache_exists:
-                    error_msg += '1. ⚠️ **缓存未刷新（股票列表缓存可能尚未生成）**\n'
-                    error_msg += '   - 股票列表缓存会在交易时间段（9:30-11:30, 13:00-15:00）每5分钟自动刷新\n'
-                    error_msg += '   - 盘后（15:05）也会自动刷新一次缓存\n'
-                    error_msg += '   - 如果当前不在交易时间，缓存可能尚未生成\n\n'
-                    error_msg += '💡 **解决方案（二选一）：**\n'
-                    error_msg += '   **方案1（推荐）：** 等待交易时间段（9:30-11:30, 13:00-15:00），系统会自动刷新缓存\n'
-                    error_msg += '   **方案2（手动）：** 手动触发缓存刷新：访问 https://www.daniugu.online/api/refresh_stock_cache?force=true\n'
+                    if is_in_trading_time:
+                        error_msg += '⚠️ **问题分析：**\n'
+                        error_msg += '当前在交易时间段内，缓存不存在，从 API 获取数据时超时或失败。\n\n'
+                        error_msg += '💡 **解决方案（按优先级）：**\n'
+                        error_msg += '**方案1（推荐）：** 手动触发缓存刷新：访问 https://www.daniugu.online/api/refresh_stock_cache?force=true\n'
+                        error_msg += '   - 手动刷新可能需要30秒，请耐心等待\n'
+                        error_msg += '   - 刷新成功后，再尝试扫描\n\n'
+                        error_msg += '**方案2：** 等待几分钟后重试（系统可能正在刷新缓存）\n\n'
+                    else:
+                        error_msg += '⚠️ **问题分析：**\n'
+                        error_msg += '当前不在交易时间段，缓存不存在，从 API 获取数据时超时或失败。\n'
+                        error_msg += '非交易时间段，akshare API 可能响应较慢，导致超时。\n\n'
+                        error_msg += '💡 **解决方案（按优先级）：**\n'
+                        error_msg += '**方案1（推荐）：** 手动触发缓存刷新：访问 https://www.daniugu.online/api/refresh_stock_cache?force=true\n'
+                        error_msg += '   - 手动刷新可能需要30秒，请耐心等待\n'
+                        error_msg += '   - 刷新成功后，再尝试扫描\n\n'
+                        error_msg += '**方案2：** 等待到交易时间段（9:30-11:30, 13:00-15:00）后重试\n'
+                        error_msg += '   - 交易时间段内，系统会自动刷新缓存\n\n'
+                        error_msg += '**方案3：** 稍后重试（可能是网络问题）\n\n'
+                else:
+                    error_msg += '⚠️ **问题分析：**\n'
+                    error_msg += '缓存存在，但从 API 获取数据时失败（可能是网络问题或 akshare 服务暂时不可用）。\n\n'
+                    error_msg += '💡 **解决方案：**\n'
+                    error_msg += '**方案1（推荐）：** 稍后重试（可能是网络波动或 akshare 服务暂时不可用）\n\n'
+                    error_msg += '**方案2：** 手动触发缓存刷新：访问 https://www.daniugu.online/api/refresh_stock_cache?force=true\n'
                     error_msg += '   - 手动刷新可能需要30秒，请耐心等待\n'
                     error_msg += '   - 刷新成功后，再尝试扫描\n\n'
-                    error_msg += '2. 网络连接问题（Vercel 环境网络限制）\n'
-                    error_msg += '3. akshare 服务暂时不可用\n'
-                    error_msg += '4. 超时（Vercel 函数执行时间限制为 10 秒）\n'
-                else:
-                    error_msg += '1. 缓存存在但读取失败\n'
-                    error_msg += '2. 网络连接问题（Vercel 环境网络限制）\n'
-                    error_msg += '3. akshare 服务暂时不可用\n'
-                    error_msg += '4. 超时（Vercel 函数执行时间限制为 10 秒）\n\n'
-                    error_msg += '💡 建议：请稍后重试，或等待系统自动刷新缓存\n'
                 
+                error_msg += '📌 **技术说明：**\n'
                 if is_vercel:
-                    error_msg += '\n📌 注意：系统会在交易时间段自动刷新股票列表缓存，扫描时优先从缓存读取，避免超时。'
+                    error_msg += '- Vercel 环境有 10 秒执行时间限制\n'
+                    error_msg += '- 从 akshare API 获取股票列表可能需要较长时间\n'
+                    error_msg += '- 如果缓存不存在，从 API 获取可能超时\n'
+                error_msg += '- 建议在交易时间段（9:30-11:30, 13:00-15:00）使用，此时缓存会自动刷新\n'
+                
                 return jsonify({
                     'success': False,
-                    'message': error_msg
+                    'message': error_msg,
+                    'cache_exists': cache_exists,
+                    'is_in_trading_time': is_in_trading_time,
+                    'current_time': current_time_str,
+                    'suggestion': '手动刷新缓存' if not cache_exists else '稍后重试'
                 }), 500
             
             # VIP用户自定义筛选：排除ST股票
