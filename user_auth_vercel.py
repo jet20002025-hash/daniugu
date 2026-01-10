@@ -66,6 +66,9 @@ def get_invite_codes_from_env():
 _users_cache = {}
 _invite_codes_cache = None
 
+# 初始化标志（避免重复初始化）
+_test_users_initialized = False
+
 def hash_password(password):
     """加密密码"""
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
@@ -172,6 +175,101 @@ def save_users(users):
     
     # 即使保存失败，也更新缓存（至少内存中有数据）
     return True
+
+# 初始化默认测试用户（永久保留，除非用户明确删除）
+def init_default_test_users():
+    """初始化默认测试用户（永久保留）"""
+    global _test_users_initialized
+    if _test_users_initialized:
+        return  # 避免重复初始化
+    
+    _test_users_initialized = True
+    users = load_users()
+    updated = False
+    
+    # 默认测试用户配置（永久保留，直到用户明确删除）
+    default_test_users = [
+        {
+            'username': 'super',
+            'email': 'super@test.com',
+            'password': 'super123',
+            'is_vip': True,
+            'is_super': True,
+            'is_test_user': True,  # 标记为测试用户
+            'tier_name': '超级用户'
+        },
+        {
+            'username': 'vip',
+            'email': 'vip@test.com',
+            'password': 'vip123',
+            'is_vip': True,
+            'is_super': False,
+            'is_test_user': True,  # 标记为测试用户
+            'tier_name': 'VIP用户'
+        },
+        {
+            'username': 'free',
+            'email': 'free@test.com',
+            'password': 'free123',
+            'is_vip': False,
+            'is_super': False,
+            'is_test_user': True,  # 标记为测试用户
+            'tier_name': '免费用户'
+        }
+    ]
+    
+    for user_config in default_test_users:
+        username = user_config['username']
+        
+        # 检查用户是否已存在
+        if username in users:
+            # 如果用户已存在，检查是否需要更新（保持测试用户标记和权限）
+            existing_user = users[username]
+            needs_update = False
+            
+            if not existing_user.get('is_test_user', False):
+                existing_user['is_test_user'] = True
+                needs_update = True
+            
+            # 确保密码正确（用于测试）
+            if existing_user.get('password') != hash_password(user_config['password']):
+                existing_user['password'] = hash_password(user_config['password'])
+                needs_update = True
+            
+            # 确保权限正确（用于测试）
+            if existing_user.get('is_vip') != user_config['is_vip']:
+                existing_user['is_vip'] = user_config['is_vip']
+                needs_update = True
+            if existing_user.get('is_super') != user_config['is_super']:
+                existing_user['is_super'] = user_config['is_super']
+                needs_update = True
+            
+            if needs_update:
+                updated = True
+        else:
+            # 创建新测试用户
+            user_data = {
+                'username': username,
+                'email': user_config['email'],
+                'password': hash_password(user_config['password']),
+                'created_at': datetime.now().isoformat(),
+                'last_login': None,
+                'invite_code': 'DEFAULT_TEST_USER',
+                'is_active': True,
+                'is_vip': user_config['is_vip'],
+                'is_super': user_config['is_super'],
+                'is_test_user': True  # 标记为测试用户（永久保留，直到用户明确删除）
+            }
+            users[username] = user_data
+            updated = True
+            print(f"✅ 创建默认测试用户: {username} ({user_config['tier_name']})")
+    
+    # 如果有更新，保存用户数据
+    if updated:
+        save_users(users)
+        if _storage_type != 'memory':  # 内存存储时不打印
+            print("✅ 默认测试用户已初始化（永久保留）")
+
 
 def load_invite_codes():
     """加载邀请码数据（从持久化存储）"""
@@ -382,3 +480,28 @@ def get_user_stats():
         'available_codes': available_codes,
         'storage_type': _storage_type
     }
+
+# 模块加载时自动初始化默认测试用户（永久保留，直到用户明确删除）
+# 延迟初始化，避免在导入时就触发（在第一次使用时初始化）
+try:
+    # 在模块导入完成后，在后台线程中初始化（避免阻塞）
+    import threading
+    def _init_test_users_background():
+        """在后台线程中初始化测试用户"""
+        try:
+            import time
+            time.sleep(0.5)  # 稍微延迟，确保存储系统已初始化
+            init_default_test_users()
+        except Exception as e:
+            print(f"⚠️ 初始化默认测试用户失败: {e}")
+    
+    # 延迟0.5秒后在后台线程初始化（避免在导入时阻塞）
+    init_thread = threading.Thread(target=_init_test_users_background, daemon=True)
+    init_thread.start()
+except Exception as e:
+    print(f"⚠️ 无法启动测试用户初始化线程: {e}")
+    # 如果线程启动失败，直接初始化
+    try:
+        init_default_test_users()
+    except Exception as e2:
+        print(f"⚠️ 直接初始化默认测试用户也失败: {e2}")

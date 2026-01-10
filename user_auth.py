@@ -45,7 +45,88 @@ def init_data_files():
         with open(INVITE_CODES_FILE, 'w', encoding='utf-8') as f:
             json.dump(default_codes, f, ensure_ascii=False, indent=2)
 
-# 初始化
+# 初始化默认测试用户（永久保留，除非用户明确删除）
+def init_default_test_users():
+    """初始化默认测试用户（永久保留）"""
+    users = load_users()
+    updated = False
+    
+    # 默认测试用户配置（永久保留）
+    default_test_users = [
+        {
+            'username': 'super',
+            'email': 'super@test.com',
+            'password': 'super123',
+            'is_vip': True,
+            'is_super': True,
+            'is_test_user': True,  # 标记为测试用户
+            'tier_name': '超级用户'
+        },
+        {
+            'username': 'vip',
+            'email': 'vip@test.com',
+            'password': 'vip123',
+            'is_vip': True,
+            'is_super': False,
+            'is_test_user': True,  # 标记为测试用户
+            'tier_name': 'VIP用户'
+        },
+        {
+            'username': 'free',
+            'email': 'free@test.com',
+            'password': 'free123',
+            'is_vip': False,
+            'is_super': False,
+            'is_test_user': True,  # 标记为测试用户
+            'tier_name': '免费用户'
+        }
+    ]
+    
+    for user_config in default_test_users:
+        username = user_config['username']
+        
+        # 检查用户是否已存在
+        if username in users:
+            # 如果用户已存在，检查是否需要更新（保持测试用户标记）
+            existing_user = users[username]
+            if not existing_user.get('is_test_user', False):
+                # 如果现有用户不是测试用户，更新为测试用户（但保留其他数据）
+                existing_user['is_test_user'] = True
+                updated = True
+            # 确保密码和权限正确（用于测试）
+            if existing_user.get('password') != hash_password(user_config['password']):
+                existing_user['password'] = hash_password(user_config['password'])
+                updated = True
+            if existing_user.get('is_vip') != user_config['is_vip']:
+                existing_user['is_vip'] = user_config['is_vip']
+                updated = True
+            if existing_user.get('is_super') != user_config['is_super']:
+                existing_user['is_super'] = user_config['is_super']
+                updated = True
+        else:
+            # 创建新测试用户
+            user_data = {
+                'username': username,
+                'email': user_config['email'],
+                'password': hash_password(user_config['password']),
+                'created_at': datetime.now().isoformat(),
+                'last_login': None,
+                'invite_code': 'DEFAULT_TEST_USER',
+                'is_active': True,
+                'is_vip': user_config['is_vip'],
+                'is_super': user_config['is_super'],
+                'is_test_user': True  # 标记为测试用户（永久保留）
+            }
+            users[username] = user_data
+            updated = True
+            print(f"✅ 创建默认测试用户: {username} ({user_config['tier_name']})")
+    
+    # 如果有更新，保存用户数据
+    if updated:
+        save_users(users)
+        print("✅ 默认测试用户已初始化")
+
+# 初始化数据文件
 init_data_files()
 
 def hash_password(password):
@@ -218,5 +299,14 @@ def get_user_stats():
         'used_codes': used_codes,
         'available_codes': available_codes
     }
+
+# 在所有函数定义完成后，初始化默认测试用户（永久保留，直到用户明确删除）
+# 注意：这个调用必须在所有函数定义之后，因为 init_default_test_users 依赖于 load_users, save_users, hash_password 等函数
+try:
+    init_default_test_users()
+except Exception as e:
+    print(f"⚠️ 初始化默认测试用户失败: {e}")
+    import traceback
+    traceback.print_exc()
 
 

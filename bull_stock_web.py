@@ -66,6 +66,22 @@ import time
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'bull-stock-analyzer-secret-key-change-in-production'
 
+# 应用启动时初始化默认测试用户（永久保留，直到用户明确删除）
+try:
+    if is_vercel:
+        from user_auth_vercel import init_default_test_users
+    else:
+        from user_auth import init_default_test_users
+    # 在应用启动时初始化测试用户
+    try:
+        init_default_test_users()
+    except Exception as e:
+        print(f"⚠️ 初始化默认测试用户失败: {e}")
+        import traceback
+        traceback.print_exc()
+except Exception as e:
+    print(f"⚠️ 无法导入测试用户初始化函数: {e}")
+
 # 创建全局分析器实例（延迟初始化，先启动Flask服务）
 # 使用延迟初始化，避免阻塞Flask启动
 analyzer = None
