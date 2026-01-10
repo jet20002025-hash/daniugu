@@ -11,36 +11,41 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from flask import jsonify
-from auto_scan_cron import trigger_auto_scan, get_beijing_time
+from auto_scan_cron import trigger_auto_scan_by_type, get_beijing_time
 
 def handler(request):
     """Vercel Serverless Function 处理函数"""
     try:
-        # 从请求中获取用户等级（默认为 free）
-        user_tier = request.args.get('tier', 'free')
+        # 从请求中获取扫描类型（noon 或 afternoon）
+        scan_type = request.args.get('scan_type', '')
         
-        if user_tier not in ['free', 'premium']:
+        if scan_type not in ['noon', 'afternoon']:
             return jsonify({
                 'success': False,
-                'message': f'无效的用户等级: {user_tier}'
+                'message': f'无效的扫描类型: {scan_type}，应为 noon 或 afternoon'
             }), 400
         
         beijing_now = get_beijing_time()
-        print(f"[cron] 触发自动扫描 - 用户等级: {user_tier}, 时间: {beijing_now.strftime('%Y-%m-%d %H:%M:%S')}")
+        scan_time = '11:30' if scan_type == 'noon' else '15:00'
+        print(f"[cron] 触发自动扫描 - 类型: {scan_type}, 时间: {beijing_now.strftime('%Y-%m-%d %H:%M:%S')} (预计完成时间: {scan_time})")
         
         # 触发自动扫描
-        success = trigger_auto_scan(user_tier)
+        success = trigger_auto_scan_by_type(scan_type)
         
         if success:
             return jsonify({
                 'success': True,
-                'message': f'{user_tier} 用户自动扫描任务已启动',
+                'message': f'{scan_type} 自动扫描任务已启动',
+                'scan_type': scan_type,
+                'scan_time': scan_time,
                 'time': beijing_now.strftime('%Y-%m-%d %H:%M:%S')
             }), 200
         else:
             return jsonify({
                 'success': False,
-                'message': f'{user_tier} 用户自动扫描任务启动失败',
+                'message': f'{scan_type} 自动扫描任务启动失败',
+                'scan_type': scan_type,
+                'scan_time': scan_time,
                 'time': beijing_now.strftime('%Y-%m-%d %H:%M:%S')
             }), 500
             
@@ -53,4 +58,6 @@ def handler(request):
             'message': f'自动扫描任务失败: {str(e)}',
             'error': error_detail
         }), 500
+
+
 

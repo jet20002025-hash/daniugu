@@ -2853,39 +2853,239 @@
             // 根据环境和用户等级显示/隐藏功能按钮
             await updateFunctionButtonsVisibility();
             
-            // 页面加载时检查匹配度状态
-            checkMatchScoreStatus();
-            
             // 显示用户信息
             displayUserInfo();
+            
+            // 检查用户等级，如果是免费用户，显示扫描结果图表
+            try {
+                const user = await getUserInfo();
+                if (user && !isLocalEnvironment()) {
+                    const tier = user.tier || 'free';
+                    if (tier === 'free') {
+                        // 免费用户：显示扫描结果图表
+                        await loadAndDisplayFreeUserScanResults();
+                    } else {
+                        // VIP用户或超级用户：正常加载股票列表
+                        loadStocks();
+                    }
+                } else {
+                    // 本地环境或无法获取用户信息：正常加载股票列表
+                    loadStocks();
+                }
+            } catch (error) {
+                console.error('[initPageLoad] 获取用户信息失败:', error);
+                loadStocks();
+            }
+            
+            // 页面加载时检查匹配度状态
+            checkMatchScoreStatus();
             
             // 每30秒刷新一次用户信息和按钮显示
             setInterval(async () => {
                 await displayUserInfo();
                 await updateFunctionButtonsVisibility();
             }, 30000);
-            
+        }
+        
+        // 加载并显示免费用户的扫描结果
+        async function loadAndDisplayFreeUserScanResults() {
             try {
-                console.log('[initPageLoad] 初始化页面加载...');
-                console.log('[initPageLoad] document.readyState:', document.readyState);
+                console.log('[loadAndDisplayFreeUserScanResults] 开始加载免费用户扫描结果...');
                 
-                // 检查必要的DOM元素是否存在
-                const container = document.getElementById('stocksContainer');
-                const countEl = document.getElementById('stockCount');
-                console.log('[initPageLoad] stocksContainer:', container ? '存在' : '不存在');
-                console.log('[initPageLoad] stockCount:', countEl ? '存在' : '不存在');
+                const response = await fetch('/api/get_free_user_scan_results', {
+                    method: 'GET',
+                    cache: 'no-store'
+                });
                 
-                if (!container || !countEl) {
-                    console.warn('[initPageLoad] DOM元素未准备好，延迟100ms后重试...');
-                    setTimeout(initPageLoad, 100);
-                    return;
+                const result = await response.json();
+                
+                if (result.success && result.results && result.results.length > 0) {
+                    console.log('[loadAndDisplayFreeUserScanResults] 找到扫描结果:', result.results.length, '组');
+                    displayScanResultsCharts(result.results);
+                } else {
+                    console.log('[loadAndDisplayFreeUserScanResults] 暂无扫描结果');
+                    const container = document.getElementById('stocksContainer');
+                    if (container) {
+                        container.innerHTML = `
+                            <div style="padding: 40px; text-align: center; color: #666;">
+                                <h3 style="margin-bottom: 10px;">暂无扫描结果</h3>
+                                <p>系统每天在11:30和15:00自动扫描，请稍后再查看。</p>
+                                <p style="font-size: 12px; color: #999; margin-top: 10px;">当前时间: ${result.current_time || '未知'}</p>
+                            </div>
+                        `;
+                    }
                 }
-                
-                console.log('[initPageLoad] DOM元素已准备好，开始加载股票列表...');
-                loadStocks();
             } catch (error) {
-                console.error('[initPageLoad] 初始化失败:', error);
+                console.error('[loadAndDisplayFreeUserScanResults] 加载扫描结果失败:', error);
+                const container = document.getElementById('stocksContainer');
+                if (container) {
+                    container.innerHTML = `
+                        <div style="padding: 40px; text-align: center; color: #e74c3c;">
+                            <h3 style="margin-bottom: 10px;">加载失败</h3>
+                            <p>无法加载扫描结果，请刷新页面重试。</p>
+                        </div>
+                    `;
+                }
             }
+        }
+        
+        // 显示扫描结果图表
+        function displayScanResultsCharts(results) {
+            const container = document.getElementById('stocksContainer');
+            if (!container) {
+                console.error('[displayScanResultsCharts] 找不到容器元素');
+                return;
+            }
+            
+            let html = '<div style="padding: 20px;">';
+            
+            // 为每个扫描结果创建一个图表
+            results.forEach((resultItem, index) => {
+                const result = resultItem.result;
+                const candidates = result.candidates || [];
+                const scanTime = resultItem.scan_time || '未知';
+                const scanDate = resultItem.scan_date || '未知';
+                const title = resultItem.title || `扫描结果 ${index + 1}`;
+                
+                // 创建图表容器
+                const chartId = `scanChart_${index}`;
+                html += `
+                    <div style="margin-bottom: 40px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
+                        <h3 style="margin: 0 0 15px 0; color: #333; font-size: 18px;">
+                            📊 ${title} - 扫描时间: ${scanTime}
+                        </h3>
+                        <p style="margin: 0 0 15px 0; color: #666; font-size: 14px;">
+                            找到 ${candidates.length} 只符合条件的股票，扫描总数: ${result.total_scanned || 0} 只
+                        </p>
+                        <div id="${chartId}" style="width: 100%; height: 500px; margin-bottom: 20px;"></div>
+                        <div id="${chartId}_table"></div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+            
+            // 为每个结果创建图表
+            results.forEach((resultItem, index) => {
+                const chartId = `scanChart_${index}`;
+                const tableId = `${chartId}_table`;
+                const result = resultItem.result;
+                const candidates = result.candidates || [];
+                
+                // 创建 ECharts 图表
+                const chartDom = document.getElementById(chartId);
+                if (chartDom && candidates.length > 0) {
+                    const myChart = echarts.init(chartDom);
+                    
+                    // 准备数据：按匹配度排序，取前20只
+                    const topCandidates = candidates.slice(0, 20);
+                    const stockNames = topCandidates.map(c => c.name || c.code || '未知');
+                    const matchScores = topCandidates.map(c => (c.match_score || 0) * 100);
+                    const buyPrices = topCandidates.map(c => c.buy_price || 0);
+                    
+                    const option = {
+                        title: {
+                            text: `${resultItem.title} - Top ${topCandidates.length}`,
+                            left: 'center',
+                            textStyle: { fontSize: 16 }
+                        },
+                        tooltip: {
+                            trigger: 'axis',
+                            axisPointer: { type: 'shadow' },
+                            formatter: function(params) {
+                                const dataIndex = params[0].dataIndex;
+                                const candidate = topCandidates[dataIndex];
+                                let html = `<strong>${candidate.name || candidate.code}</strong><br/>`;
+                                html += `匹配度: ${((candidate.match_score || 0) * 100).toFixed(2)}%<br/>`;
+                                html += `买点价格: ${(candidate.buy_price || 0).toFixed(2)}元<br/>`;
+                                if (candidate.buy_date) html += `买点日期: ${candidate.buy_date}<br/>`;
+                                if (candidate.gain_10w) html += `10周涨幅: ${candidate.gain_10w.toFixed(2)}%`;
+                                return html;
+                            }
+                        },
+                        xAxis: {
+                            type: 'category',
+                            data: stockNames,
+                            axisLabel: {
+                                rotate: 45,
+                                fontSize: 10
+                            }
+                        },
+                        yAxis: [
+                            {
+                                type: 'value',
+                                name: '匹配度 (%)',
+                                position: 'left',
+                                axisLabel: { formatter: '{value}%' }
+                            },
+                            {
+                                type: 'value',
+                                name: '买点价格 (元)',
+                                position: 'right',
+                                axisLabel: { formatter: '{value}元' }
+                            }
+                        ],
+                        series: [
+                            {
+                                name: '匹配度',
+                                type: 'bar',
+                                data: matchScores,
+                                itemStyle: {
+                                    color: function(params) {
+                                        const score = matchScores[params.dataIndex];
+                                        if (score >= 93) return '#27ae60';
+                                        if (score >= 90) return '#f39c12';
+                                        return '#e74c3c';
+                                    }
+                                }
+                            },
+                            {
+                                name: '买点价格',
+                                type: 'line',
+                                yAxisIndex: 1,
+                                data: buyPrices,
+                                itemStyle: { color: '#667eea' },
+                                lineStyle: { width: 2 }
+                            }
+                        ]
+                    };
+                    
+                    myChart.setOption(option);
+                    
+                    // 创建表格
+                    const tableContainer = document.getElementById(tableId);
+                    if (tableContainer) {
+                        let tableHtml = '<table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px;">';
+                        tableHtml += '<tr style="background: #f0f0f0;">';
+                        tableHtml += '<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">排名</th>';
+                        tableHtml += '<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">股票代码</th>';
+                        tableHtml += '<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">股票名称</th>';
+                        tableHtml += '<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">匹配度</th>';
+                        tableHtml += '<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">买点日期</th>';
+                        tableHtml += '<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">买点价格</th>';
+                        tableHtml += '<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">10周涨幅</th>';
+                        tableHtml += '</tr>';
+                        
+                        candidates.slice(0, 50).forEach((candidate, idx) => {
+                            const matchColor = (candidate.match_score || 0) >= 0.93 ? '#27ae60' : 
+                                             (candidate.match_score || 0) >= 0.90 ? '#f39c12' : '#e74c3c';
+                            tableHtml += '<tr>';
+                            tableHtml += `<td style="padding: 8px; border: 1px solid #ddd;">${idx + 1}</td>`;
+                            tableHtml += `<td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; color: #667eea;">${candidate.code || 'N/A'}</td>`;
+                            tableHtml += `<td style="padding: 8px; border: 1px solid #ddd;">${candidate.name || 'N/A'}</td>`;
+                            tableHtml += `<td style="padding: 8px; border: 1px solid #ddd; color: ${matchColor}; font-weight: bold;">${((candidate.match_score || 0) * 100).toFixed(2)}%</td>`;
+                            tableHtml += `<td style="padding: 8px; border: 1px solid #ddd;">${candidate.buy_date || 'N/A'}</td>`;
+                            tableHtml += `<td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; color: #e74c3c;">${(candidate.buy_price || 0).toFixed(2)}</td>`;
+                            tableHtml += `<td style="padding: 8px; border: 1px solid #ddd;">${candidate.gain_10w ? candidate.gain_10w.toFixed(2) + '%' : 'N/A'}</td>`;
+                            tableHtml += '</tr>';
+                        });
+                        
+                        tableHtml += '</table>';
+                        tableContainer.innerHTML = tableHtml;
+                    }
+                }
+            });
         }
         
         // 立即执行一次按钮显示更新（不等待异步操作）

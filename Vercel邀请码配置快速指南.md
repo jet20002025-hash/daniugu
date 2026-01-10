@@ -127,3 +127,5 @@ gVshGk,7RKNQU,YAwbpT,jFmWyg,bUudRj,MRZ2Nn,ZAq7wr,7nWHCG,vsxBmJ,23kNsZ
 
 **总结**：在 Vercel Dashboard 中配置 `INVITE_CODES` 环境变量，包含所有邀请码（用逗号分隔），然后重新部署即可！
 
+
+

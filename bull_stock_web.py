@@ -2289,6 +2289,111 @@ def get_scan_results():
         }), 500
 
 
+@app.route('/api/get_free_user_scan_results', methods=['GET'])
+@require_login
+def get_free_user_scan_results():
+    """获取免费用户的扫描结果（根据当前时间自动选择）"""
+    try:
+        # 获取用户信息和等级
+        user = get_current_user()
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': '请先登录',
+                'results': []
+            }), 401
+        
+        user_tier = get_user_tier()
+        
+        # 只有免费用户可以查看此接口
+        if user_tier != 'free':
+            return jsonify({
+                'success': False,
+                'message': '此接口仅限免费用户使用',
+                'results': []
+            }), 403
+        
+        # 获取北京时间
+        from scan_limit_helper import get_beijing_time
+        from datetime import timedelta
+        import scan_progress_store
+        
+        beijing_now = get_beijing_time()
+        current_hour = beijing_now.hour
+        current_date = beijing_now.strftime('%Y-%m-%d')
+        
+        results = []
+        
+        # 如果12点前进入，显示昨天下午和中午的结果
+        # 如果12点后进入，显示当天中午和前一天下午的结果
+        if current_hour < 12:
+            # 12点前：显示昨天下午和中午的结果
+            yesterday = (beijing_now - timedelta(days=1)).strftime('%Y-%m-%d')
+            
+            # 获取昨天下午的扫描结果
+            afternoon_result = scan_progress_store.get_global_scan_results('afternoon', yesterday)
+            if afternoon_result:
+                results.append({
+                    'scan_type': 'afternoon',
+                    'scan_date': yesterday,
+                    'scan_time': '15:00',
+                    'title': f'{yesterday} 下午3:00扫描结果',
+                    'result': afternoon_result
+                })
+            
+            # 获取昨天中午的扫描结果
+            noon_result = scan_progress_store.get_global_scan_results('noon', yesterday)
+            if noon_result:
+                results.append({
+                    'scan_type': 'noon',
+                    'scan_date': yesterday,
+                    'scan_time': '11:30',
+                    'title': f'{yesterday} 中午11:30扫描结果',
+                    'result': noon_result
+                })
+        else:
+            # 12点后：显示当天中午和前一天下午的结果
+            # 获取当天中午的扫描结果
+            noon_result = scan_progress_store.get_global_scan_results('noon', current_date)
+            if noon_result:
+                results.append({
+                    'scan_type': 'noon',
+                    'scan_date': current_date,
+                    'scan_time': '11:30',
+                    'title': f'{current_date} 中午11:30扫描结果',
+                    'result': noon_result
+                })
+            
+            # 获取前一天下午的扫描结果
+            yesterday = (beijing_now - timedelta(days=1)).strftime('%Y-%m-%d')
+            afternoon_result = scan_progress_store.get_global_scan_results('afternoon', yesterday)
+            if afternoon_result:
+                results.append({
+                    'scan_type': 'afternoon',
+                    'scan_date': yesterday,
+                    'scan_time': '15:00',
+                    'title': f'{yesterday} 下午3:00扫描结果',
+                    'result': afternoon_result
+                })
+        
+        return jsonify({
+            'success': True,
+            'message': f'找到 {len(results)} 组扫描结果',
+            'results': results,
+            'current_time': beijing_now.strftime('%Y-%m-%d %H:%M:%S')
+        })
+        
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"获取免费用户扫描结果错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'服务器错误: {str(e)}',
+            'results': []
+        }), 500
+
+
 @app.route('/api/scan_reversal_stocks', methods=['POST'])
 @require_login
 def scan_reversal_stocks():

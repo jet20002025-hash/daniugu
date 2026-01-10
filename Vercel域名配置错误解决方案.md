@@ -238,3 +238,5 @@ nslookup -type=CNAME www.daniugu.online
 
 **配置完成后，告诉我，我可以帮你验证配置是否正确！** ✅
 
+
+

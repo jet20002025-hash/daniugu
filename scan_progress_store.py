@@ -249,3 +249,116 @@ def delete_scan_data(scan_id: str) -> bool:
         print(f"删除扫描数据失败: {e}")
         return False
 
+
+def save_global_scan_results(scan_type: str, date_str: str, results: Dict) -> bool:
+    """
+    保存全局扫描结果（按扫描类型和日期）
+    :param scan_type: 扫描类型 ('noon' 或 'afternoon')
+    :param date_str: 日期字符串，格式: 'YYYY-MM-DD'
+    :param results: 扫描结果（字典）
+    :return: 是否保存成功
+    """
+    try:
+        # 添加保存时间戳和扫描类型信息
+        results['scan_type'] = scan_type
+        results['date'] = date_str
+        results['saved_at'] = datetime.now().isoformat()
+        
+        # 存储键格式: global_scan_results:{scan_type}:{date}
+        key = f'global_scan_results:{scan_type}:{date_str}'
+        
+        if _storage_type == 'upstash_redis':
+            # 全局扫描结果保存7天（604800秒）
+            return _upstash_redis_set(key, results, ttl=604800)
+        elif _storage_type == 'vercel_kv':
+            from vercel_kv import kv
+            kv.set(key, json.dumps(results, default=str, ensure_ascii=False), ex=604800)
+            return True
+        else:
+            # 内存存储
+            if 'global_scan_results' not in _memory_storage:
+                _memory_storage['global_scan_results'] = {}
+            if scan_type not in _memory_storage['global_scan_results']:
+                _memory_storage['global_scan_results'][scan_type] = {}
+            _memory_storage['global_scan_results'][scan_type][date_str] = results
+            return True
+    except Exception as e:
+        print(f"保存全局扫描结果失败: {e}")
+        import traceback
+        print(traceback.format_exc())
+        return False
+
+
+def get_global_scan_results(scan_type: str, date_str: str) -> Optional[Dict]:
+    """
+    获取全局扫描结果（按扫描类型和日期）
+    :param scan_type: 扫描类型 ('noon' 或 'afternoon')
+    :param date_str: 日期字符串，格式: 'YYYY-MM-DD'
+    :return: 扫描结果（字典），如果不存在返回None
+    """
+    try:
+        # 存储键格式: global_scan_results:{scan_type}:{date}
+        key = f'global_scan_results:{scan_type}:{date_str}'
+        
+        if _storage_type == 'upstash_redis':
+            return _upstash_redis_get(key)
+        elif _storage_type == 'vercel_kv':
+            from vercel_kv import kv
+            value = kv.get(key)
+            if value:
+                return json.loads(value)
+            return None
+        else:
+            # 内存存储
+            if 'global_scan_results' not in _memory_storage:
+                return None
+            if scan_type not in _memory_storage['global_scan_results']:
+                return None
+            return _memory_storage['global_scan_results'][scan_type].get(date_str)
+    except Exception as e:
+        print(f"获取全局扫描结果失败: {e}")
+        import traceback
+        print(traceback.format_exc())
+        return None
+
+
+def list_global_scan_results(scan_type: str = None, limit: int = 10) -> list:
+    """
+    列出全局扫描结果（用于调试或管理）
+    :param scan_type: 扫描类型 ('noon' 或 'afternoon')，None 表示所有类型
+    :param limit: 返回数量限制
+    :return: 扫描结果列表
+    """
+    try:
+        results = []
+        
+        if _storage_type == 'upstash_redis':
+            # Redis 中无法直接列出所有匹配的键，这里返回空列表
+            # 实际使用时应该通过具体的键来获取
+            return results
+        elif _storage_type == 'vercel_kv':
+            # Vercel KV 也不支持列出所有键，返回空列表
+            return results
+        else:
+            # 内存存储：可以遍历所有结果
+            if 'global_scan_results' not in _memory_storage:
+                return results
+            
+            for st in (['noon', 'afternoon'] if scan_type is None else [scan_type]):
+                if st in _memory_storage['global_scan_results']:
+                    for date, result in _memory_storage['global_scan_results'][st].items():
+                        results.append({
+                            'scan_type': st,
+                            'date': date,
+                            'result': result
+                        })
+                        if len(results) >= limit:
+                            break
+                if len(results) >= limit:
+                    break
+        
+        return results
+    except Exception as e:
+        print(f"列出全局扫描结果失败: {e}")
+        return []
+

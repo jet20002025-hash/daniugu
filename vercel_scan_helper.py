@@ -236,15 +236,45 @@ def process_scan_batch_vercel(
     
     # 如果完成，保存最终结果
     if is_complete:
+        # 获取进度信息，检查是否是全局扫描
+        progress_info = scan_progress_store.get_scan_progress(scan_id)
+        is_global_scan = progress_info and progress_info.get('is_global_scan', False)
+        scan_type = progress_info.get('scan_type') if progress_info else None
+        scan_date = progress_info.get('scan_date') if progress_info else None
+        
         results = {
             'success': True,
             'message': f'扫描完成，共找到 {len(candidates)} 只符合条件的股票',
             'candidates': candidates,
             'total_scanned': overall_current,
             'found_count': len(candidates),
-            'scan_id': scan_id
+            'scan_id': scan_id,
+            'scan_type': scan_type,
+            'scan_date': scan_date
         }
         scan_progress_store.save_scan_results(scan_id, results)
+        
+        # 如果是全局扫描，保存到全局扫描结果存储（按类型和日期）
+        if is_global_scan and scan_type and scan_date:
+            from datetime import datetime, timezone, timedelta
+            beijing_tz = timezone(timedelta(hours=8))
+            scan_time = datetime.now(beijing_tz).strftime('%H:%M')
+            scan_time_display = '11:30' if scan_type == 'noon' else '15:00'
+            
+            global_results = {
+                'success': True,
+                'message': f'扫描完成，共找到 {len(candidates)} 只符合条件的股票',
+                'candidates': candidates,
+                'total_scanned': overall_current,
+                'found_count': len(candidates),
+                'scan_id': scan_id,
+                'scan_type': scan_type,
+                'scan_date': scan_date,
+                'scan_time': scan_time_display,  # 显示时间（11:30 或 15:00）
+                'completed_at': datetime.now(beijing_tz).strftime('%Y-%m-%d %H:%M:%S')
+            }
+            scan_progress_store.save_global_scan_results(scan_type, scan_date, global_results)
+            print(f"[vercel_scan_helper] ✅ 全局扫描结果已保存 - 类型: {scan_type}, 日期: {scan_date}, 扫描时间: {scan_time_display}")
     
     return {
         'success': True,
