@@ -2112,9 +2112,84 @@ def scan_all_stocks():
                 import traceback
                 error_detail = traceback.format_exc()
                 print(f"[scan_all_stocks] ❌ 获取股票列表失败: {error_detail}")
+                
+                # 检查当前时间和缓存状态，提供更详细的错误信息
+                from datetime import datetime, timezone, timedelta
+                try:
+                    utc_now = datetime.now(timezone.utc)
+                    beijing_tz = timezone(timedelta(hours=8))
+                    beijing_now = utc_now.astimezone(beijing_tz)
+                    current_time_str = beijing_now.strftime('%Y-%m-%d %H:%M:%S')
+                    current_hour = beijing_now.hour
+                    current_minute = beijing_now.minute
+                    is_in_trading_time = (
+                        (current_hour == 9 and current_minute >= 30) or
+                        (current_hour == 10) or
+                        (current_hour == 11 and current_minute <= 30) or
+                        (current_hour == 13) or
+                        (current_hour == 14) or
+                        (current_hour == 15 and current_minute <= 0)
+                    )
+                except Exception:
+                    current_time_str = "未知"
+                    is_in_trading_time = False
+                
+                # 检查缓存是否存在
+                cache_exists_check = False
+                try:
+                    cached_stocks_check = analyzer.fetcher._get_stock_list_from_cache(check_age=False)
+                    if cached_stocks_check is not None and len(cached_stocks_check) > 0:
+                        cache_exists_check = True
+                except Exception:
+                    pass
+                
+                error_msg = f'获取股票列表失败: {str(e)}\n\n'
+                error_msg += f'当前时间: {current_time_str}\n'
+                error_msg += f'时间段: {"交易时间段内" if is_in_trading_time else "非交易时间段"}\n'
+                error_msg += f'缓存状态: {"存在" if cache_exists_check else "不存在"}\n\n'
+                
+                error_msg += '⚠️ **问题分析：**\n'
+                if not cache_exists_check:
+                    error_msg += '缓存不存在，从 API 获取数据时失败或超时。\n\n'
+                    if is_in_trading_time:
+                        error_msg += '💡 **解决方案（按优先级）：**\n'
+                        error_msg += '**方案1（推荐）：** 手动触发缓存刷新：访问 https://www.daniugu.online/api/refresh_stock_cache?force=true\n'
+                        error_msg += '   - 手动刷新可能需要30秒，请耐心等待\n'
+                        error_msg += '   - 刷新成功后，再尝试扫描\n\n'
+                        error_msg += '**方案2：** 等待几分钟后重试（系统可能正在刷新缓存）\n\n'
+                    else:
+                        error_msg += '💡 **解决方案（按优先级）：**\n'
+                        error_msg += '**方案1（推荐）：** 手动触发缓存刷新：访问 https://www.daniugu.online/api/refresh_stock_cache?force=true\n'
+                        error_msg += '   - 手动刷新可能需要30秒，请耐心等待\n'
+                        error_msg += '   - 刷新成功后，再尝试扫描\n\n'
+                        error_msg += '**方案2：** 等待到交易时间段（9:30-11:30, 13:00-15:00）后重试\n'
+                        error_msg += '   - 交易时间段内，系统会自动刷新缓存\n\n'
+                        error_msg += '**方案3：** 稍后重试（可能是网络问题）\n\n'
+                else:
+                    error_msg += '缓存存在，但从 API 获取数据时失败（可能是网络问题或 akshare 服务暂时不可用）。\n\n'
+                    error_msg += '💡 **解决方案：**\n'
+                    error_msg += '**方案1（推荐）：** 稍后重试（可能是网络波动）\n\n'
+                    error_msg += '**方案2：** 手动触发缓存刷新：访问 https://www.daniugu.online/api/refresh_stock_cache?force=true\n'
+                    error_msg += '   - 手动刷新可能需要30秒，请耐心等待\n'
+                    error_msg += '   - 刷新成功后，再尝试扫描\n\n'
+                
+                error_msg += '📌 **可能的原因：**\n'
+                if is_vercel:
+                    error_msg += '1. 超时（Vercel 函数执行时间限制为 10 秒，从 akshare API 获取数据可能需要较长时间）\n'
+                    error_msg += '2. 网络连接问题（Vercel 环境网络限制）\n'
+                    error_msg += '3. akshare 服务暂时不可用\n'
+                else:
+                    error_msg += '1. 网络连接问题\n'
+                    error_msg += '2. akshare 服务暂时不可用\n'
+                    error_msg += '3. 超时（获取数据可能需要较长时间）\n'
+                
                 return jsonify({
                     'success': False,
-                    'message': f'获取股票列表失败: {str(e)}\n\n可能的原因：\n1. 网络连接问题（Vercel 环境网络限制）\n2. akshare 服务暂时不可用\n3. 超时（Vercel 函数执行时间限制为 10 秒）\n\n建议：\n- 请稍后重试\n- 如果问题持续，可能是 akshare 服务暂时不可用\n- 可以尝试在非高峰时段重试'
+                    'message': error_msg,
+                    'cache_exists': cache_exists_check,
+                    'is_in_trading_time': is_in_trading_time,
+                    'current_time': current_time_str,
+                    'error_type': str(type(e).__name__)
                 }), 500
             
             if stock_list is None or len(stock_list) == 0:
