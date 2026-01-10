@@ -66,6 +66,50 @@ import time
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'bull-stock-analyzer-secret-key-change-in-production'
 
+# 添加全局错误处理器，确保所有错误都返回 JSON 格式（而不是 HTML）
+@app.errorhandler(500)
+def handle_500_error(error):
+    """处理 500 错误，返回 JSON 格式"""
+    import traceback
+    error_detail = traceback.format_exc()
+    print(f"[Flask Error Handler] ❌ 500 错误: {error_detail}")
+    
+    # 检查请求路径，如果是 API 路径，返回 JSON 格式
+    from flask import request
+    if request.path.startswith('/api/'):
+        return jsonify({
+            'success': False,
+            'message': f'服务器内部错误: {str(error) if error else "未知错误"}',
+            'error_type': 'internal_server_error',
+            'path': request.path,
+            'method': request.method
+        }), 500
+    
+    # 非 API 路径，返回默认 HTML 错误页面
+    return error
+
+@app.errorhandler(Exception)
+def handle_exception(error):
+    """处理所有未捕获的异常，返回 JSON 格式"""
+    import traceback
+    error_detail = traceback.format_exc()
+    error_type = type(error).__name__
+    print(f"[Flask Error Handler] ❌ 未捕获的异常 ({error_type}): {error_detail}")
+    
+    # 检查请求路径，如果是 API 路径，返回 JSON 格式
+    from flask import request
+    if request.path.startswith('/api/'):
+        return jsonify({
+            'success': False,
+            'message': f'服务器错误: {str(error)}',
+            'error_type': error_type,
+            'path': request.path,
+            'method': request.method
+        }), 500
+    
+    # 非 API 路径，让 Flask 使用默认错误处理
+    raise error
+
 # 应用启动时初始化默认测试用户（永久保留，直到用户明确删除）
 try:
     if is_vercel:
