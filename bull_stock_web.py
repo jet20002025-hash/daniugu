@@ -565,7 +565,8 @@ def check_cache_status():
         cache_exists = False
         cached_stock_count = 0
         try:
-            cached_stocks = analyzer.fetcher._get_stock_list_from_cache()
+            # 不检查缓存年龄，只检查是否存在
+            cached_stocks = analyzer.fetcher._get_stock_list_from_cache(check_age=False)
             if cached_stocks is not None and len(cached_stocks) > 0:
                 cache_exists = True
                 cached_stock_count = len(cached_stocks)
@@ -573,7 +574,10 @@ def check_cache_status():
             else:
                 print(f"[check_cache_status] ⚠️ 缓存不存在或为空")
         except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
             print(f"[check_cache_status] ⚠️ 检测缓存时出错: {e}")
+            print(f"[check_cache_status] 错误详情: {error_detail}")
         
         return jsonify({
             'success': True,
@@ -1943,8 +1947,28 @@ def find_sell_points():
 @require_login
 def scan_all_stocks():
     """扫描所有A股API"""
-    init_analyzer()  # 确保分析器已初始化
     try:
+        # 确保分析器已初始化（在 try 块内，以便捕获异常）
+        try:
+            init_analyzer()
+        except Exception as init_error:
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"[scan_all_stocks] ❌ 初始化分析器失败: {error_detail}")
+            return jsonify({
+                'success': False,
+                'message': f'初始化分析器失败: {str(init_error)}',
+                'error_type': 'init_error',
+                'error_detail': error_detail
+            }), 500
+        
+        # 检查分析器是否初始化成功
+        if analyzer is None or analyzer.fetcher is None:
+            return jsonify({
+                'success': False,
+                'message': '分析器未初始化或初始化失败',
+                'error_type': 'analyzer_not_initialized'
+            }), 500
         # 获取用户信息和等级
         user = get_current_user()
         if not user:
