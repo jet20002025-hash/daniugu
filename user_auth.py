@@ -247,13 +247,29 @@ def require_login(f):
     """装饰器：要求登录"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not is_logged_in():
-            return jsonify({
-                'success': False,
-                'message': '请先登录',
-                'require_login': True
-            }), 401
-        return f(*args, **kwargs)
+        try:
+            if not is_logged_in():
+                from flask import jsonify
+                return jsonify({
+                    'success': False,
+                    'message': '请先登录',
+                    'require_login': True
+                }), 401
+            return f(*args, **kwargs)
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"[require_login] ❌ 装饰器内部错误: {error_detail}")
+            from flask import jsonify, request, has_request_context
+            if has_request_context() and request.path.startswith('/api/'):
+                return jsonify({
+                    'success': False,
+                    'message': f'服务器错误: {str(e)}',
+                    'error_type': type(e).__name__,
+                    'path': request.path if has_request_context() else 'unknown',
+                    'method': request.method if has_request_context() else 'unknown'
+                }), 500
+            raise  # 非 API 路径或无法获取请求上下文，重新抛出异常
     return decorated_function
 
 def create_invite_code(code, max_uses=1):
