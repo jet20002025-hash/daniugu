@@ -468,13 +468,13 @@
                 <div class="btn-group" id="functionButtonsGroup">
                     <!-- 本地版本：显示所有功能 -->
                     <div id="localVersionButtons" style="display: none;">
-                        <!-- 本地版本扫描参数（可折叠） -->
+                        <!-- 本地版本扫描参数（默认展开，可折叠） -->
                         <div id="localScanParams" style="margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; cursor: pointer;" onclick="toggleLocalScanParams()">
                                 <h3 style="margin: 0; color: #333; font-size: 14px; font-weight: 600;">⚙️ 扫描参数设置</h3>
-                                <span id="localScanParamsToggle" style="color: #666; font-size: 12px;">▼ 展开</span>
+                                <span id="localScanParamsToggle" style="color: #666; font-size: 12px;">▲ 收起</span>
                             </div>
-                            <div id="localScanParamsContent" style="display: none;">
+                            <div id="localScanParamsContent" style="display: block;">
                                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 10px;">
                                     <div class="form-group" style="margin-bottom: 0;">
                                         <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">匹配度阈值</label>
@@ -506,13 +506,13 @@
                     <div id="webVersionButtons" style="display: none;">
                         <!-- VIP用户：可以扫描全市场（无限次） -->
                         <div id="vipUserButtons" style="display: none;">
-                            <!-- VIP自定义扫描参数（可折叠） -->
+                            <!-- VIP自定义扫描参数（默认展开，可折叠） -->
                             <div id="vipScanParams" style="margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #9b59b6;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; cursor: pointer;" onclick="toggleVipScanParams()">
                                     <h3 style="margin: 0; color: #333; font-size: 14px; font-weight: 600;">⚙️ 自定义扫描参数（VIP专享）</h3>
-                                    <span id="vipScanParamsToggle" style="color: #666; font-size: 12px;">▼ 展开</span>
+                                    <span id="vipScanParamsToggle" style="color: #666; font-size: 12px;">▲ 收起</span>
                                 </div>
-                                <div id="vipScanParamsContent" style="display: none;">
+                                <div id="vipScanParamsContent" style="display: block;">
                                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 10px;">
                                         <div class="form-group" style="margin-bottom: 0;">
                                             <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">匹配度阈值</label>
@@ -566,13 +566,13 @@
                         
                         <!-- 超级用户：显示所有功能 -->
                         <div id="superUserButtons" style="display: none;">
-                            <!-- 超级用户扫描参数（可折叠） -->
+                            <!-- 超级用户扫描参数（默认展开，可折叠） -->
                             <div id="superScanParams" style="margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #e67e22;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; cursor: pointer;" onclick="toggleSuperScanParams()">
                                     <h3 style="margin: 0; color: #333; font-size: 14px; font-weight: 600;">⚙️ 扫描参数设置</h3>
-                                    <span id="superScanParamsToggle" style="color: #666; font-size: 12px;">▼ 展开</span>
+                                    <span id="superScanParamsToggle" style="color: #666; font-size: 12px;">▲ 收起</span>
                                 </div>
-                                <div id="superScanParamsContent" style="display: none;">
+                                <div id="superScanParamsContent" style="display: block;">
                                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 10px;">
                                         <div class="form-group" style="margin-bottom: 0;">
                                             <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">匹配度阈值</label>
