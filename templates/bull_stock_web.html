@@ -254,22 +254,43 @@
         }
         
         .message {
-            padding: 12px 20px;
-            border-radius: 6px;
-            margin-bottom: 20px;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px 30px;
+            border-radius: 8px;
             display: none;
+            z-index: 10000;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            text-align: center;
+            font-size: 15px;
         }
         
         .message.success {
             background: #d4edda;
             color: #155724;
-            border: 1px solid #c3e6cb;
+            border: 2px solid #c3e6cb;
         }
         
         .message.error {
             background: #f8d7da;
             color: #721c24;
-            border: 1px solid #f5c6cb;
+            border: 2px solid #f5c6cb;
+        }
+        
+        .message.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 2px solid #ffeaa7;
+        }
+        
+        .message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 2px solid #bee5eb;
         }
         
         .message.show {
@@ -447,6 +468,32 @@
                 <div class="btn-group" id="functionButtonsGroup">
                     <!-- 本地版本：显示所有功能 -->
                     <div id="localVersionButtons" style="display: none;">
+                        <!-- 本地版本扫描参数（可折叠） -->
+                        <div id="localScanParams" style="margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; cursor: pointer;" onclick="toggleLocalScanParams()">
+                                <h3 style="margin: 0; color: #333; font-size: 14px; font-weight: 600;">⚙️ 扫描参数设置</h3>
+                                <span id="localScanParamsToggle" style="color: #666; font-size: 12px;">▼ 展开</span>
+                            </div>
+                            <div id="localScanParamsContent" style="display: none;">
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 10px;">
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">匹配度阈值</label>
+                                        <input type="number" id="localMinMatchScore" placeholder="0.93" value="0.93" min="0.8" max="1.0" step="0.01" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                                        <small style="color: #999; font-size: 11px;">范围：0.8-1.0</small>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">最大市值（亿元）</label>
+                                        <input type="number" id="localMaxMarketCap" placeholder="100" value="100" min="0" max="500" step="1" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                                        <small style="color: #999; font-size: 11px;">范围：0-500亿，默认100亿</small>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">扫描数量限制（可选）</label>
+                                        <input type="number" id="localScanLimit" placeholder="留空表示全部" min="1" step="1" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                                        <small style="color: #999; font-size: 11px;">建议先测试100只</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <button class="btn btn-primary" onclick="addStock()">添加股票</button>
                         <button class="btn btn-secondary" onclick="clearStocks()">清空所有</button>
                         <button class="btn btn-primary" onclick="analyzeAllStocks()" style="background: #27ae60;">分析所有股票</button>
@@ -519,6 +566,32 @@
                         
                         <!-- 超级用户：显示所有功能 -->
                         <div id="superUserButtons" style="display: none;">
+                            <!-- 超级用户扫描参数（可折叠） -->
+                            <div id="superScanParams" style="margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #e67e22;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; cursor: pointer;" onclick="toggleSuperScanParams()">
+                                    <h3 style="margin: 0; color: #333; font-size: 14px; font-weight: 600;">⚙️ 扫描参数设置</h3>
+                                    <span id="superScanParamsToggle" style="color: #666; font-size: 12px;">▼ 展开</span>
+                                </div>
+                                <div id="superScanParamsContent" style="display: none;">
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 10px;">
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">匹配度阈值</label>
+                                            <input type="number" id="superMinMatchScore" placeholder="0.93" value="0.93" min="0.8" max="1.0" step="0.01" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                                            <small style="color: #999; font-size: 11px;">范围：0.8-1.0</small>
+                                        </div>
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">最大市值（亿元）</label>
+                                            <input type="number" id="superMaxMarketCap" placeholder="100" value="100" min="0" max="500" step="1" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                                            <small style="color: #999; font-size: 11px;">范围：0-500亿，默认100亿</small>
+                                        </div>
+                                        <div class="form-group" style="margin-bottom: 0;">
+                                            <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">扫描数量限制（可选）</label>
+                                            <input type="number" id="superScanLimit" placeholder="留空表示全部" min="1" step="1" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                                            <small style="color: #999; font-size: 11px;">建议先测试100只</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                             <button class="btn btn-primary" onclick="addStock()">添加股票</button>
                             <button class="btn btn-secondary" onclick="clearStocks()">清空所有</button>
                             <button class="btn btn-primary" onclick="analyzeAllStocks()" style="background: #27ae60;">分析所有股票</button>
@@ -534,7 +607,7 @@
                     <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px;">📈 搜索反转个股（上周阴线+本周阳线）</h3>
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
                         <div class="form-group" style="margin-bottom: 0;">
-                            <label style="display: block; margin-bottom: 5px; color: #555; font-size: 13px; font-weight: 500;">市值上限（亿元）</label>
+                            <label style="display: block; margin-bottom: 5px; color: #555; font-size: 13px; font-weight: 500;">最大市值（亿元）</label>
                             <input type="number" id="reversalMarketCapMax" placeholder="例如: 100" value="100" min="0" step="0.1" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;">
                         </div>
                     </div>
@@ -1820,6 +1893,11 @@
             const vipParamsPanel = document.getElementById('vipScanParams');
             let minMatch, maxCap, scanLimit, excludeST, excludeSuspended, industryFilter, customStockPool;
             
+            // 检查是VIP用户、本地版本还是超级用户
+            const vipParamsPanel = document.getElementById('vipScanParams');
+            const localParamsPanel = document.getElementById('localScanParams');
+            const superParamsPanel = document.getElementById('superScanParams');
+            
             if (vipParamsPanel && vipParamsPanel.style.display !== 'none') {
                 // VIP用户：从表单获取参数
                 const minMatchScoreInput = document.getElementById('minMatchScore');
@@ -1840,33 +1918,53 @@
                 if (!confirm(`确定要开始扫描吗？\n\n扫描参数：\n- 匹配度阈值：${minMatch}\n- 最大市值：${maxCap}亿元\n- 排除ST股票：${excludeST ? '是' : '否'}\n- 排除停牌股票：${excludeSuspended ? '是' : '否'}\n${industryFilter ? `- 行业筛选：${industryFilter}\n` : ''}${customStockPool ? `- 自定义股票池：${customStockPool}\n` : ''}\n这可能需要较长时间（约5000只股票）。`)) {
                     return;
                 }
-            } else {
-                // 非VIP用户或本地版本：使用prompt（保持兼容性）
-                if (!confirm('确定要扫描所有A股吗？这可能需要较长时间（约5000只股票）。')) {
-                    return;
-                }
+            } else if (localParamsPanel && localParamsPanel.style.display !== 'none') {
+                // 本地版本：从表单获取参数
+                const localMinMatchScoreInput = document.getElementById('localMinMatchScore');
+                const localMaxMarketCapInput = document.getElementById('localMaxMarketCap');
+                const localScanLimitInput = document.getElementById('localScanLimit');
                 
-                const minMatchInput = prompt('请输入最小匹配度（0-1，默认0.93）:', '0.93');
-                if (minMatchInput === null) {
-                    return; // 用户取消
-                }
-                minMatch = parseFloat(minMatchInput) || 0.93;
-                
-                const maxCapInput = prompt('请输入最大市值（亿元，默认100）:', '100');
-                if (maxCapInput === null) {
-                    return; // 用户取消
-                }
-                maxCap = parseFloat(maxCapInput) || 100;
-                
-                const limitInput = prompt('限制扫描数量（留空表示全部，建议先测试100只）:', '');
-                if (limitInput === null) {
-                    return; // 用户取消
-                }
-                scanLimit = limitInput ? parseInt(limitInput) : null;
+                minMatch = parseFloat(localMinMatchScoreInput?.value) || 0.93;
+                maxCap = parseFloat(localMaxMarketCapInput?.value) || 100;
+                scanLimit = localScanLimitInput?.value ? parseInt(localScanLimitInput.value) : null;
                 excludeST = true;
                 excludeSuspended = true;
                 industryFilter = '';
                 customStockPool = '';
+                
+                if (!confirm(`确定要开始扫描吗？\n\n扫描参数：\n- 匹配度阈值：${minMatch}\n- 最大市值：${maxCap}亿元\n${scanLimit ? `- 扫描数量限制：${scanLimit}只\n` : ''}\n这可能需要较长时间。`)) {
+                    return;
+                }
+            } else if (superParamsPanel && superParamsPanel.style.display !== 'none') {
+                // 超级用户：从表单获取参数
+                const superMinMatchScoreInput = document.getElementById('superMinMatchScore');
+                const superMaxMarketCapInput = document.getElementById('superMaxMarketCap');
+                const superScanLimitInput = document.getElementById('superScanLimit');
+                
+                minMatch = parseFloat(superMinMatchScoreInput?.value) || 0.93;
+                maxCap = parseFloat(superMaxMarketCapInput?.value) || 100;
+                scanLimit = superScanLimitInput?.value ? parseInt(superScanLimitInput.value) : null;
+                excludeST = true;
+                excludeSuspended = true;
+                industryFilter = '';
+                customStockPool = '';
+                
+                if (!confirm(`确定要开始扫描吗？\n\n扫描参数：\n- 匹配度阈值：${minMatch}\n- 最大市值：${maxCap}亿元\n${scanLimit ? `- 扫描数量限制：${scanLimit}只\n` : ''}\n这可能需要较长时间。`)) {
+                    return;
+                }
+            } else {
+                // 兜底方案：使用默认值（如果输入框不可见）
+                minMatch = 0.93;
+                maxCap = 100;
+                scanLimit = null;
+                excludeST = true;
+                excludeSuspended = true;
+                industryFilter = '';
+                customStockPool = '';
+                
+                if (!confirm(`确定要开始扫描吗？\n\n扫描参数：\n- 匹配度阈值：${minMatch}（默认）\n- 最大市值：${maxCap}亿元（默认）\n这可能需要较长时间（约5000只股票）。`)) {
+                    return;
+                }
             }
             
             console.log('开始扫描，参数:', { minMatch, maxCap, scanLimit });
@@ -2336,7 +2434,7 @@
             const marketCapMax = marketCapMaxInput ? parseFloat(marketCapMaxInput.value) : 100;
             
             if (isNaN(marketCapMax) || marketCapMax < 0) {
-                showMessage('请输入有效的市值上限（≥0）', 'error');
+                showMessage('请输入有效的最大市值（≥0）', 'error');
                 return;
             }
             
@@ -3347,6 +3445,34 @@
         function toggleVipScanParams() {
             const content = document.getElementById('vipScanParamsContent');
             const toggle = document.getElementById('vipScanParamsToggle');
+            if (content && toggle) {
+                if (content.style.display === 'none' || !content.style.display) {
+                    content.style.display = 'block';
+                    toggle.textContent = '▲ 收起';
+                } else {
+                    content.style.display = 'none';
+                    toggle.textContent = '▼ 展开';
+                }
+            }
+        }
+        
+        function toggleLocalScanParams() {
+            const content = document.getElementById('localScanParamsContent');
+            const toggle = document.getElementById('localScanParamsToggle');
+            if (content && toggle) {
+                if (content.style.display === 'none' || !content.style.display) {
+                    content.style.display = 'block';
+                    toggle.textContent = '▲ 收起';
+                } else {
+                    content.style.display = 'none';
+                    toggle.textContent = '▼ 展开';
+                }
+            }
+        }
+        
+        function toggleSuperScanParams() {
+            const content = document.getElementById('superScanParamsContent');
+            const toggle = document.getElementById('superScanParamsToggle');
             if (content && toggle) {
                 if (content.style.display === 'none' || !content.style.display) {
                     content.style.display = 'block';
@@ -4699,4 +4825,5 @@
     </style>
 </body>
 </html>
+
 
