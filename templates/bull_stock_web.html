@@ -3646,19 +3646,34 @@
             
             try {
                 console.log(`开始处理第 ${currentBatch + 1}/${totalBatches} 批...`);
+                console.log(`调用 /api/continue_scan，scan_id: ${scanId}`);
                 
                 const response = await fetch('/api/continue_scan', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
+                    credentials: 'same-origin',  // 确保携带cookie和session
                     body: JSON.stringify({
                         scan_id: scanId
                     })
                 });
                 
+                // 详细记录响应信息
+                console.log(`响应状态: ${response.status} ${response.statusText}`);
+                
                 if (!response.ok) {
-                    throw new Error(`HTTP错误: ${response.status}`);
+                    // 尝试解析错误响应
+                    let errorMessage = `HTTP错误: ${response.status}`;
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.message || errorMessage;
+                        console.error('错误响应:', errorData);
+                    } catch (e) {
+                        const errorText = await response.text();
+                        console.error('错误响应文本:', errorText);
+                    }
+                    throw new Error(errorMessage);
                 }
                 
                 const result = await response.json();
@@ -3697,24 +3712,55 @@
             } catch (error) {
                 console.error(`处理第 ${currentBatch + 1} 批失败:`, error);
                 
-                // 检查是否是 404 错误（扫描任务丢失）
-                if (error.message && error.message.includes('404')) {
-                    showMessage(`扫描任务已丢失（可能数据已过期）。已处理 ${currentBatch}/${totalBatches} 批。`, 'error');
+                // 检查是否是 404、400 或扫描任务丢失错误
+                const isNotFoundError = error.message && (
+                    error.message.includes('404') || 
+                    error.message.includes('400') ||
+                    error.message.includes('SCAN_NOT_FOUND') ||
+                    error.message.includes('找不到扫描任务') ||
+                    error.message.includes('数据已过期')
+                );
+                
+                if (isNotFoundError) {
+                    const errorMsg = error.message.includes('找不到扫描任务') || error.message.includes('SCAN_NOT_FOUND') || error.message.includes('数据已过期')
+                        ? `扫描任务已丢失（可能数据已过期，超过24小时）。已处理 ${currentBatch}/${totalBatches} 批。请重新开始扫描。`
+                        : `处理第 ${currentBatch + 1} 批失败（${error.message}）。可能原因：数据已过期或任务已删除。请重新开始扫描。`;
+                    
+                    showMessage(errorMsg, 'error');
                     hideProgress();
                     stopProgressPolling();
                     const stopBtn = document.getElementById('stopScanBtn');
                     if (stopBtn) stopBtn.disabled = true;
+                    
+                    // 如果已经处理了一些批次，提示用户可以查看部分结果
+                    if (currentBatch > 0) {
+                        console.log('部分结果已保存，可以尝试查看扫描结果');
+                        showMessage('部分结果已保存，您可以查看已扫描的结果', 'info');
+                    }
                     return; // 停止继续处理
                 }
                 
-                showMessage(`处理第 ${currentBatch + 1} 批失败: ${error.message}`, 'error');
-                // 尝试继续下一批次（如果可能，且不是 404 错误），增加重试延迟以提高稳定性
-                if (currentBatch + 1 < totalBatches && !error.message.includes('404')) {
+                // 检查是否是认证错误（401）
+                if (error.message && error.message.includes('401')) {
+                    showMessage('登录已过期，请重新登录', 'error');
+                    setTimeout(() => {
+                        window.location.href = '/login';
+                    }, 2000);
+                    return;
+                }
+                
+                // 其他错误，尝试重试
+                console.warn(`处理第 ${currentBatch + 1} 批失败: ${error.message}，5秒后重试...`);
+                showMessage(`处理第 ${currentBatch + 1} 批失败: ${error.message}，正在重试...`, 'warning');
+                
+                // 尝试继续下一批次（如果可能，且不是致命错误），增加重试延迟以提高稳定性
+                if (currentBatch + 1 < totalBatches) {
                     console.log(`5秒后重试第 ${currentBatch + 2} 批...`);
                     setTimeout(() => autoContinueScan(scanId, currentBatch + 1, totalBatches), 5000);
                 } else {
-                    // 如果是最后一批或 404 错误，停止处理
+                    // 如果是最后一批，停止处理
                     console.error('无法继续处理，停止扫描');
+                    showMessage(`扫描失败: ${error.message}`, 'error');
                     hideProgress();
                     stopProgressPolling();
                     const stopBtn = document.getElementById('stopScanBtn');

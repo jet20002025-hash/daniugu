@@ -2204,15 +2204,18 @@ def scan_all_stocks():
 @require_login
 def continue_scan():
     """继续扫描下一批次（Vercel 环境）"""
-    if not is_vercel:
-        return jsonify({
-            'success': False,
-            'message': '此API仅在 Vercel 环境中可用'
-        }), 400
-    
     try:
+        # 记录请求信息（用于调试）
         data = request.get_json() or {}
         scan_id = data.get('scan_id')
+        print(f"[continue_scan] 收到请求: scan_id={scan_id}, 用户={get_current_user().get('username') if get_current_user() else 'None'}")
+        
+        if not is_vercel:
+            return jsonify({
+                'success': False,
+                'message': '此API仅在 Vercel 环境中可用'
+            }), 400
+        
         if not scan_id:
             return jsonify({
                 'success': False,
@@ -2230,16 +2233,16 @@ def continue_scan():
         progress = scan_progress_store.get_scan_progress(scan_id)
         if not progress:
             # 提供更详细的错误信息
-            import traceback
-            error_detail = traceback.format_exc()
             print(f"⚠️ 找不到扫描任务 scan_id={scan_id} (用户: {username})")
             print(f"   可能原因：1) Redis 数据过期（TTL 24小时） 2) scan_id 错误 3) Redis 连接问题 4) 不是当前用户的扫描任务")
+            # 返回400而不是404，因为路由存在，只是数据不存在
             return jsonify({
                 'success': False,
-                'message': f'找不到扫描任务（scan_id: {scan_id}）。可能原因：数据已过期（超过24小时）或任务已删除。',
+                'message': f'找不到扫描任务（scan_id: {scan_id}）。可能原因：数据已过期（超过24小时）或任务已删除。请重新开始扫描。',
                 'error_code': 'SCAN_NOT_FOUND',
-                'scan_id': scan_id
-            }), 404
+                'scan_id': scan_id,
+                'retry': False  # 标识是否应该重试
+            }), 400
         
         # 验证扫描任务是否属于当前用户（多用户隔离）
         progress_username = progress.get('username', 'anonymous')
@@ -2336,6 +2339,17 @@ def continue_scan():
             'has_more': not batch_result.get('is_complete', False),
             'is_complete': batch_result.get('is_complete', False)
         })
+    
+    except KeyError as e:
+        # 处理数据格式错误
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"继续扫描数据格式错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'数据格式错误: {str(e)}',
+            'error_code': 'DATA_FORMAT_ERROR'
+        }), 400
         
     except Exception as e:
         import traceback
