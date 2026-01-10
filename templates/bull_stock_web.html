@@ -906,7 +906,34 @@
         // 检查匹配度状态并更新UI
         async function checkMatchScoreStatus() {
             try {
-                const response = await fetch('/api/get_trained_features');
+                // 添加超时控制（5秒）
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => {
+                    console.warn('[checkMatchScoreStatus] 请求超时（5秒），中断请求');
+                    controller.abort();
+                }, 5000);
+                
+                let response;
+                try {
+                    response = await fetch('/api/get_trained_features', {
+                        signal: controller.signal,
+                        cache: 'no-store'
+                    });
+                    clearTimeout(timeoutId);
+                } catch (fetchError) {
+                    clearTimeout(timeoutId);
+                    if (fetchError.name === 'AbortError') {
+                        console.warn('[checkMatchScoreStatus] 请求超时，跳过检查');
+                        return; // 超时直接返回，不阻塞页面
+                    }
+                    throw fetchError;
+                }
+                
+                if (!response.ok) {
+                    console.error('[checkMatchScoreStatus] HTTP错误:', response.status);
+                    return;
+                }
+                
                 const result = await response.json();
                 
                 console.log('模型检查结果:', result);
@@ -3012,10 +3039,35 @@
         // 检查登录状态
         async function checkLoginStatus() {
             try {
-                const response = await fetch('/api/check_login', {
-                    method: 'GET',
-                    cache: 'no-store'
-                });
+                // 添加超时控制（5秒）
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => {
+                    console.warn('[checkLoginStatus] 请求超时（5秒），中断请求');
+                    controller.abort();
+                }, 5000);
+                
+                let response;
+                try {
+                    response = await fetch('/api/check_login', {
+                        method: 'GET',
+                        signal: controller.signal,
+                        cache: 'no-store'
+                    });
+                    clearTimeout(timeoutId);
+                } catch (fetchError) {
+                    clearTimeout(timeoutId);
+                    if (fetchError.name === 'AbortError') {
+                        console.warn('[checkLoginStatus] 请求超时，返回false');
+                        return false; // 超时返回false，不跳转，让用户重试
+                    }
+                    throw fetchError;
+                }
+                
+                if (!response.ok) {
+                    console.error('[checkLoginStatus] HTTP错误:', response.status);
+                    return false;
+                }
+                
                 const result = await response.json();
                 
                 if (!result.success || !result.logged_in) {
@@ -3027,8 +3079,7 @@
                 return true;
             } catch (error) {
                 console.error('[checkLoginStatus] 检查登录状态失败:', error);
-                // 出错时也跳转到登录页面
-                window.location.href = '/login';
+                // 网络错误时不立即跳转，给用户重试的机会
                 return false;
             }
         }
@@ -3110,9 +3161,16 @@
                 const reversalSection = document.getElementById('reversalStockSection');
                 if (reversalSection) reversalSection.style.display = 'none';
                 
-                // 获取用户信息
+                // 获取用户信息（添加超时控制，5秒超时）
                 try {
-                    const user = await getUserInfo();
+                    const user = await Promise.race([
+                        getUserInfo(),
+                        new Promise((resolve) => setTimeout(() => {
+                            console.warn('[updateFunctionButtonsVisibility] 获取用户信息超时（5秒），使用默认显示');
+                            resolve(null);
+                        }, 5000))
+                    ]);
+                    
                     if (user) {
                         const tier = user.tier || 'free';
                         const isSuper = user.is_super || false;
@@ -3190,49 +3248,88 @@
             }
         }
         
-        // 页面加载时获取股票列表
+        // 页面加载时获取股票列表（优化加载顺序，避免阻塞）
         async function initPageLoad() {
-            // 首先检查登录状态
-            const isLoggedIn = await checkLoginStatus();
-            if (!isLoggedIn) {
-                return; // 未登录，已跳转，不再继续执行
-            }
+            console.log('[initPageLoad] 开始初始化页面...');
             
-            // 根据环境和用户等级显示/隐藏功能按钮
-            await updateFunctionButtonsVisibility();
+            // 立即显示用户信息（异步加载，不阻塞）
+            displayUserInfo().catch(err => {
+                console.error('[initPageLoad] 显示用户信息失败:', err);
+            });
             
-            // 显示用户信息
-            displayUserInfo();
-            
-            // 检查用户等级，如果是免费用户，显示扫描结果图表
+            // 首先检查登录状态（添加超时）
             try {
-                const user = await getUserInfo();
-                if (user && !isLocalEnvironment()) {
-                    const tier = user.tier || 'free';
-                    if (tier === 'free') {
-                        // 免费用户：显示扫描结果图表
-                        await loadAndDisplayFreeUserScanResults();
-                    } else {
-                        // VIP用户或超级用户：正常加载股票列表
-                        loadStocks();
-                    }
-                } else {
-                    // 本地环境或无法获取用户信息：正常加载股票列表
-                    loadStocks();
+                const isLoggedIn = await Promise.race([
+                    checkLoginStatus(),
+                    new Promise((resolve) => setTimeout(() => {
+                        console.warn('[initPageLoad] 检查登录状态超时，继续执行');
+                        resolve(false);
+                    }, 6000)) // 6秒超时
+                ]);
+                
+                if (!isLoggedIn) {
+                    console.log('[initPageLoad] 用户未登录，停止初始化');
+                    return; // 未登录，已跳转，不再继续执行
                 }
             } catch (error) {
-                console.error('[initPageLoad] 获取用户信息失败:', error);
-                loadStocks();
+                console.error('[initPageLoad] 检查登录状态异常:', error);
+                // 即使检查失败，也继续执行，避免页面完全卡住
             }
             
-            // 页面加载时检查匹配度状态
-            checkMatchScoreStatus();
+            // 根据环境和用户等级显示/隐藏功能按钮（异步，不阻塞）
+            updateFunctionButtonsVisibility().catch(err => {
+                console.error('[initPageLoad] 更新按钮显示失败:', err);
+            });
+            
+            // 检查用户等级，如果是免费用户，显示扫描结果图表（异步，不阻塞）
+            Promise.race([
+                (async () => {
+                    try {
+                        const user = await getUserInfo();
+                        if (user && !isLocalEnvironment()) {
+                            const tier = user.tier || 'free';
+                            if (tier === 'free') {
+                                // 免费用户：显示扫描结果图表
+                                await loadAndDisplayFreeUserScanResults();
+                            } else {
+                                // VIP用户或超级用户：正常加载股票列表
+                                loadStocks();
+                            }
+                        } else {
+                            // 本地环境或无法获取用户信息：正常加载股票列表
+                            loadStocks();
+                        }
+                    } catch (error) {
+                        console.error('[initPageLoad] 获取用户信息失败:', error);
+                        loadStocks();
+                    }
+                })(),
+                new Promise((resolve) => setTimeout(() => {
+                    console.warn('[initPageLoad] 获取用户信息超时，使用默认加载');
+                    loadStocks();
+                    resolve();
+                }, 8000)) // 8秒超时，超时后直接加载股票列表
+            ]).catch(err => {
+                console.error('[initPageLoad] 加载内容失败:', err);
+                loadStocks(); // 出错时也加载股票列表
+            });
+            
+            // 页面加载时检查匹配度状态（异步，不阻塞）
+            checkMatchScoreStatus().catch(err => {
+                console.error('[initPageLoad] 检查匹配度状态失败:', err);
+            });
             
             // 每5分钟刷新一次用户信息和按钮显示（减少刷新频率，避免页面跳动）
             setInterval(async () => {
-                await displayUserInfo();
-                await updateFunctionButtonsVisibility();
+                try {
+                    await displayUserInfo();
+                    await updateFunctionButtonsVisibility();
+                } catch (err) {
+                    console.error('[initPageLoad] 定时刷新失败:', err);
+                }
             }, 300000); // 改为5分钟（300000毫秒）
+            
+            console.log('[initPageLoad] 页面初始化完成');
         }
         
         // 加载并显示免费用户的扫描结果
@@ -3730,10 +3827,37 @@
         // 网络环境：所有用户都需要手动刷新
         console.log('[定时刷新] 已禁用自动刷新，用户需要时手动刷新');
         
-        // 获取用户信息
+        // 获取用户信息（添加超时控制）
         async function getUserInfo() {
             try {
-                const response = await fetch('/api/user_info');
+                // 添加超时控制（5秒）
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => {
+                    console.warn('[getUserInfo] 请求超时（5秒），中断请求');
+                    controller.abort();
+                }, 5000);
+                
+                let response;
+                try {
+                    response = await fetch('/api/user_info', {
+                        signal: controller.signal,
+                        cache: 'no-store'
+                    });
+                    clearTimeout(timeoutId);
+                } catch (fetchError) {
+                    clearTimeout(timeoutId);
+                    if (fetchError.name === 'AbortError') {
+                        console.warn('[getUserInfo] 请求超时');
+                        return null;
+                    }
+                    throw fetchError;
+                }
+                
+                if (!response.ok) {
+                    console.error('[getUserInfo] HTTP错误:', response.status);
+                    return null;
+                }
+                
                 const result = await response.json();
                 if (result.success && result.user) {
                     return result.user;
@@ -3745,7 +3869,7 @@
             }
         }
         
-        // 显示用户信息
+        // 显示用户信息（添加超时控制和错误处理）
         async function displayUserInfo() {
             const userInfoDiv = document.getElementById('userInfoDisplay');
             if (!userInfoDiv) {
@@ -3753,12 +3877,41 @@
                 return;
             }
             
+            // 先显示加载状态
+            userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #666;">加载中...</div>';
+            
             try {
-                // 先检查登录状态
-                const loginCheckResponse = await fetch('/api/check_login', {
-                    method: 'GET',
-                    cache: 'no-store'
-                });
+                // 先检查登录状态（添加超时控制）
+                const loginController = new AbortController();
+                const loginTimeoutId = setTimeout(() => {
+                    console.warn('[displayUserInfo] 检查登录状态超时（5秒）');
+                    loginController.abort();
+                }, 5000);
+                
+                let loginCheckResponse;
+                try {
+                    loginCheckResponse = await fetch('/api/check_login', {
+                        method: 'GET',
+                        signal: loginController.signal,
+                        cache: 'no-store'
+                    });
+                    clearTimeout(loginTimeoutId);
+                } catch (fetchError) {
+                    clearTimeout(loginTimeoutId);
+                    if (fetchError.name === 'AbortError') {
+                        console.warn('[displayUserInfo] 检查登录状态超时，显示错误信息');
+                        userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #e74c3c;">网络超时，请刷新重试</div>';
+                        return;
+                    }
+                    throw fetchError;
+                }
+                
+                if (!loginCheckResponse.ok) {
+                    console.error('[displayUserInfo] 检查登录状态HTTP错误:', loginCheckResponse.status);
+                    userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #e74c3c;">加载失败，请刷新重试</div>';
+                    return;
+                }
+                
                 const loginCheckResult = await loginCheckResponse.json();
                 
                 if (!loginCheckResult.success || !loginCheckResult.logged_in) {
@@ -3768,11 +3921,13 @@
                     return;
                 }
                 
+                // 获取用户信息（已有超时控制）
                 const user = await getUserInfo();
                 if (!user) {
-                    // 如果获取用户信息失败，也跳转到登录页面
-                    console.log('[displayUserInfo] 获取用户信息失败，跳转到登录页面');
-                    window.location.href = '/login';
+                    // 如果获取用户信息失败，显示错误信息而不是立即跳转（可能是网络问题）
+                    console.warn('[displayUserInfo] 获取用户信息失败，可能是网络问题');
+                    userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #e74c3c;">加载失败，请刷新重试</div>';
+                    // 不立即跳转，给用户一个重试的机会
                     return;
                 }
                 
@@ -3808,7 +3963,7 @@
                 userInfoDiv.innerHTML = html;
             } catch (error) {
                 console.error('显示用户信息失败:', error);
-                userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #e74c3c;">加载失败</div>';
+                userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #e74c3c;">加载失败，请刷新重试</div>';
             }
         }
         
