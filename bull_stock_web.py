@@ -1989,9 +1989,40 @@ def scan_all_stocks():
             
             if stock_list is None or len(stock_list) == 0:
                 print(f"[scan_all_stocks] ❌ 股票列表为空: stock_list={stock_list}, len={len(stock_list) if stock_list is not None else 0}")
-                error_msg = '无法获取股票列表\n\n可能的原因：\n1. 缓存未刷新（股票列表缓存可能尚未生成）\n2. 网络连接问题（Vercel 环境网络限制）\n3. akshare 服务暂时不可用\n4. 超时（Vercel 函数执行时间限制为 10 秒）\n\n建议：\n- 股票列表缓存会在交易时间段（9:30-11:30, 13:00-15:00）每5分钟自动刷新，请稍候再试\n- 盘后（15:05）也会自动刷新一次缓存\n- 如果问题持续，可能是 akshare 服务暂时不可用'
+                
+                # 检查缓存是否存在
+                cache_exists = False
+                try:
+                    cached_stocks = analyzer.fetcher._get_stock_list_from_cache()
+                    if cached_stocks is not None and len(cached_stocks) > 0:
+                        cache_exists = True
+                        print(f"[scan_all_stocks] ⚠️ 缓存中存在股票列表，但读取后为空，尝试重新从 API 获取...")
+                    else:
+                        print(f"[scan_all_stocks] ⚠️ 缓存中不存在股票列表")
+                except Exception as e:
+                    print(f"[scan_all_stocks] ⚠️ 检查缓存时出错: {e}")
+                
+                error_msg = '无法获取股票列表\n\n可能的原因：\n'
+                if not cache_exists:
+                    error_msg += '1. ⚠️ 缓存未刷新（股票列表缓存可能尚未生成）\n'
+                    error_msg += '   - 股票列表缓存会在交易时间段（9:30-11:30, 13:00-15:00）每5分钟自动刷新\n'
+                    error_msg += '   - 盘后（15:05）也会自动刷新一次缓存\n'
+                    error_msg += '   - 如果当前不在交易时间，缓存可能尚未生成\n'
+                    error_msg += '2. 网络连接问题（Vercel 环境网络限制）\n'
+                    error_msg += '3. akshare 服务暂时不可用\n'
+                    error_msg += '4. 超时（Vercel 函数执行时间限制为 10 秒）\n\n'
+                    error_msg += '💡 建议：\n'
+                    error_msg += '- 请在交易时间段（9:30-11:30, 13:00-15:00）或盘后（15:05之后）再试\n'
+                    error_msg += '- 系统会在交易时间段自动刷新缓存，确保缓存存在后即可正常扫描\n'
+                else:
+                    error_msg += '1. 缓存存在但读取失败\n'
+                    error_msg += '2. 网络连接问题（Vercel 环境网络限制）\n'
+                    error_msg += '3. akshare 服务暂时不可用\n'
+                    error_msg += '4. 超时（Vercel 函数执行时间限制为 10 秒）\n\n'
+                    error_msg += '💡 建议：请稍后重试，或等待系统自动刷新缓存\n'
+                
                 if is_vercel:
-                    error_msg += '\n\n💡 提示：系统会在交易时间段自动刷新股票列表缓存，扫描时优先从缓存读取，避免超时。'
+                    error_msg += '\n📌 注意：系统会在交易时间段自动刷新股票列表缓存，扫描时优先从缓存读取，避免超时。'
                 return jsonify({
                     'success': False,
                     'message': error_msg
@@ -3967,7 +3998,7 @@ def refresh_stock_cache():
     刷新股票列表缓存的 Cron Job 端点
     在交易时间段（9:30-11:30, 13:00-15:00）每5分钟刷新一次
     盘后（15:05）刷新一次
-    无需登录（Cron Job 调用）
+    也允许手动触发刷新（无需登录，但建议在交易时间段使用）
     """
     try:
         from datetime import datetime, timezone, timedelta
@@ -4007,13 +4038,17 @@ def refresh_stock_cache():
         beijing_now = get_beijing_time()
         current_time_str = beijing_now.strftime('%Y-%m-%d %H:%M:%S')
         
-        # 检查是否在交易时间或盘后时间
-        if not is_trading_time(beijing_now):
+        # 检查是否在交易时间或盘后时间（如果不是，仍然允许手动触发，但给出警告）
+        is_in_trading_time = is_trading_time(beijing_now)
+        force_refresh = request.args.get('force', '').lower() == 'true' or request.get_json(silent=True) and request.get_json().get('force', False)
+        
+        if not is_in_trading_time and not force_refresh:
             return jsonify({
                 'success': False,
-                'message': f'当前时间不在交易时间段或盘后时间（当前时间: {current_time_str}）',
+                'message': f'当前时间不在交易时间段或盘后时间（当前时间: {current_time_str}）\n\n如需强制刷新，请使用 ?force=true 参数',
                 'current_time': current_time_str,
-                'trading_hours': '9:30-11:30, 13:00-15:00（每5分钟刷新），15:05（盘后刷新）'
+                'trading_hours': '9:30-11:30, 13:00-15:00（每5分钟刷新），15:05（盘后刷新）',
+                'force_refresh': False
             }), 200
         
         print(f"[refresh_stock_cache] 开始刷新股票列表缓存 - 时间: {current_time_str}")
