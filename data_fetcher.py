@@ -281,6 +281,7 @@ class DataFetcher:
         import signal
         import threading
         import os
+        import time
         
         # 首先尝试从缓存获取（优先从缓存读取，避免每次调用 akshare API）
         # 在交易时间段内，检查缓存年龄，如果过期则刷新
@@ -395,7 +396,6 @@ class DataFetcher:
                     if attempt < max_retries - 1:
                         # 不在 Vercel 中时，等待后重试
                         print(f"[get_all_stocks] 等待 2 秒后重试...")
-                        import time
                         time.sleep(2)
                         continue  # 重试
                     else:
@@ -420,7 +420,6 @@ class DataFetcher:
                         return None
                     if attempt < max_retries - 1:
                         print(f"[get_all_stocks] 等待 2 秒后重试...")
-                        import time
                         time.sleep(2)
                         continue  # 重试
                     else:
@@ -468,7 +467,6 @@ class DataFetcher:
                         return None
                     if attempt < max_retries - 1:
                         print(f"[get_all_stocks] 等待 2 秒后重试...")
-                        import time
                         time.sleep(2)
                         continue  # 重试
                     else:
@@ -500,7 +498,6 @@ class DataFetcher:
                 
                 if attempt < max_retries - 1:
                     print(f"[get_all_stocks] 等待 2 秒后重试...")
-                    import time
                     time.sleep(2)
                     continue  # 重试
                 else:
@@ -720,13 +717,147 @@ class DataFetcher:
             print(f"获取 {stock_code} 日K线数据失败: {e}")
             return None
     
-    def get_weekly_kline(self, stock_code, period="1y"):
+    def _get_weekly_kline_from_cache(self, stock_code):
+        """
+        从缓存中获取周K线数据
+        :param stock_code: 股票代码（如 '000001'）
+        :return: DataFrame 或 None
+        """
+        try:
+            import os
+            import json
+            
+            # 尝试使用 Upstash Redis
+            redis_url = os.environ.get('UPSTASH_REDIS_REST_URL')
+            redis_token = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
+            if redis_url and redis_token:
+                import requests
+                try:
+                    key = f"stock_kline:{stock_code}"
+                    response = requests.get(
+                        f"{redis_url}/get/{key}",
+                        headers={"Authorization": f"Bearer {redis_token}"},
+                        timeout=2
+                    )
+                    if response.status_code == 200:
+                        result = response.json()
+                        value_str = result.get('result')
+                        if value_str:
+                            # 解析 JSON 字符串（可能需要解析两次，处理双重编码）
+                            stock_data = json.loads(value_str) if isinstance(value_str, str) else value_str
+                            if isinstance(stock_data, str):
+                                stock_data = json.loads(stock_data)
+                            
+                            if isinstance(stock_data, list) and len(stock_data) > 0:
+                                import pandas as pd
+                                df = pd.DataFrame(stock_data)
+                                # 确保日期列存在且可转换
+                                if '日期' in df.columns:
+                                    df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
+                                    df = df.dropna(subset=['日期'])
+                                    df = df.sort_values('日期').reset_index(drop=True)
+                                return df
+                except Exception as e:
+                    # 静默失败，继续尝试其他方式
+                    pass
+            
+            # 尝试使用 Vercel KV
+            try:
+                from vercel_kv import kv
+                key = f"stock_kline:{stock_code}"
+                cached_data = kv.get(key)
+                if cached_data:
+                    stock_data = json.loads(cached_data) if isinstance(cached_data, str) else cached_data
+                    if isinstance(stock_data, list) and len(stock_data) > 0:
+                        import pandas as pd
+                        df = pd.DataFrame(stock_data)
+                        if '日期' in df.columns:
+                            df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
+                            df = df.dropna(subset=['日期'])
+                            df = df.sort_values('日期').reset_index(drop=True)
+                        return df
+            except Exception:
+                pass
+            
+            return None
+        except Exception as e:
+            return None
+    
+    def _save_weekly_kline_to_cache(self, stock_code, weekly_df, ttl=86400):
+        """
+        将周K线数据保存到缓存（TTL: 24小时 = 86400秒）
+        :param stock_code: 股票代码（如 '000001'）
+        :param weekly_df: 周K线DataFrame
+        :param ttl: 缓存时间（秒），默认24小时
+        :return: bool，是否保存成功
+        """
+        try:
+            import os
+            import json
+            
+            if weekly_df is None or len(weekly_df) == 0:
+                return False
+            
+            # 将 DataFrame 转换为 JSON 格式（字典列表）
+            try:
+                stock_data = weekly_df.to_dict('records')
+                stock_json = json.dumps(stock_data, default=str, ensure_ascii=False)
+            except Exception as e:
+                print(f"[_save_weekly_kline_to_cache] ⚠️ 转换 DataFrame 到 JSON 失败: {e}")
+                return False
+            
+            # 尝试使用 Upstash Redis
+            redis_url = os.environ.get('UPSTASH_REDIS_REST_URL')
+            redis_token = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
+            if redis_url and redis_token:
+                import requests
+                try:
+                    key = f"stock_kline:{stock_code}"
+                    response = requests.post(
+                        f"{redis_url}/setex/{key}/{ttl}",
+                        headers={
+                            "Authorization": f"Bearer {redis_token}",
+                            "Content-Type": "application/json"
+                        },
+                        json=stock_json,
+                        timeout=5
+                    )
+                    if response.status_code == 200:
+                        result = response.json()
+                        if result.get('result') == 'OK' or result.get('result') is True:
+                            return True
+                except Exception as e:
+                    # 静默失败，继续尝试其他方式
+                    pass
+            
+            # 尝试使用 Vercel KV
+            try:
+                from vercel_kv import kv
+                key = f"stock_kline:{stock_code}"
+                kv.set(key, stock_json, ttl=ttl)
+                return True
+            except Exception:
+                pass
+            
+            return False
+        except Exception as e:
+            return False
+    
+    def get_weekly_kline(self, stock_code, period="1y", use_cache=True):
         """
         获取周K线数据（包含周成交量）
         :param stock_code: 股票代码（如 '000001'）
-        :param period: 时间周期，'1y'表示1年
+        :param period: 时间周期，'1y'表示1年（实际使用2年）
+        :param use_cache: 是否使用缓存，默认True
         :return: DataFrame，包含周日期、开盘、收盘、最高、最低、周成交量等
         """
+        # 优先从缓存读取
+        if use_cache:
+            cached_df = self._get_weekly_kline_from_cache(stock_code)
+            if cached_df is not None and len(cached_df) > 0:
+                print(f"[get_weekly_kline] ✅ 从缓存获取 {stock_code} 的周K线数据: {len(cached_df)} 周")
+                return cached_df
+        
         try:
             print(f"开始获取 {stock_code} 的周K线数据...")
             # 方法1: 尝试直接使用akshare的周K线接口
@@ -771,6 +902,9 @@ class DataFetcher:
                         # 重命名成交量为周成交量
                         if '成交量' in df.columns:
                             df = df.rename(columns={'成交量': '周成交量'})
+                        # 保存到缓存
+                        if use_cache:
+                            self._save_weekly_kline_to_cache(stock_code, df)
                         return df
             except Exception as e1:
                 print(f"直接获取周K线失败: {e1}，尝试从日K线聚合...")
@@ -820,6 +954,10 @@ class DataFetcher:
             # 计算周涨跌幅
             weekly_kline['涨跌幅'] = weekly_kline['收盘'].pct_change() * 100
             weekly_kline['涨跌幅'] = weekly_kline['涨跌幅'].fillna(0)
+            
+            # 保存到缓存
+            if use_cache:
+                self._save_weekly_kline_to_cache(stock_code, weekly_kline)
             
             return weekly_kline
         except Exception as e:
