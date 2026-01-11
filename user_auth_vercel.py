@@ -120,8 +120,8 @@ def load_users():
     """加载用户数据（从持久化存储）"""
     global _users_cache
     
-    # 如果缓存存在且非空，直接返回
-    if _users_cache:
+    # 如果缓存存在且非空，且是字典类型，直接返回
+    if _users_cache and isinstance(_users_cache, dict):
         return _users_cache.copy()
     
     try:
@@ -129,23 +129,50 @@ def load_users():
             # 从 Upstash Redis 加载
             data = _upstash_redis_get('users')
             if data:
-                _users_cache = json.loads(data) if isinstance(data, str) else data
-                return _users_cache.copy()
+                if isinstance(data, str):
+                    try:
+                        _users_cache = json.loads(data)
+                    except (json.JSONDecodeError, TypeError):
+                        print(f"⚠️ 解析用户数据失败（不是有效的 JSON），使用空字典: {data[:100] if len(data) > 100 else data}")
+                        _users_cache = {}
+                elif isinstance(data, dict):
+                    _users_cache = data
+                else:
+                    print(f"⚠️ 用户数据格式不正确（类型：{type(data)}），使用空字典")
+                    _users_cache = {}
+                # 确保 _users_cache 是字典类型
+                if isinstance(_users_cache, dict):
+                    return _users_cache.copy()
         elif _storage_type == 'vercel_kv':
             # 从 Vercel KV 加载
             from vercel_kv import kv
             data = kv.get('users')
             if data:
-                _users_cache = json.loads(data) if isinstance(data, str) else data
-                return _users_cache.copy()
+                if isinstance(data, str):
+                    try:
+                        _users_cache = json.loads(data)
+                    except (json.JSONDecodeError, TypeError):
+                        print(f"⚠️ 解析用户数据失败（不是有效的 JSON），使用空字典: {data[:100] if len(data) > 100 else data}")
+                        _users_cache = {}
+                elif isinstance(data, dict):
+                    _users_cache = data
+                else:
+                    print(f"⚠️ 用户数据格式不正确（类型：{type(data)}），使用空字典")
+                    _users_cache = {}
+                # 确保 _users_cache 是字典类型
+                if isinstance(_users_cache, dict):
+                    return _users_cache.copy()
         elif _storage_type == 'memory':
             # 内存存储，直接返回缓存（可能是空的）
             pass
     except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
         print(f"⚠️ 加载用户数据失败: {e}")
+        print(f"⚠️ 错误详情: {error_detail}")
     
-    # 如果加载失败或使用内存存储，返回缓存（可能是空的）
-    if not _users_cache:
+    # 如果加载失败或使用内存存储，返回缓存（确保是字典类型）
+    if not isinstance(_users_cache, dict):
         _users_cache = {}
     return _users_cache.copy()
 
