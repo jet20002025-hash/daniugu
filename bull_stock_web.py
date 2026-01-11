@@ -5034,17 +5034,24 @@ if __name__ == '__main__':
     import time
     
     # 检测是否在Render或其他云平台环境
+    # Render 通常会设置 PORT 环境变量，如果设置了 PORT，说明在云环境
+    port_env = os.environ.get('PORT')
+    is_port_set = port_env is not None
+    
     is_render = (
         os.environ.get('RENDER') == 'true' or
         os.environ.get('RENDER_SERVICE_NAME') is not None or
-        os.environ.get('RENDER_EXTERNAL_URL') is not None
+        os.environ.get('RENDER_SERVICE_ID') is not None or
+        os.environ.get('RENDER_EXTERNAL_URL') is not None or
+        os.environ.get('RENDER_EXTERNAL_HOSTNAME') is not None
     )
     is_vercel = (
         os.environ.get('VERCEL') == '1' or 
         os.environ.get('VERCEL_ENV') is not None or
         os.environ.get('VERCEL_URL') is not None
     )
-    is_cloud = is_render or is_vercel
+    # 如果 PORT 环境变量被设置（通常是云平台），或者检测到 Render/Vercel，认为是云环境
+    is_cloud = is_render or is_vercel or is_port_set
     
     # 支持Render等平台：从环境变量获取端口，如果没有则使用默认端口5002
     port = int(os.environ.get('PORT', 5002))
