@@ -1829,8 +1829,8 @@ def get_progress():
         'Expires': '0'
     }
     
-    # 在 Vercel serverless 环境中，从 Redis 读取进度
-    if is_vercel:
+    # 在 Vercel serverless 环境中，从 Redis 读取进度（Render环境使用本地进度）
+    if is_vercel and not is_render:
         scan_id = request.args.get('scan_id')
         
         # 获取当前用户信息
