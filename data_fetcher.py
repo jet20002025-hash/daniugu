@@ -491,6 +491,11 @@ class DataFetcher:
                 if is_vercel:
                     # 在 Vercel 中，如果出错，直接返回 None，不重试
                     print(f"[get_all_stocks] Vercel 环境中出错，直接返回 None（避免超过10秒执行时间限制）")
+                    # 如果有过期缓存，使用过期缓存作为回退方案
+                    if expired_cache is not None and len(expired_cache) > 0:
+                        print(f"[get_all_stocks] ⚠️ 异常处理：回退到使用过期缓存（{len(expired_cache)} 只股票）")
+                        self.stock_list = expired_cache
+                        return expired_cache
                     return None
                 
                 if attempt < max_retries - 1:
@@ -500,9 +505,19 @@ class DataFetcher:
                     continue  # 重试
                 else:
                     print(f"[get_all_stocks] ❌ 所有重试都失败")
+                    # 如果有过期缓存，使用过期缓存作为回退方案
+                    if expired_cache is not None and len(expired_cache) > 0:
+                        print(f"[get_all_stocks] ⚠️ 所有重试都失败，回退到使用过期缓存（{len(expired_cache)} 只股票）")
+                        self.stock_list = expired_cache
+                        return expired_cache
                     return None
         
         print(f"[get_all_stocks] ❌ 所有重试都失败，返回 None")
+        # 如果有过期缓存，使用过期缓存作为回退方案
+        if expired_cache is not None and len(expired_cache) > 0:
+            print(f"[get_all_stocks] ⚠️ 所有重试都失败，回退到使用过期缓存（{len(expired_cache)} 只股票）")
+            self.stock_list = expired_cache
+            return expired_cache
         return None
     
     def get_market_cap(self, stock_code, timeout=5):
