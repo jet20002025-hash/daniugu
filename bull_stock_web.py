@@ -2263,7 +2263,7 @@ def scan_all_stocks():
         # 并行处理配置（默认启用，提升扫描速度）
         use_parallel = data.get('use_parallel', True)  # 默认启用并行处理
         # Render环境使用更多线程以加快扫描速度（目标：10分钟内完成）
-        default_workers = 20 if is_render else 5
+        default_workers = 100 if is_render else 5  # 增加到100线程以提升性能
         max_workers = int(data.get('max_workers', default_workers))
         
         # VIP用户自定义参数（第二阶段功能）
