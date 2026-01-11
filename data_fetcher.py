@@ -460,6 +460,11 @@ class DataFetcher:
                     if is_vercel:
                         # 在 Vercel 中，如果结果为空，直接返回 None，不重试
                         print(f"[get_all_stocks] Vercel 环境中结果为空，直接返回 None")
+                        # 如果有过期缓存，使用过期缓存作为回退方案
+                        if expired_cache is not None and len(expired_cache) > 0:
+                            print(f"[get_all_stocks] ⚠️ API 返回为空，回退到使用过期缓存（{len(expired_cache)} 只股票）")
+                            self.stock_list = expired_cache
+                            return expired_cache
                         return None
                     if attempt < max_retries - 1:
                         print(f"[get_all_stocks] 等待 2 秒后重试...")
@@ -468,6 +473,11 @@ class DataFetcher:
                         continue  # 重试
                     else:
                         print(f"[get_all_stocks] ❌ 所有重试都失败，返回 None")
+                        # 如果有过期缓存，使用过期缓存作为回退方案
+                        if expired_cache is not None and len(expired_cache) > 0:
+                            print(f"[get_all_stocks] ⚠️ 所有重试都失败，回退到使用过期缓存（{len(expired_cache)} 只股票）")
+                            self.stock_list = expired_cache
+                            return expired_cache
                         return None
                         
             except Exception as e:
