@@ -2678,6 +2678,14 @@ def scan_all_stocks():
             }
             scan_progress_store.save_scan_progress(scan_id, initial_progress)
             
+            # 保存用户的最新 scan_id（用于后续查找）
+            try:
+                latest_scan_key = f'latest_scan:{username}'
+                if hasattr(scan_progress_store, '_upstash_redis_set'):
+                    scan_progress_store._upstash_redis_set(latest_scan_key, scan_id, ttl=86400)  # 24小时TTL
+            except Exception as e:
+                print(f"[scan_all_stocks] ⚠️ 保存最新 scan_id 失败: {e}")
+            
             # VIP用户无限制扫描，不需要记录扫描次数（已移除限制）
             # 但可以保留记录功能用于统计（不限制扫描）
             if user_tier == 'premium':
