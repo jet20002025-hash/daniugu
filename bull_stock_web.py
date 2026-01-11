@@ -2270,8 +2270,8 @@ def scan_all_stocks():
         industry_filter = data.get('industry_filter', '').strip()  # 行业筛选（暂不支持，预留）
         custom_stock_pool = data.get('custom_stock_pool', '').strip()  # 自定义股票池（暂不支持，预留）
         
-        # 在 Vercel 环境中，使用分批处理方案
-        if is_vercel:
+        # 在 Vercel serverless 环境中，使用分批处理方案（Render环境使用本地并行处理）
+        if is_vercel and not is_render:
             import uuid
             import scan_progress_store
             
