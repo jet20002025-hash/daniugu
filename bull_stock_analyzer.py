@@ -2719,10 +2719,10 @@ class BullStockAnalyzer:
             except Exception as e:
                 return None
             
-            # 4. 检查市值（如果设置了市值限制）- 测试时跳过
+            # 4. 检查市值（扫描时跳过，扫描后统一过滤）
             market_cap = None
             market_cap_valid = False
-            # 暂时跳过市值检查，测试其他部分的性能
+            # 扫描时不检查市值，扫描完成后统一过滤（提升速度）
             # if max_market_cap > 0:
             #     try:
             #         # 使用超时机制获取市值
