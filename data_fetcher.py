@@ -297,6 +297,7 @@ class DataFetcher:
         )
         
         # 如果在交易时间段内，检查缓存年龄
+        expired_cache = None  # 保存过期缓存，作为回退方案
         if is_in_trading_time:
             cached_stocks, cache_timestamp, is_expired = self._get_stock_list_from_cache(check_age=True)
             if cached_stocks is not None and len(cached_stocks) > 0 and not is_expired:
@@ -305,6 +306,7 @@ class DataFetcher:
                 return cached_stocks
             elif cached_stocks is not None and len(cached_stocks) > 0 and is_expired:
                 print(f"[get_all_stocks] ⚠️ 缓存已过期（交易时间段内，缓存超过5分钟），将从 API 获取最新数据...")
+                expired_cache = cached_stocks  # 保存过期缓存，作为回退方案
                 # 继续执行，从 API 获取最新数据
             elif cached_stocks is None:
                 print(f"[get_all_stocks] ⚠️ 缓存不存在，将从 API 获取...")
