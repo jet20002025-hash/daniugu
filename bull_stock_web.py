@@ -2281,6 +2281,43 @@ def scan_all_stocks():
                     'message': '数据获取器未初始化'
                 }), 500
             
+            # 提前创建初始进度（标记为"准备中"），这样即使获取股票列表失败，前端也能检测到扫描任务
+            import scan_progress_store
+            import time
+            try:
+                preparing_progress = {
+                    'type': 'scan',
+                    'scan_id': scan_id,
+                    'username': username,
+                    'user_tier': user_tier,
+                    'is_auto_scan': False,
+                    'current': 0,
+                    'total': 0,  # 暂时为0，获取股票列表后更新
+                    'status': '准备中',
+                    'detail': '正在获取股票列表...',
+                    'percentage': 0,
+                    'found': 0,
+                    'batch': 0,
+                    'total_batches': 0,  # 暂时为0，获取股票列表后更新
+                    'min_match_score': min_match_score,
+                    'max_market_cap': max_market_cap,
+                    'candidates': [],
+                    'start_time': time.time()
+                }
+                scan_progress_store.save_scan_progress(scan_id, preparing_progress)
+                
+                # 保存用户的最新 scan_id（用于后续查找）
+                try:
+                    latest_scan_key = f'latest_scan:{username}'
+                    if hasattr(scan_progress_store, '_upstash_redis_set'):
+                        scan_progress_store._upstash_redis_set(latest_scan_key, scan_id, ttl=86400)  # 24小时TTL
+                except Exception as e:
+                    print(f"[scan_all_stocks] ⚠️ 保存最新 scan_id 失败: {e}")
+                
+                print(f"[scan_all_stocks] ✅ 已创建初始进度（准备中），scan_id: {scan_id}")
+            except Exception as e:
+                print(f"[scan_all_stocks] ⚠️ 创建初始进度失败（继续执行）: {e}")
+            
             # 每次扫描前先检测缓存是否存在（建议每次使用前都检测）
             print("[scan_all_stocks] 🔍 检测缓存是否存在...")
             cache_exists = False
