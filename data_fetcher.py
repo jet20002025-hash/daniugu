@@ -151,7 +151,19 @@ class DataFetcher:
             # 尝试使用 Upstash Redis（最多重试2次）
             redis_url = os.environ.get('UPSTASH_REDIS_REST_URL')
             redis_token = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
+            
+            # 诊断日志：检查环境变量是否设置
+            if not redis_url:
+                print(f"[_save_stock_list_to_cache] ⚠️ UPSTASH_REDIS_REST_URL 环境变量未设置，跳过 Redis 保存")
+            if not redis_token:
+                print(f"[_save_stock_list_to_cache] ⚠️ UPSTASH_REDIS_REST_TOKEN 环境变量未设置，跳过 Redis 保存")
+            if redis_url and not redis_token:
+                print(f"[_save_stock_list_to_cache] ⚠️ UPSTASH_REDIS_REST_URL 已设置，但 UPSTASH_REDIS_REST_TOKEN 未设置，跳过 Redis 保存")
+            if not redis_url and redis_token:
+                print(f"[_save_stock_list_to_cache] ⚠️ UPSTASH_REDIS_REST_TOKEN 已设置，但 UPSTASH_REDIS_REST_URL 未设置，跳过 Redis 保存")
+            
             if redis_url and redis_token:
+                print(f"[_save_stock_list_to_cache] ✅ Redis 环境变量已设置，尝试保存到 Redis...")
                 import requests
                 max_retries = 2
                 for attempt in range(max_retries):
