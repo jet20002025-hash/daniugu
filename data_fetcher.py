@@ -386,6 +386,11 @@ class DataFetcher:
                     if is_vercel:
                         # 在 Vercel 中，超时直接返回 None，不重试
                         print(f"[get_all_stocks] Vercel 环境中超时，直接返回 None（避免超过10秒执行时间限制）")
+                        # 如果有过期缓存，使用过期缓存作为回退方案
+                        if expired_cache is not None and len(expired_cache) > 0:
+                            print(f"[get_all_stocks] ⚠️ API 获取失败，回退到使用过期缓存（{len(expired_cache)} 只股票）")
+                            self.stock_list = expired_cache
+                            return expired_cache
                         return None
                     if attempt < max_retries - 1:
                         # 不在 Vercel 中时，等待后重试
@@ -395,6 +400,11 @@ class DataFetcher:
                         continue  # 重试
                     else:
                         print(f"[get_all_stocks] ❌ 所有重试都超时")
+                        # 如果有过期缓存，使用过期缓存作为回退方案
+                        if expired_cache is not None and len(expired_cache) > 0:
+                            print(f"[get_all_stocks] ⚠️ API 获取失败，回退到使用过期缓存（{len(expired_cache)} 只股票）")
+                            self.stock_list = expired_cache
+                            return expired_cache
                         return None
                 
                 if error[0]:
@@ -402,6 +412,11 @@ class DataFetcher:
                     if is_vercel:
                         # 在 Vercel 中，如果出错，直接返回 None，不重试
                         print(f"[get_all_stocks] Vercel 环境中获取出错，直接返回 None（避免超过10秒执行时间限制）")
+                        # 如果有过期缓存，使用过期缓存作为回退方案
+                        if expired_cache is not None and len(expired_cache) > 0:
+                            print(f"[get_all_stocks] ⚠️ API 获取失败，回退到使用过期缓存（{len(expired_cache)} 只股票）")
+                            self.stock_list = expired_cache
+                            return expired_cache
                         return None
                     if attempt < max_retries - 1:
                         print(f"[get_all_stocks] 等待 2 秒后重试...")
@@ -409,6 +424,11 @@ class DataFetcher:
                         time.sleep(2)
                         continue  # 重试
                     else:
+                        # 如果有过期缓存，使用过期缓存作为回退方案
+                        if expired_cache is not None and len(expired_cache) > 0:
+                            print(f"[get_all_stocks] ⚠️ API 获取失败，回退到使用过期缓存（{len(expired_cache)} 只股票）")
+                            self.stock_list = expired_cache
+                            return expired_cache
                         raise error[0]
                 
                 if result[0] is not None and len(result[0]) > 0:
