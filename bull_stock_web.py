@@ -2262,7 +2262,9 @@ def scan_all_stocks():
         
         # 并行处理配置（默认启用，提升扫描速度）
         use_parallel = data.get('use_parallel', True)  # 默认启用并行处理
-        max_workers = int(data.get('max_workers', 5))  # 默认5个线程（Render环境推荐）
+        # Render环境使用更多线程以加快扫描速度（目标：10分钟内完成）
+        default_workers = 20 if is_render else 5
+        max_workers = int(data.get('max_workers', default_workers))
         
         # VIP用户自定义参数（第二阶段功能）
         exclude_st = data.get('exclude_st', True)  # 默认排除ST股票
