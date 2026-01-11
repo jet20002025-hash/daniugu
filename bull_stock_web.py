@@ -5030,13 +5030,32 @@ def get_weekly_kline_for_stock():
 
 
 if __name__ == '__main__':
-    import socket
-    import subprocess
     import os
     import time
     
-    # 检查并释放端口5002（更强制的方式）
-    port = 5002
+    # 检测是否在Render或其他云平台环境
+    is_render = (
+        os.environ.get('RENDER') == 'true' or
+        os.environ.get('RENDER_SERVICE_NAME') is not None or
+        os.environ.get('RENDER_EXTERNAL_URL') is not None
+    )
+    is_vercel = (
+        os.environ.get('VERCEL') == '1' or 
+        os.environ.get('VERCEL_ENV') is not None or
+        os.environ.get('VERCEL_URL') is not None
+    )
+    is_cloud = is_render or is_vercel
+    
+    # 支持Render等平台：从环境变量获取端口，如果没有则使用默认端口5002
+    port = int(os.environ.get('PORT', 5002))
+    
+    # 只在本地环境检查并释放端口（云平台不需要）
+    if not is_cloud:
+        import socket
+        import subprocess
+        
+        # 检查并释放端口5002（更强制的方式）
+        port = 5002
     
     # 先尝试用pkill停止所有相关进程
     try:
