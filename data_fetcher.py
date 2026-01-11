@@ -148,45 +148,70 @@ class DataFetcher:
                 print(traceback.format_exc())
                 return False
             
-            # 尝试使用 Upstash Redis
+            # 尝试使用 Upstash Redis（最多重试2次）
             redis_url = os.environ.get('UPSTASH_REDIS_REST_URL')
             redis_token = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
             if redis_url and redis_token:
                 import requests
-                try:
-                    # 缓存 24 小时（86400秒）
-                    # Upstash Redis REST API 需要将值作为字符串发送
-                    # 参考 scan_progress_store.py 的实现：使用 json.dumps() 将值转换为字符串
-                    # 注意：Upstash REST API 的请求体格式是 JSON，但值本身也需要是 JSON 字符串
-                    print(f"[_save_stock_list_to_cache] 尝试保存到 Upstash Redis...")
-                    response = requests.post(
-                        f"{redis_url}/setex/stock_list_all/86400",
-                        headers={
-                            "Authorization": f"Bearer {redis_token}",
-                            "Content-Type": "application/json"
-                        },
-                        json=stock_json,  # stock_json 已经是 JSON 字符串，直接发送
-                        timeout=5  # 增加超时时间到5秒
-                    )
-                    if response.status_code == 200:
-                        try:
-                            result = response.json()
-                            # Upstash 返回格式: {"result": "OK"} 或 {"result": true}
-                            if result.get('result') == 'OK' or result.get('result') is True:
-                                print(f"[_save_stock_list_to_cache] ✅ 股票列表已保存到 Redis 缓存（TTL: 24小时，股票数: {len(stock_df)}）")
+                max_retries = 2
+                for attempt in range(max_retries):
+                    try:
+                        # 缓存 24 小时（86400秒）
+                        # Upstash Redis REST API: POST /setex/{key}/{ttl}
+                        # 请求体格式：JSON 字符串（值本身是 JSON 字符串）
+                        # 注意：使用 data 参数发送字符串，而不是 json 参数（避免双重编码）
+                        if attempt > 0:
+                            print(f"[_save_stock_list_to_cache] 重试保存到 Upstash Redis（第 {attempt + 1}/{max_retries} 次）...")
+                        else:
+                            print(f"[_save_stock_list_to_cache] 尝试保存到 Upstash Redis...")
+                        print(f"[_save_stock_list_to_cache] JSON 大小: {len(stock_json)} 字符")
+                        response = requests.post(
+                            f"{redis_url}/setex/stock_list_all/86400",
+                            headers={
+                                "Authorization": f"Bearer {redis_token}",
+                                "Content-Type": "application/json"
+                            },
+                            json=stock_json,  # 使用 json 参数，requests 会自动处理 JSON 编码
+                            timeout=15  # 增加超时时间到15秒（数据较大，可能需要更长时间）
+                        )
+                        if response.status_code == 200:
+                            try:
+                                result = response.json()
+                                # Upstash 返回格式: {"result": "OK"} 或 {"result": true}
+                                if result.get('result') == 'OK' or result.get('result') is True:
+                                    print(f"[_save_stock_list_to_cache] ✅ 股票列表已保存到 Redis 缓存（TTL: 24小时，股票数: {len(stock_df)}）")
+                                    return True
+                                else:
+                                    print(f"[_save_stock_list_to_cache] ⚠️ Redis 保存返回异常结果: {result}")
+                                    if attempt < max_retries - 1:
+                                        import time
+                                        time.sleep(1)  # 等待1秒后重试
+                                        continue
+                            except Exception as parse_error:
+                                print(f"[_save_stock_list_to_cache] ⚠️ Redis 保存响应解析失败: {parse_error}，但状态码为200，认为保存成功")
                                 return True
-                            else:
-                                print(f"[_save_stock_list_to_cache] ⚠️ Redis 保存返回异常结果: {result}")
-                        except Exception as parse_error:
-                            print(f"[_save_stock_list_to_cache] ⚠️ Redis 保存响应解析失败: {parse_error}，但状态码为200，认为保存成功")
-                            return True
-                    else:
-                        print(f"[_save_stock_list_to_cache] ⚠️ Redis 保存失败，状态码: {response.status_code}, 响应: {response.text[:500]}")
-                except Exception as e:
-                    import traceback
-                    error_detail = traceback.format_exc()
-                    print(f"[_save_stock_list_to_cache] ⚠️ 保存到 Redis 缓存失败: {e}")
-                    print(f"[_save_stock_list_to_cache] 错误详情: {error_detail}")
+                        else:
+                            error_msg = response.text[:500] if hasattr(response, 'text') else str(response.status_code)
+                            print(f"[_save_stock_list_to_cache] ⚠️ Redis 保存失败，状态码: {response.status_code}, 响应: {error_msg}")
+                            if attempt < max_retries - 1:
+                                import time
+                                time.sleep(1)  # 等待1秒后重试
+                                continue
+                    except requests.exceptions.Timeout:
+                        print(f"[_save_stock_list_to_cache] ⚠️ Redis 保存超时（15秒）")
+                        if attempt < max_retries - 1:
+                            import time
+                            time.sleep(1)  # 等待1秒后重试
+                            continue
+                    except Exception as e:
+                        import traceback
+                        error_detail = traceback.format_exc()
+                        print(f"[_save_stock_list_to_cache] ⚠️ 保存到 Redis 缓存失败: {e}")
+                        print(f"[_save_stock_list_to_cache] 错误详情: {error_detail}")
+                        if attempt < max_retries - 1:
+                            import time
+                            time.sleep(1)  # 等待1秒后重试
+                            continue
             
             # 尝试使用 Vercel KV（如果没有使用 Redis 或 Redis 保存失败）
             try:
