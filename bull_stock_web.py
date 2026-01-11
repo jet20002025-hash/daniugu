@@ -18,13 +18,29 @@ is_vercel = (
     os.environ.get('VERCEL_URL') is not None
 )
 
+# 检测 Render 环境（Render的文件系统也是只读的，需要使用Redis）
+is_render = (
+    os.environ.get('RENDER') == 'true' or
+    os.environ.get('RENDER_SERVICE_NAME') is not None or
+    os.environ.get('RENDER_EXTERNAL_URL') is not None
+)
+
+# 检测是否有Redis配置（如果有，优先使用Redis存储）
+has_redis = (
+    os.environ.get('UPSTASH_REDIS_REST_URL') is not None and
+    os.environ.get('UPSTASH_REDIS_REST_TOKEN') is not None
+)
+
 try:
-    if is_vercel:
-        # Vercel 环境：使用内存存储版本
+    # 如果是Vercel、Render环境，或者配置了Redis，使用Redis存储版本
+    if is_vercel or is_render or has_redis:
+        # Vercel/Render环境或配置了Redis：使用Redis存储版本
         from user_auth_vercel import (
             register_user, login_user, is_logged_in, get_current_user,
             require_login, create_invite_code, list_invite_codes, get_user_stats
         )
+        if is_render:
+            print("[环境检测] Render环境检测到，使用Redis存储（user_auth_vercel）")
     else:
         # 本地环境：使用文件存储版本
         from user_auth import (
@@ -5069,12 +5085,16 @@ if __name__ == '__main__':
     print("=" * 80)
     print("大牛股分析器Web界面")
     print("=" * 80)
-    print("访问地址: http://localhost:5002")
+    
+    # 支持Render等平台：从环境变量获取端口，如果没有则使用默认端口5002
+    port = int(os.environ.get('PORT', 5002))
+    
+    print(f"访问地址: http://0.0.0.0:{port}")
     print("=" * 80)
     # 增加请求超时时间，避免长时间扫描任务超时
     import werkzeug.serving
     werkzeug.serving.WSGIRequestHandler.timeout = 60  # 设置60秒超时
     # 监听所有网络接口，允许远程访问
     # 关闭debug模式，避免自动重启导致的问题
-    app.run(host='0.0.0.0', port=5002, debug=False, threaded=True, use_reloader=False)
+    app.run(host='0.0.0.0', port=port, debug=False, threaded=True, use_reloader=False)
 
