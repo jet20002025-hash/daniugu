@@ -45,7 +45,16 @@ class DataFetcher:
                         value_str = result.get('result')
                         if value_str:
                             # 解析 JSON 字符串
+                            # 注意：如果保存时使用了 json=stock_json（双重编码），这里需要解析两次
+                            # 先尝试解析一次
                             stock_data = json.loads(value_str) if isinstance(value_str, str) else value_str
+                            # 如果解析后仍然是字符串（说明是双重编码），再次解析
+                            if isinstance(stock_data, str):
+                                try:
+                                    stock_data = json.loads(stock_data)
+                                except (json.JSONDecodeError, TypeError):
+                                    # 如果第二次解析失败，使用第一次解析的结果
+                                    pass
                             # 转换为 DataFrame（确保数据格式正确）
                             if isinstance(stock_data, list) and len(stock_data) > 0:
                                 import pandas as pd
