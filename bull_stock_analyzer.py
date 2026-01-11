@@ -2734,9 +2734,13 @@ class BullStockAnalyzer:
             # 记录总耗时
             step_times['总耗时'] = time_module.time() - start_time
             
-            # 将时间统计信息附加到返回值中（如果返回候选股票）
-            # 注意：这里我们只是记录，不输出，避免过多输出影响性能
-            # 汇总统计将在 _scan_stock_batch_parallel 中处理
+            # 每100只股票输出一次时间统计（用于定位性能瓶颈）
+            if idx > 0 and idx % 100 == 0:
+                print(f"\n[时间统计] 股票 {idx}/{total_stocks}: "
+                      f"周K线={step_times.get('获取周K线', 0):.3f}s, "
+                      f"特征={step_times.get('提取特征', 0):.3f}s, "
+                      f"匹配={step_times.get('计算匹配度', 0):.3f}s, "
+                      f"总计={step_times.get('总耗时', 0):.3f}s")
             
             # 4. 检查市值（扫描时跳过，扫描后统一过滤）
             market_cap = None
