@@ -5056,57 +5056,57 @@ if __name__ == '__main__':
         
         # 检查并释放端口5002（更强制的方式）
         port = 5002
-    
-    # 先尝试用pkill停止所有相关进程
-    try:
-        subprocess.run(['pkill', '-9', '-f', 'bull_stock_web'], 
-                      capture_output=True, timeout=2)
-        time.sleep(0.5)
-    except:
-        pass
-    
-    # 再检查端口并释放
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(1)
-    result = sock.connect_ex(('127.0.0.1', port))
-    sock.close()
-    
-    if result == 0:
-        # 端口被占用，强制释放
-        print(f"⚠️  端口{port}被占用，正在强制释放...")
+        
+        # 先尝试用pkill停止所有相关进程
         try:
-            # 方法1: 使用lsof查找并终止
-            if os.name == 'posix':  # Unix/Linux/Mac
-                result = subprocess.run(['lsof', '-ti', f':{port}'], 
-                                      capture_output=True, text=True, timeout=2)
-                if result.returncode == 0 and result.stdout.strip():
-                    pids = result.stdout.strip().split('\n')
-                    for pid in pids:
-                        try:
-                            os.kill(int(pid), 9)
-                            print(f"   ✅ 已终止进程 {pid}")
-                        except Exception as e:
-                            print(f"   ⚠️  终止进程{pid}失败: {e}")
-                    time.sleep(1)
-                    
-                    # 再次检查端口是否已释放
-                    sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    sock2.settimeout(1)
-                    result2 = sock2.connect_ex(('127.0.0.1', port))
-                    sock2.close()
-                    if result2 == 0:
-                        print(f"   ❌ 端口{port}仍被占用，请手动检查")
-                    else:
-                        print(f"   ✅ 端口{port}已成功释放")
-        except Exception as e:
-            print(f"   ⚠️  释放端口失败: {e}")
+            subprocess.run(['pkill', '-9', '-f', 'bull_stock_web'], 
+                          capture_output=True, timeout=2)
+            time.sleep(0.5)
+        except:
+            pass
+        
+        # 再检查端口并释放
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        result = sock.connect_ex(('127.0.0.1', port))
+        sock.close()
+        
+        if result == 0:
+            # 端口被占用，强制释放
+            print(f"⚠️  端口{port}被占用，正在强制释放...")
+            try:
+                # 方法1: 使用lsof查找并终止
+                if os.name == 'posix':  # Unix/Linux/Mac
+                    result = subprocess.run(['lsof', '-ti', f':{port}'], 
+                                          capture_output=True, text=True, timeout=2)
+                    if result.returncode == 0 and result.stdout.strip():
+                        pids = result.stdout.strip().split('\n')
+                        for pid in pids:
+                            try:
+                                os.kill(int(pid), 9)
+                                print(f"   ✅ 已终止进程 {pid}")
+                            except Exception as e:
+                                print(f"   ⚠️  终止进程{pid}失败: {e}")
+                        time.sleep(1)
+                        
+                        # 再次检查端口是否已释放
+                        sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        sock2.settimeout(1)
+                        result2 = sock2.connect_ex(('127.0.0.1', port))
+                        sock2.close()
+                        if result2 == 0:
+                            print(f"   ❌ 端口{port}仍被占用，请手动检查")
+                        else:
+                            print(f"   ✅ 端口{port}已成功释放")
+            except Exception as e:
+                print(f"   ⚠️  释放端口失败: {e}")
+    else:
+        # 云环境：跳过端口检查
+        print("⚠️  检测到云环境（Render/Vercel），跳过本地端口检查和释放。")
     
     print("=" * 80)
     print("大牛股分析器Web界面")
     print("=" * 80)
-    
-    # 支持Render等平台：从环境变量获取端口，如果没有则使用默认端口5002
-    port = int(os.environ.get('PORT', 5002))
     
     print(f"访问地址: http://0.0.0.0:{port}")
     print("=" * 80)
