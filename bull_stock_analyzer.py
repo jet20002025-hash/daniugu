@@ -2719,33 +2719,34 @@ class BullStockAnalyzer:
             except Exception as e:
                 return None
             
-            # 4. 检查市值（如果设置了市值限制）
+            # 4. 检查市值（如果设置了市值限制）- 测试时跳过
             market_cap = None
             market_cap_valid = False
-            if max_market_cap > 0:
-                try:
-                    # 使用超时机制获取市值
-                    market_cap_result = [None]
-                    market_cap_error = [None]
-                    
-                    def fetch_market_cap():
-                        try:
-                            market_cap_result[0] = self.fetcher.get_market_cap(stock_code, timeout=2)
-                        except Exception as e:
-                            market_cap_error[0] = e
-                    
-                    cap_thread = threading.Thread(target=fetch_market_cap)
-                    cap_thread.daemon = True
-                    cap_thread.start()
-                    cap_thread.join(timeout=2.5)
-                    
-                    if not cap_thread.is_alive() and market_cap_result[0] is not None and market_cap_result[0] > 0:
-                        market_cap = market_cap_result[0]
-                        market_cap_valid = True
-                        if market_cap > max_market_cap:
-                            return None  # 市值超过限制
-                except Exception:
-                    pass  # 市值获取失败，跳过市值检查
+            # 暂时跳过市值检查，测试其他部分的性能
+            # if max_market_cap > 0:
+            #     try:
+            #         # 使用超时机制获取市值
+            #         market_cap_result = [None]
+            #         market_cap_error = [None]
+            #         
+            #         def fetch_market_cap():
+            #             try:
+            #                 market_cap_result[0] = self.fetcher.get_market_cap(stock_code, timeout=2)
+            #             except Exception as e:
+            #                 market_cap_error[0] = e
+            #         
+            #         cap_thread = threading.Thread(target=fetch_market_cap)
+            #         cap_thread.daemon = True
+            #         cap_thread.start()
+            #         cap_thread.join(timeout=2.5)
+            #         
+            #         if not cap_thread.is_alive() and market_cap_result[0] is not None and market_cap_result[0] > 0:
+            #             market_cap = market_cap_result[0]
+            #             market_cap_valid = True
+            #             if market_cap > max_market_cap:
+            #                 return None  # 市值超过限制
+            #     except Exception:
+            #         pass  # 市值获取失败，跳过市值检查
             
             # 5. 记录候选股票
             try:
