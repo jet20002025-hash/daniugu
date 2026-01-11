@@ -1816,13 +1816,16 @@ def get_progress():
     # 在 Vercel serverless 环境中，从 Redis 读取进度
     if is_vercel:
         scan_id = request.args.get('scan_id')
+        
+        # 获取当前用户信息
+        current_user = get_current_user()
+        username = current_user.get('username', 'anonymous') if current_user else 'anonymous'
+        
+        import scan_progress_store
+        
+        # 如果提供了 scan_id，直接获取
         if scan_id:
             try:
-                # 获取当前用户信息，用于验证权限
-                current_user = get_current_user()
-                username = current_user.get('username', 'anonymous') if current_user else 'anonymous'
-                
-                import scan_progress_store
                 progress = scan_progress_store.get_scan_progress(scan_id)
                 if progress:
                     # 验证进度是否属于当前用户（多用户隔离）
@@ -1855,6 +1858,32 @@ def get_progress():
                     return response
             except Exception as e:
                 print(f"[get_progress] 从 Redis 读取进度失败: {e}")
+        
+        # 如果没有提供 scan_id，尝试查找当前用户的最新扫描任务
+        # scan_id 格式: username_timestamp_uuid
+        # 由于 Redis 不支持模式匹配，我们使用一个键来存储用户的最新 scan_id
+        try:
+            latest_scan_key = f'latest_scan:{username}'
+            if hasattr(scan_progress_store, '_upstash_redis_get'):
+                latest_scan_id = scan_progress_store._upstash_redis_get(latest_scan_key)
+                if latest_scan_id:
+                    progress = scan_progress_store.get_scan_progress(latest_scan_id)
+                    if progress:
+                        # 验证进度是否属于当前用户
+                        progress_username = progress.get('username', 'anonymous')
+                        if progress_username == username:
+                            # 检查状态是否为活跃（不是"空闲"或"已完成"）
+                            status = progress.get('status', '空闲')
+                            if status not in ['空闲', '已完成', '已停止', '错误']:
+                                response = jsonify({
+                                    'success': True,
+                                    'progress': progress
+                                })
+                                for key, value in response_headers.items():
+                                    response.headers[key] = value
+                                return response
+        except Exception as e:
+            print(f"[get_progress] 查找最新扫描任务失败: {e}")
         
         # 如果没有提供 scan_id 或找不到进度，返回空闲状态
         response = jsonify({
