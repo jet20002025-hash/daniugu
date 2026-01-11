@@ -2682,12 +2682,18 @@ class BullStockAnalyzer:
             start_time = time_module.time()
             max_process_time = 8  # 单个股票最大处理时间（秒）
             
+            # 时间统计
+            step_times = {}
+            
             # 1. 获取周K线数据
+            step_start = time_module.time()
             try:
                 weekly_df = self.fetcher.get_weekly_kline(stock_code, period="2y", use_cache=True)
+                step_times['获取周K线'] = time_module.time() - step_start
                 if weekly_df is None or len(weekly_df) < 40:
                     return None
             except Exception as e:
+                step_times['获取周K线'] = time_module.time() - step_start
                 return None
             
             # 检查总耗时
@@ -2696,12 +2702,15 @@ class BullStockAnalyzer:
                 return None
             
             # 2. 提取特征
+            step_start = time_module.time()
             try:
                 current_idx = len(weekly_df) - 1
                 features = self.extract_features_at_start_point(stock_code, current_idx, lookback_weeks=40, weekly_df=weekly_df)
+                step_times['提取特征'] = time_module.time() - step_start
                 if features is None:
                     return None
             except Exception as e:
+                step_times['提取特征'] = time_module.time() - step_start
                 return None
             
             # 检查总耗时
@@ -2710,14 +2719,24 @@ class BullStockAnalyzer:
                 return None
             
             # 3. 计算匹配度
+            step_start = time_module.time()
             try:
                 match_score = self._calculate_match_score(features, common_features, tolerance=0.3)
+                step_times['计算匹配度'] = time_module.time() - step_start
                 total_match = match_score['总匹配度']
                 
                 if total_match < min_match_score:
                     return None
             except Exception as e:
+                step_times['计算匹配度'] = time_module.time() - step_start
                 return None
+            
+            # 记录总耗时
+            step_times['总耗时'] = time_module.time() - start_time
+            
+            # 将时间统计信息附加到返回值中（如果返回候选股票）
+            # 注意：这里我们只是记录，不输出，避免过多输出影响性能
+            # 汇总统计将在 _scan_stock_batch_parallel 中处理
             
             # 4. 检查市值（扫描时跳过，扫描后统一过滤）
             market_cap = None
@@ -2900,6 +2919,9 @@ class BullStockAnalyzer:
                             print(f"\n✅ 找到候选: {stock_code} {stock_name} (匹配度: {result['匹配度']:.3f}{market_cap_info})")
                 except Exception as e:
                     # 忽略单个股票的错误，继续处理
+                    pass
+                finally:
+                    # 记录处理完成（用于统计所有股票，包括失败的）
                     pass
                 
                 # 更新进度
