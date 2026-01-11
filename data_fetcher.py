@@ -191,8 +191,12 @@ class DataFetcher:
                                 print(f"[_save_stock_list_to_cache] ⚠️ Redis 保存响应解析失败: {parse_error}，但状态码为200，认为保存成功")
                                 return True
                         else:
-                            error_msg = response.text[:500] if hasattr(response, 'text') else str(response.status_code)
+                            try:
+                                error_msg = response.text[:1000] if hasattr(response, 'text') else str(response.status_code)
+                            except:
+                                error_msg = f"状态码: {response.status_code}"
                             print(f"[_save_stock_list_to_cache] ⚠️ Redis 保存失败，状态码: {response.status_code}, 响应: {error_msg}")
+                            print(f"[_save_stock_list_to_cache] 响应头: {dict(response.headers) if hasattr(response, 'headers') else 'N/A'}")
                             if attempt < max_retries - 1:
                                 import time
                                 time.sleep(1)  # 等待1秒后重试
@@ -214,19 +218,23 @@ class DataFetcher:
                             continue
             
             # 尝试使用 Vercel KV（如果没有使用 Redis 或 Redis 保存失败）
+            # 即使 Redis 可用，也尝试 Vercel KV 作为备用方案
             try:
                 from vercel_kv import kv
-                print(f"[_save_stock_list_to_cache] 尝试保存到 Vercel KV...")
+                print(f"[_save_stock_list_to_cache] 尝试保存到 Vercel KV（备用方案）...")
+                print(f"[_save_stock_list_to_cache] JSON 大小: {len(stock_json)} 字符")
                 kv.set('stock_list_all', stock_json, ttl=86400)  # 24小时
                 print(f"[_save_stock_list_to_cache] ✅ 股票列表已保存到 Vercel KV 缓存（TTL: 24小时，股票数: {len(stock_df)}）")
                 return True
             except ImportError:
-                print(f"[_save_stock_list_to_cache] ⚠️ Vercel KV 未安装或不可用")
+                print(f"[_save_stock_list_to_cache] ⚠️ Vercel KV 未安装或不可用（这是正常的，如果使用 Redis）")
+                # ImportError 不是真正的错误，只是表示 Vercel KV 不可用，不阻止继续执行
             except Exception as e:
                 import traceback
                 error_detail = traceback.format_exc()
                 print(f"[_save_stock_list_to_cache] ⚠️ 保存到 Vercel KV 缓存失败: {e}")
                 print(f"[_save_stock_list_to_cache] 错误详情: {error_detail}")
+                # Vercel KV 失败不是致命错误，继续执行
                 
         except Exception as e:
             import traceback
