@@ -2950,6 +2950,49 @@ class BullStockAnalyzer:
         # 按匹配度排序
         candidates.sort(key=lambda x: x['匹配度'], reverse=True)
         
+        # 扫描完成后，进行市值过滤（如果设置了市值限制）
+        original_count = len(candidates)
+        if max_market_cap > 0 and len(candidates) > 0:
+            print(f"\n📊 开始市值过滤（阈值: ≤ {max_market_cap} 亿元）...")
+            print(f"   扫描找到 {original_count} 只候选股票，开始获取市值...")
+            
+            # 批量获取候选股票的市值（利用缓存机制，只需一次API调用）
+            filtered_candidates = []
+            
+            for candidate in candidates:
+                stock_code = candidate.get('股票代码')
+                if stock_code is None:
+                    continue
+                
+                # 如果候选股票已经有市值，直接使用
+                existing_market_cap = candidate.get('市值')
+                if existing_market_cap is not None and existing_market_cap > 0:
+                    if existing_market_cap <= max_market_cap:
+                        filtered_candidates.append(candidate)
+                    continue
+                
+                # 如果没有市值，批量获取（利用缓存，第一次调用会获取全部，后续很快）
+                try:
+                    market_cap = self.fetcher.get_market_cap(stock_code, timeout=3)
+                    if market_cap is not None and market_cap > 0:
+                        # 更新候选股票的市值
+                        candidate['市值'] = round(market_cap, 2)
+                        if market_cap <= max_market_cap:
+                            filtered_candidates.append(candidate)
+                    else:
+                        # 市值获取失败，保留该股票（不因市值过滤而丢失）
+                        filtered_candidates.append(candidate)
+                except Exception:
+                    # 市值获取失败，保留该股票
+                    filtered_candidates.append(candidate)
+            
+            candidates = filtered_candidates
+            filtered_count = original_count - len(candidates)
+            if filtered_count > 0:
+                print(f"   ✅ 市值过滤完成：过滤掉 {filtered_count} 只（市值 > {max_market_cap} 亿元），剩余 {len(candidates)} 只")
+            else:
+                print(f"   ✅ 市值过滤完成：所有候选股票均符合市值要求，剩余 {len(candidates)} 只")
+        
         elapsed_time = time_module.time() - start_time
         speed = processed_count / elapsed_time if elapsed_time > 0 else 0
         print("\n" + "=" * 80)
