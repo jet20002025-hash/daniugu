@@ -4769,6 +4769,19 @@ def refresh_stock_cache():
         try:
             # 将股票列表保存到缓存
             print(f"[refresh_stock_cache] 获取到 {len(stock_list)} 只股票，开始保存到缓存...")
+            
+            # 计算数据大小（用于调试）
+            try:
+                import json
+                import pandas as pd
+                stock_data = stock_list.to_dict('records')
+                stock_json = json.dumps(stock_data, default=str, ensure_ascii=False)
+                data_size_mb = len(stock_json.encode('utf-8')) / (1024 * 1024)
+                print(f"[refresh_stock_cache] 数据大小: {data_size_mb:.2f} MB ({len(stock_json)} 字符)")
+            except Exception as size_error:
+                print(f"[refresh_stock_cache] ⚠️ 计算数据大小失败: {size_error}")
+                data_size_mb = None
+            
             cache_success = analyzer.fetcher._save_stock_list_to_cache(stock_list)
             if cache_success:
                 print(f"[refresh_stock_cache] ✅ 股票列表已保存到缓存")
@@ -4780,20 +4793,45 @@ def refresh_stock_cache():
                     'message': f'股票列表缓存已刷新（{len(stock_list)} 只股票）',
                     'stock_count': len(stock_list),
                     'current_time': current_time_str,
-                    'cache_ttl': '24小时'
+                    'cache_ttl': '24小时',
+                    'data_size_mb': round(data_size_mb, 2) if data_size_mb else None
                 }), 200
             else:
                 print(f"[refresh_stock_cache] ❌ 保存到缓存失败，但已获取股票列表")
                 # 即使保存失败，也更新分析器的股票列表（可以在当前请求中使用）
                 analyzer.fetcher.stock_list = stock_list
                 
+                # 检查 Redis 和 Vercel KV 的可用性
+                redis_available = bool(os.environ.get('UPSTASH_REDIS_REST_URL') and os.environ.get('UPSTASH_REDIS_REST_TOKEN'))
+                vercel_kv_available = False
+                try:
+                    from vercel_kv import kv
+                    vercel_kv_available = True
+                except ImportError:
+                    pass
+                
+                error_message = f'获取股票列表成功（{len(stock_list)} 只股票），但保存到缓存失败。'
+                if data_size_mb and data_size_mb > 10:
+                    error_message += f'\n\n⚠️ 数据较大（{data_size_mb:.2f} MB），可能超过存储限制。'
+                if not redis_available and not vercel_kv_available:
+                    error_message += '\n\n⚠️ Redis 和 Vercel KV 均不可用，请检查环境变量配置。'
+                elif not redis_available:
+                    error_message += '\n\n⚠️ Redis 不可用，已尝试使用 Vercel KV。'
+                elif not vercel_kv_available:
+                    error_message += '\n\n⚠️ Vercel KV 不可用，已尝试使用 Redis。'
+                else:
+                    error_message += '\n\n💡 可能的原因：\n1. 网络连接问题\n2. 数据过大\n3. 存储服务暂时不可用\n\n请稍后重试或检查 Vercel 日志。'
+                
                 return jsonify({
                     'success': False,
-                    'message': f'获取股票列表成功（{len(stock_list)} 只股票），但保存到缓存失败。请检查 Redis/KV 连接或稍后重试。',
+                    'message': error_message,
                     'stock_count': len(stock_list),
                     'current_time': current_time_str,
                     'cache_saved': False,
-                    'error_type': 'cache_save_failed'
+                    'error_type': 'cache_save_failed',
+                    'data_size_mb': round(data_size_mb, 2) if data_size_mb else None,
+                    'redis_available': redis_available,
+                    'vercel_kv_available': vercel_kv_available
                 }), 500
             
         except Exception as e:
