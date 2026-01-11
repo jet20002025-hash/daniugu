@@ -855,20 +855,24 @@ class DataFetcher:
         if use_cache:
             cached_df = self._get_weekly_kline_from_cache(stock_code)
             if cached_df is not None and len(cached_df) > 0:
-                print(f"[get_weekly_kline] ✅ 从缓存获取 {stock_code} 的周K线数据: {len(cached_df)} 周")
+                # 注释掉print输出以提高性能
+                # print(f"[get_weekly_kline] ✅ 从缓存获取 {stock_code} 的周K线数据: {len(cached_df)} 周")
                 return cached_df
         
         try:
-            print(f"开始获取 {stock_code} 的周K线数据...")
+            # 注释掉print输出以提高性能
+            # print(f"开始获取 {stock_code} 的周K线数据...")
             # 方法1: 尝试直接使用akshare的周K线接口
             try:
                 end_date = datetime.now().strftime('%Y%m%d')
                 start_date = (datetime.now() - timedelta(days=365 * 2)).strftime('%Y%m%d')
                 
-                print(f"尝试直接获取周K线: {stock_code}, {start_date} - {end_date}")
+                # 注释掉print输出以提高性能
+                # print(f"尝试直接获取周K线: {stock_code}, {start_date} - {end_date}")
                 df = ak.stock_zh_a_hist(symbol=stock_code, period="weekly", 
                                         start_date=start_date, end_date=end_date, adjust="qfq")
-                print(f"直接获取周K线结果: {df is not None}, {len(df) if df is not None else 0} 条")
+                # 注释掉print输出以提高性能
+                # print(f"直接获取周K线结果: {df is not None}, {len(df) if df is not None else 0} 条")
                 
                 if df is not None and not df.empty:
                     # 重命名列
