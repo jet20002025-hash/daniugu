@@ -812,11 +812,39 @@ def get_user_info():
             print(f"[get_user_info] 错误详情: {error_detail}")
             # 使用默认值，继续执行
         
-        # 检查今日扫描次数（使用 try-except 包装）
+        # 检查今日扫描次数（使用 try-except 包装，增加超时控制）
         try:
             username = user.get('username', 'anonymous')
             if scan_limit_functions_available:
-                can_scan_daily, daily_error, today_count = check_daily_scan_limit(username, tier, scan_config, is_vercel)
+                # 在 Vercel 环境下，check_daily_scan_limit 可能会访问 Redis，设置超时控制
+                import threading
+                import time as time_module
+                result_container = [None]
+                error_container = [None]
+                
+                def check_limit():
+                    try:
+                        result_container[0] = check_daily_scan_limit(username, tier, scan_config, is_vercel)
+                    except Exception as e:
+                        error_container[0] = e
+                
+                if is_vercel:
+                    # Vercel 环境下，使用线程和超时控制
+                    check_thread = threading.Thread(target=check_limit)
+                    check_thread.daemon = True
+                    check_thread.start()
+                    check_thread.join(timeout=3)  # 3秒超时
+                    
+                    if check_thread.is_alive():
+                        print(f"[get_user_info] ⚠️ 检查每日扫描次数限制超时（3秒），使用默认值")
+                        # 使用默认值，继续执行
+                    elif error_container[0]:
+                        raise error_container[0]
+                    elif result_container[0]:
+                        can_scan_daily, daily_error, today_count = result_container[0]
+                else:
+                    # 本地环境，直接调用
+                    can_scan_daily, daily_error, today_count = check_daily_scan_limit(username, tier, scan_config, is_vercel)
         except Exception as e:
             import traceback
             error_detail = traceback.format_exc()

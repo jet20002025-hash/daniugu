@@ -4203,7 +4203,14 @@
                             </div>
                         `;
                     } else {
-                        userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">网络连接失败，点击刷新重试</div>';
+                        userInfoDiv.innerHTML = `
+                            <div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">
+                                网络连接失败，点击刷新重试
+                            </div>
+                            <div style="font-size: 10px; color: #999; margin-top: 3px;">
+                                提示：可能是网络波动或服务器暂时不可用，请稍后重试
+                            </div>
+                        `;
                     }
                     return;
                 }
@@ -4221,7 +4228,14 @@
                             </div>
                         `;
                     } else {
-                        userInfoDiv.innerHTML = `<div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">服务器错误 (${loginCheckResponse.status})，点击刷新重试</div>`;
+                        userInfoDiv.innerHTML = `
+                            <div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">
+                                服务器错误 (${loginCheckResponse.status})，点击刷新重试
+                            </div>
+                            <div style="font-size: 10px; color: #999; margin-top: 3px;">
+                                提示：服务器可能暂时不可用，请稍后重试。如问题持续，请联系客服
+                            </div>
+                        `;
                     }
                     return;
                 }
@@ -4252,8 +4266,15 @@
                             </div>
                         `;
                     } else {
-                        // 网络环境：显示通用错误信息
-                        userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">加载失败，点击刷新重试</div>';
+                        // 网络环境：显示更友好的错误信息
+                        userInfoDiv.innerHTML = `
+                            <div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">
+                                加载失败，点击刷新重试
+                            </div>
+                            <div style="font-size: 10px; color: #999; margin-top: 3px;">
+                                提示：可能是网络波动或服务器暂时不可用，请稍后重试
+                            </div>
+                        `;
                     }
                     // 不立即跳转，给用户一个重试的机会
                     return;
@@ -4302,7 +4323,14 @@
                         </div>
                     `;
                 } else {
-                    userInfoDiv.innerHTML = `<div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">加载失败，点击刷新重试</div>`;
+                    userInfoDiv.innerHTML = `
+                        <div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">
+                            加载失败，点击刷新重试
+                        </div>
+                        <div style="font-size: 10px; color: #999; margin-top: 3px;">
+                            提示：服务器可能暂时不可用，请稍后重试。如问题持续，请联系客服
+                        </div>
+                    `;
                 }
             }
         }
