@@ -177,13 +177,15 @@ class DataFetcher:
                         else:
                             print(f"[_save_stock_list_to_cache] 尝试保存到 Upstash Redis...")
                         print(f"[_save_stock_list_to_cache] JSON 大小: {len(stock_json)} 字符")
+                        # Upstash Redis REST API setex 需要将值作为字符串发送
+                        # 使用 data 参数直接发送字符串，避免双重 JSON 编码
                         response = requests.post(
                             f"{redis_url}/setex/stock_list_all/86400",
                             headers={
                                 "Authorization": f"Bearer {redis_token}",
                                 "Content-Type": "application/json"
                             },
-                            json=stock_json,  # 使用 json 参数，requests 会自动处理 JSON 编码
+                            data=stock_json.encode('utf-8'),  # 使用 data 参数发送 UTF-8 编码的字符串
                             timeout=15  # 增加超时时间到15秒（数据较大，可能需要更长时间）
                         )
                         if response.status_code == 200:
