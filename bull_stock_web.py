@@ -2260,6 +2260,10 @@ def scan_all_stocks():
         if limit:
             limit = int(limit)
         
+        # 并行处理配置（默认启用，提升扫描速度）
+        use_parallel = data.get('use_parallel', True)  # 默认启用并行处理
+        max_workers = int(data.get('max_workers', 5))  # 默认5个线程（Render环境推荐）
+        
         # VIP用户自定义参数（第二阶段功能）
         exclude_st = data.get('exclude_st', True)  # 默认排除ST股票
         exclude_suspended = data.get('exclude_suspended', True)  # 默认排除停牌股票（暂不支持，预留）
@@ -2811,7 +2815,9 @@ def scan_all_stocks():
                 result = analyzer.scan_all_stocks(
                     min_match_score=min_match_score,
                     max_market_cap=max_market_cap,
-                    limit=limit
+                    limit=limit,
+                    use_parallel=use_parallel,
+                    max_workers=max_workers
                 )
                 
                 # 如果被停止，直接保存结果

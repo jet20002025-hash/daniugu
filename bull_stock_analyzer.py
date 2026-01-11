@@ -2582,7 +2582,7 @@ class BullStockAnalyzer:
             '所有特征匹配': match_scores
         }
     
-    def scan_all_stocks(self, min_match_score: float = 0.6, max_market_cap: float = 60.0, limit: int = None) -> Dict:
+    def scan_all_stocks(self, min_match_score: float = 0.6, max_market_cap: float = 60.0, limit: int = None, use_parallel: bool = True, max_workers: int = 5) -> Dict:
         """
         扫描所有股票，查找符合牛股特征的个股
         优化：在扫描开始前预先获取并缓存市值数据，避免扫描过程中卡住
@@ -2657,14 +2657,333 @@ class BullStockAnalyzer:
         
         # 一次性全部扫描（不再分批）
         print(f"\n📊 开始扫描全部 {total_stocks} 只股票（一次性完成，不分批）...")
-        return self._scan_stock_batch(stock_list, common_features, min_match_score, max_market_cap, 1, 1, start_idx=0, existing_candidates=None, total_all_stocks=total_stocks)
-    def _scan_stock_batch(self, stock_list, common_features: Dict, min_match_score: float, max_market_cap: float, batch_num: int = 1, total_batches: int = 1, start_idx: int = 0, existing_candidates: list = None, total_all_stocks: int = None) -> Dict:
+        return self._scan_stock_batch(stock_list, common_features, min_match_score, max_market_cap, 1, 1, start_idx=0, existing_candidates=None, total_all_stocks=total_stocks, use_parallel=use_parallel, max_workers=max_workers)
+    def _process_single_stock(self, stock_code: str, stock_name: str, common_features: Dict, min_match_score: float, max_market_cap: float, idx: int, total_stocks: int) -> Dict:
+        """
+        处理单只股票（用于并行处理）
+        :param stock_code: 股票代码
+        :param stock_name: 股票名称
+        :param common_features: 共同特征模板
+        :param min_match_score: 最小匹配度阈值
+        :param max_market_cap: 最大市值
+        :param idx: 当前索引
+        :param total_stocks: 总股票数
+        :return: 候选股票信息（如果符合条件），否则返回 None
+        """
+        import time as time_module
+        import threading
+        import pandas as pd
+        
+        try:
+            # 检查停止信号
+            if self.stop_scan:
+                return None
+            
+            start_time = time_module.time()
+            max_process_time = 8  # 单个股票最大处理时间（秒）
+            
+            # 1. 获取周K线数据
+            try:
+                weekly_df = self.fetcher.get_weekly_kline(stock_code, period="2y", use_cache=True)
+                if weekly_df is None or len(weekly_df) < 40:
+                    return None
+            except Exception as e:
+                return None
+            
+            # 检查总耗时
+            elapsed = time_module.time() - start_time
+            if elapsed > max_process_time:
+                return None
+            
+            # 2. 提取特征
+            try:
+                current_idx = len(weekly_df) - 1
+                features = self.extract_features_at_start_point(stock_code, current_idx, lookback_weeks=40, weekly_df=weekly_df)
+                if features is None:
+                    return None
+            except Exception as e:
+                return None
+            
+            # 检查总耗时
+            elapsed = time_module.time() - start_time
+            if elapsed > max_process_time:
+                return None
+            
+            # 3. 计算匹配度
+            try:
+                match_score = self._calculate_match_score(features, common_features, tolerance=0.3)
+                total_match = match_score['总匹配度']
+                
+                if total_match < min_match_score:
+                    return None
+            except Exception as e:
+                return None
+            
+            # 4. 检查市值（如果设置了市值限制）
+            market_cap = None
+            market_cap_valid = False
+            if max_market_cap > 0:
+                try:
+                    # 使用超时机制获取市值
+                    market_cap_result = [None]
+                    market_cap_error = [None]
+                    
+                    def fetch_market_cap():
+                        try:
+                            market_cap_result[0] = self.fetcher.get_market_cap(stock_code, timeout=2)
+                        except Exception as e:
+                            market_cap_error[0] = e
+                    
+                    cap_thread = threading.Thread(target=fetch_market_cap)
+                    cap_thread.daemon = True
+                    cap_thread.start()
+                    cap_thread.join(timeout=2.5)
+                    
+                    if not cap_thread.is_alive() and market_cap_result[0] is not None and market_cap_result[0] > 0:
+                        market_cap = market_cap_result[0]
+                        market_cap_valid = True
+                        if market_cap > max_market_cap:
+                            return None  # 市值超过限制
+                except Exception:
+                    pass  # 市值获取失败，跳过市值检查
+            
+            # 5. 记录候选股票
+            try:
+                current_price = float(weekly_df.iloc[current_idx]['收盘'])
+                current_date = weekly_df.iloc[current_idx]['日期']
+                
+                if isinstance(current_date, pd.Timestamp):
+                    current_date_str = current_date.strftime('%Y-%m-%d')
+                else:
+                    current_date_str = str(current_date)
+                
+                buy_price = current_price
+                buy_date = current_date_str
+                
+                return {
+                    '股票代码': stock_code,
+                    '股票名称': stock_name,
+                    '匹配度': round(match_score['总匹配度'], 3),
+                    '最佳买点日期': buy_date,
+                    '最佳买点价格': round(buy_price, 2),
+                    '当前价格': round(current_price, 2),
+                    '市值': round(market_cap, 2) if market_cap_valid else None,
+                    '核心特征匹配': match_score.get('核心特征匹配', {}),
+                    '特征': features
+                }
+            except Exception:
+                return None
+                
+        except Exception:
+            return None
+    
+    def _scan_stock_batch(self, stock_list, common_features: Dict, min_match_score: float, max_market_cap: float, batch_num: int = 1, total_batches: int = 1, start_idx: int = 0, existing_candidates: list = None, total_all_stocks: int = None, use_parallel: bool = True, max_workers: int = 5) -> Dict:
         # 在函数开始处统一导入，避免变量冲突
         import time as time_module
         import threading
         import logging
+        
+        # 如果启用并行处理，使用并行版本
+        if use_parallel:
+            return self._scan_stock_batch_parallel(
+                stock_list, common_features, min_match_score, max_market_cap,
+                batch_num, total_batches, start_idx, existing_candidates,
+                total_all_stocks, max_workers
+            )
+        
+        # 否则使用原有的串行处理（保持向后兼容）
+        return self._scan_stock_batch_serial(
+            stock_list, common_features, min_match_score, max_market_cap,
+            batch_num, total_batches, start_idx, existing_candidates, total_all_stocks
+        )
+    
+    def _scan_stock_batch_parallel(self, stock_list, common_features: Dict, min_match_score: float, max_market_cap: float, batch_num: int = 1, total_batches: int = 1, start_idx: int = 0, existing_candidates: list = None, total_all_stocks: int = None, max_workers: int = 5) -> Dict:
         """
-        扫描一批股票（内部方法）
+        并行扫描一批股票（使用线程池）
+        :param stock_list: 股票列表（DataFrame）
+        :param common_features: 共同特征模板
+        :param min_match_score: 最小匹配度阈值
+        :param max_market_cap: 最大市值
+        :param batch_num: 当前批次号
+        :param total_batches: 总批次数
+        :param start_idx: 起始索引
+        :param existing_candidates: 已有候选股票列表
+        :param total_all_stocks: 总股票数
+        :param max_workers: 最大并发线程数
+        :return: 扫描结果
+        """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import time as time_module
+        import threading
+        
+        total_stocks = len(stock_list)
+        if total_all_stocks is None:
+            total_all_stocks = total_stocks
+        
+        # 更新进度信息
+        batch_info = f" (第 {batch_num}/{total_batches} 批)" if total_batches > 1 else ""
+        self.progress = {
+            'type': 'scan',
+            'current': start_idx,
+            'total': total_all_stocks,
+            'status': '进行中',
+            'detail': f'开始并行扫描 {total_stocks} 只股票{batch_info}（{max_workers} 线程）...',
+            'percentage': 0,
+            'found': 0,
+            'batch': batch_num,
+            'total_batches': total_batches
+        }
+        
+        print(f"\n🚀 开始并行扫描股票，查找符合牛股特征的个股{batch_info}...")
+        print(f"本批股票数: {total_stocks}")
+        print(f"并发线程数: {max_workers}")
+        print(f"最小匹配度: {min_match_score:.1%}")
+        print(f"市值约束: ≤ {max_market_cap} 亿元")
+        print("=" * 80)
+        
+        candidates = existing_candidates.copy() if existing_candidates else []
+        
+        # 获取列名
+        code_col = None
+        name_col = None
+        for col in stock_list.columns:
+            col_lower = str(col).lower()
+            if 'code' in col_lower or '代码' in col:
+                code_col = col
+            elif 'name' in col_lower or '名称' in col:
+                name_col = col
+        
+        if code_col is None:
+            code_col = stock_list.columns[0]
+        if name_col is None and len(stock_list.columns) >= 2:
+            name_col = stock_list.columns[1]
+        
+        # 准备股票列表
+        stock_items = []
+        for idx, (_, row) in enumerate(stock_list.iterrows(), start=start_idx):
+            stock_code = str(row[code_col])
+            stock_name = str(row[name_col]) if name_col else stock_code
+            stock_items.append((stock_code, stock_name, idx))
+        
+        # 使用线程池并行处理
+        processed_count = 0
+        progress_lock = threading.Lock()
+        start_time = time_module.time()
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # 提交所有任务
+            future_to_stock = {
+                executor.submit(self._process_single_stock, stock_code, stock_name, common_features, min_match_score, max_market_cap, idx, total_all_stocks): (stock_code, stock_name, idx)
+                for stock_code, stock_name, idx in stock_items
+            }
+            
+            # 收集结果
+            for future in as_completed(future_to_stock):
+                # 检查停止信号
+                if self.stop_scan:
+                    # 取消未完成的任务
+                    for f in future_to_stock:
+                        f.cancel()
+                    break
+                
+                stock_code, stock_name, idx = future_to_stock[future]
+                processed_count += 1
+                
+                try:
+                    result = future.result(timeout=1)  # 获取结果，超时1秒
+                    if result:
+                        with progress_lock:
+                            candidates.append(result)
+                            self.progress['found'] = len(candidates)
+                            market_cap_info = f" 市值: {result['市值']:.2f}亿" if result['市值'] else " 市值: 未知"
+                            print(f"\n✅ 找到候选: {stock_code} {stock_name} (匹配度: {result['匹配度']:.3f}{market_cap_info})")
+                except Exception as e:
+                    # 忽略单个股票的错误，继续处理
+                    pass
+                
+                # 更新进度
+                with progress_lock:
+                    overall_current = start_idx + processed_count
+                    if total_batches > 1:
+                        completed_batches_progress = ((batch_num - 1) / total_batches) * 100
+                        current_batch_progress = (processed_count / total_stocks) / total_batches * 100
+                        percentage = completed_batches_progress + current_batch_progress
+                        percentage = min(percentage, 100.0)
+                    else:
+                        percentage = (overall_current / total_all_stocks) * 100
+                    
+                    self.progress['current'] = overall_current
+                    self.progress['percentage'] = round(percentage, 1)
+                    self.progress['detail'] = f'并行扫描中... ({overall_current}/{total_all_stocks}){batch_info} | 已找到: {len(candidates)} 只 | 已处理: {processed_count}/{total_stocks}'
+                    self.progress['last_update_time'] = time_module.time()
+                
+                # 每处理10只股票打印一次进度
+                if processed_count % 10 == 0 or processed_count == total_stocks:
+                    elapsed = time_module.time() - start_time
+                    speed = processed_count / elapsed if elapsed > 0 else 0
+                    print(f"[进度] {percentage:.1f}% - {overall_current}/{total_all_stocks} - 已找到: {len(candidates)} 只 - 速度: {speed:.1f} 只/秒")
+        
+        # 检查是否被停止
+        if self.stop_scan:
+            current_processed = start_idx + processed_count
+            self.progress['status'] = '已停止'
+            self.progress['detail'] = f'扫描已停止（已处理 {current_processed}/{total_all_stocks} 只股票，找到 {len(candidates)} 只）'
+            self.progress['current'] = current_processed
+            self.stop_scan = False
+        else:
+            # 完成进度
+            if batch_num == total_batches:
+                self.progress['status'] = '完成'
+                self.progress['percentage'] = 100.0
+                self.progress['detail'] = f'所有批次扫描完成: 找到 {len(candidates)} 只符合条件的股票'
+                self.progress['current'] = total_all_stocks
+            else:
+                self.progress['status'] = '进行中'
+                self.progress['percentage'] = round((batch_num / total_batches * 100), 1)
+                overall_current = int((batch_num / total_batches) * total_all_stocks)
+                self.progress['current'] = overall_current
+                self.progress['detail'] = f'第 {batch_num}/{total_batches} 批扫描完成: 找到 {len(candidates)} 只符合条件的股票，继续扫描下一批...'
+        
+        self.progress['last_update_time'] = time_module.time()
+        
+        # 按匹配度排序
+        candidates.sort(key=lambda x: x['匹配度'], reverse=True)
+        
+        elapsed_time = time_module.time() - start_time
+        speed = processed_count / elapsed_time if elapsed_time > 0 else 0
+        print("\n" + "=" * 80)
+        print(f"✅ 本批并行扫描完成！找到 {len(candidates)} 只符合条件的股票{batch_info}")
+        print(f"⏱️ 耗时: {elapsed_time:.1f}秒 | 速度: {speed:.2f} 只/秒")
+        print("=" * 80)
+        
+        if self.progress.get('status') == '已停止':
+            current_processed = self.progress.get('current', start_idx + processed_count)
+            return {
+                'success': True,
+                'message': f'扫描已停止，已处理 {current_processed}/{total_all_stocks} 只股票，找到 {len(candidates)} 只符合条件的股票',
+                'candidates': candidates[:50] if len(candidates) > 50 else candidates,
+                'total_scanned': current_processed,
+                'found_count': len(candidates),
+                'batch': batch_num,
+                'total_batches': total_batches,
+                'stopped': True
+            }
+        
+        return {
+            'success': True,
+            'message': f'本批扫描完成，找到 {len(candidates)} 只符合条件的股票',
+            'candidates': candidates[:50] if len(candidates) > 50 else candidates,
+            'total_scanned': start_idx + processed_count,
+            'found_count': len(candidates),
+            'batch': batch_num,
+            'total_batches': total_batches,
+            'elapsed_time': elapsed_time,
+            'speed': speed
+        }
+    
+    def _scan_stock_batch_serial(self, stock_list, common_features: Dict, min_match_score: float, max_market_cap: float, batch_num: int = 1, total_batches: int = 1, start_idx: int = 0, existing_candidates: list = None, total_all_stocks: int = None) -> Dict:
+        """
+        扫描一批股票（串行处理，原有逻辑）
         :param stock_list: 股票列表（DataFrame）
         :param common_features: 共同特征模板
         :param min_match_score: 最小匹配度阈值
