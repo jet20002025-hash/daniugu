@@ -2262,9 +2262,14 @@ def scan_all_stocks():
         
         # 并行处理配置（默认启用，提升扫描速度）
         use_parallel = data.get('use_parallel', True)  # 默认启用并行处理
-        # Render环境使用更多线程以加快扫描速度（目标：10分钟内完成）
-        default_workers = 100 if is_render else 5  # 增加到100线程以提升性能
+        # Render环境：平衡性能和内存使用（512MB限制）
+        # 减少并行线程数以避免内存溢出
+        default_workers = 20 if is_render else 5  # 从100降到20，避免内存溢出
         max_workers = int(data.get('max_workers', default_workers))
+        # 限制最大线程数，防止内存溢出
+        if max_workers > 30:
+            max_workers = 30
+            print(f"[scan_all_stocks] ⚠️ 线程数已限制为30，避免内存溢出")
         
         # VIP用户自定义参数（第二阶段功能）
         exclude_st = data.get('exclude_st', True)  # 默认排除ST股票
