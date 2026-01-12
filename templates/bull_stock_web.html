@@ -3480,36 +3480,79 @@
             try {
                 showMessage('正在加载扫描结果...', 'success');
                 
-                const response = await fetch('/api/get_scan_results', {
-                    method: 'GET',
-                    cache: 'no-store'
-                });
+                // 获取用户信息以确定用户等级
+                const user = await getUserInfo().catch(() => null);
+                const tier = user?.tier || 'free';
                 
-                if (!response.ok) {
-                    throw new Error(`HTTP错误: ${response.status}`);
-                }
-                
-                const result = await response.json();
-                
-                if (result.success && result.stocks && result.stocks.length > 0) {
-                    // 显示扫描结果（使用现有的显示函数）
-                    if (typeof displayScanResults === 'function') {
-                        displayScanResults({
-                            candidates: result.stocks,
-                            found_count: result.found_count || result.stocks.length,
-                            total_scanned: result.total_scanned || 0
-                        });
-                    } else {
-                        // 如果没有displayScanResults函数，使用简单显示
-                        const container = document.getElementById('buyPointsResult');
-                        if (container) {
-                            container.style.display = 'block';
-                            container.innerHTML = `<h3>扫描结果（找到 ${result.stocks.length} 只股票）</h3>`;
-                        }
+                // 免费用户使用专门的API查看11:30和15:00的扫描结果
+                if (tier === 'free') {
+                    const response = await fetch('/api/get_free_user_scan_results', {
+                        method: 'GET',
+                        cache: 'no-store'
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP错误: ${response.status}`);
                     }
-                    showMessage(`成功加载 ${result.stocks.length} 只符合条件的股票`, 'success');
+                    
+                    const result = await response.json();
+                    
+                    if (result.success && result.results && result.results.length > 0) {
+                        // 使用免费用户的显示函数
+                        if (typeof displayScanResultsCharts === 'function') {
+                            displayScanResultsCharts(result.results);
+                        } else {
+                            // 如果没有displayScanResultsCharts函数，使用简单显示
+                            const container = document.getElementById('stocksContainer');
+                            if (container) {
+                                let html = '<h3>扫描结果</h3>';
+                                result.results.forEach((item, index) => {
+                                    html += `<div style="margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
+                                        <h4>${item.title}</h4>
+                                        <p>扫描时间: ${item.scan_time}</p>
+                                        <p>找到 ${item.result?.found_count || 0} 只股票</p>
+                                    </div>`;
+                                });
+                                container.innerHTML = html;
+                            }
+                        }
+                        showMessage(`成功加载 ${result.results.length} 组扫描结果`, 'success');
+                    } else {
+                        showMessage(result.message || '暂无扫描结果，系统每天在11:30和15:00自动扫描，请稍后再查看。', 'info');
+                    }
                 } else {
-                    showMessage(result.message || '暂无扫描结果，请等待系统自动扫描（中午和盘后各一次）', 'info');
+                    // VIP/超级用户使用标准API
+                    const response = await fetch('/api/get_scan_results', {
+                        method: 'GET',
+                        cache: 'no-store'
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP错误: ${response.status}`);
+                    }
+                    
+                    const result = await response.json();
+                    
+                    if (result.success && result.candidates && result.candidates.length > 0) {
+                        // 显示扫描结果（使用现有的显示函数）
+                        if (typeof displayScanResults === 'function') {
+                            displayScanResults({
+                                candidates: result.candidates,
+                                found_count: result.found_count || result.candidates.length,
+                                total_scanned: result.total_scanned || 0
+                            });
+                        } else {
+                            // 如果没有displayScanResults函数，使用简单显示
+                            const container = document.getElementById('buyPointsResult');
+                            if (container) {
+                                container.style.display = 'block';
+                                container.innerHTML = `<h3>扫描结果（找到 ${result.candidates.length} 只股票）</h3>`;
+                            }
+                        }
+                        showMessage(`成功加载 ${result.candidates.length} 只符合条件的股票`, 'success');
+                    } else {
+                        showMessage(result.message || '暂无扫描结果', 'info');
+                    }
                 }
             } catch (error) {
                 console.error('查看扫描结果失败:', error);
