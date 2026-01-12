@@ -4245,6 +4245,35 @@
         }
         
         // 显示用户信息（添加超时控制和错误处理）
+        // 用户登出
+        async function logoutUser() {
+            if (!confirm('确定要退出登录吗？')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/logout', {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage('已退出登录', 'success');
+                    // 延迟一下再跳转，让用户看到提示消息
+                    setTimeout(() => {
+                        window.location.href = '/login';
+                    }, 500);
+                } else {
+                    showMessage(result.message || '退出登录失败', 'error');
+                }
+            } catch (error) {
+                console.error('退出登录失败:', error);
+                showMessage('退出登录失败: ' + error.message, 'error');
+            }
+        }
+        
         async function displayUserInfo() {
             const userInfoDiv = document.getElementById('userInfoDisplay');
             if (!userInfoDiv) {
@@ -4400,6 +4429,13 @@
                 } else if (user.tier === 'super') {
                     html += `<div style="font-size: 11px; color: #999; margin-top: 5px;">无限制访问</div>`;
                 }
+                
+                // 添加登出按钮
+                html += `<div style="margin-top: 10px;">
+                    <button onclick="logoutUser()" style="background: #95a5a6; color: white; border: none; padding: 6px 15px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: normal; transition: all 0.3s;" onmouseover="this.style.background='#7f8c8d'" onmouseout="this.style.background='#95a5a6'">
+                        退出登录
+                    </button>
+                </div>`;
                 
                 userInfoDiv.innerHTML = html;
             } catch (error) {
