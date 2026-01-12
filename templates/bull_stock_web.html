@@ -3490,38 +3490,14 @@
                 } catch (error) {
                     console.error('获取用户信息失败:', error);
                     // 出错时默认显示免费用户按钮（禁用状态）
+                    const stocksListSection = document.getElementById('stocksListSection');
                     if (vipButtons) {
+                        disableVipButtons(vipButtons);
                         vipButtons.style.display = 'block';
-                        // 禁用所有按钮
-                        const buttons = vipButtons.querySelectorAll('button');
-                        buttons.forEach(btn => {
-                            btn.disabled = true;
-                            btn.style.opacity = '0.5';
-                            btn.style.cursor = 'not-allowed';
-                            if (!btn.hasAttribute('data-free-click-handled')) {
-                                const originalOnclick = btn.getAttribute('onclick');
-                                if (originalOnclick) {
-                                    btn.removeAttribute('onclick');
-                                    btn.setAttribute('data-free-click-handled', 'true');
-                                    btn.setAttribute('data-original-onclick', originalOnclick);
-                                    btn.addEventListener('click', function(e) {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        showVipUpgradePrompt();
-                                    });
-                                }
-                            }
-                        });
-                        // 禁用所有输入框
-                        const inputs = vipButtons.querySelectorAll('input, textarea, select');
-                        inputs.forEach(input => {
-                            input.disabled = true;
-                            input.style.opacity = '0.5';
-                            input.style.cursor = 'not-allowed';
-                        });
                     }
                     if (freeButtons) freeButtons.style.display = 'none';
                     if (superButtons) superButtons.style.display = 'none';
+                    if (stocksListSection) stocksListSection.style.display = 'none';
                 }
             }
         }
