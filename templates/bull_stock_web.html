@@ -547,7 +547,10 @@
                         
                         <!-- 免费用户：只显示查看结果按钮 -->
                         <div id="freeUserButtons" style="display: none;">
-                            <button class="btn btn-primary" onclick="viewScanResults()" style="background: #667eea;">📊 查看扫描结果</button>
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                <button class="btn btn-primary" onclick="viewScanResults()" style="background: #667eea;">📊 查看扫描结果</button>
+                                <button class="btn btn-primary" onclick="showVipUpgradeInfo()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); font-weight: bold;">💎 升级为VIP客户</button>
+                            </div>
                         </div>
                         
                         <!-- 超级用户：显示所有功能 -->
@@ -5214,6 +5217,72 @@
                 input.disabled = true;
                 input.style.opacity = '0.5';
                 input.style.cursor = 'not-allowed';
+            });
+        }
+        
+        // VIP升级信息（免费用户点击"升级为VIP客户"按钮时显示）
+        function showVipUpgradeInfo() {
+            // 创建模态框
+            const modal = document.createElement('div');
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center;';
+            
+            const content = document.createElement('div');
+            content.style.cssText = 'background: white; border-radius: 12px; padding: 30px; max-width: 550px; width: 90%; box-shadow: 0 4px 20px rgba(0,0,0,0.3); position: relative;';
+            
+            content.innerHTML = `
+                <div style="text-align: center;">
+                    <h2 style="margin: 0 0 20px 0; color: #333; font-size: 26px; font-weight: bold;">💎 升级为VIP客户</h2>
+                    
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 10px; margin-bottom: 25px; color: white;">
+                        <div style="font-size: 18px; margin-bottom: 15px; font-weight: bold;">📦 价格方案</div>
+                        <div style="display: flex; justify-content: space-around; gap: 15px; flex-wrap: wrap;">
+                            <div style="background: rgba(255,255,255,0.2); padding: 15px; border-radius: 8px; flex: 1; min-width: 150px;">
+                                <div style="font-size: 14px; margin-bottom: 8px; opacity: 0.9;">包月</div>
+                                <div style="font-size: 28px; font-weight: bold;">99元</div>
+                                <div style="font-size: 12px; opacity: 0.8; margin-top: 5px;">/月</div>
+                            </div>
+                            <div style="background: rgba(255,255,255,0.2); padding: 15px; border-radius: 8px; flex: 1; min-width: 150px;">
+                                <div style="font-size: 14px; margin-bottom: 8px; opacity: 0.9;">包年</div>
+                                <div style="font-size: 28px; font-weight: bold;">999元</div>
+                                <div style="font-size: 12px; opacity: 0.8; margin-top: 5px;">/年</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 25px; text-align: left;">
+                        <div style="margin-bottom: 15px;">
+                            <div style="font-weight: bold; color: #333; margin-bottom: 8px; font-size: 15px;">📱 支付支付宝账户：</div>
+                            <div style="font-size: 20px; color: #e74c3c; font-weight: bold; word-break: break-all; text-align: center; padding: 10px; background: white; border-radius: 6px; border: 2px solid #e74c3c;">522168878@qq.com</div>
+                        </div>
+                        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd;">
+                            <div style="font-weight: bold; color: #333; margin-bottom: 8px; font-size: 15px;">💬 联系方式：</div>
+                            <div style="font-size: 16px; color: #667eea; font-weight: bold; text-align: center; padding: 10px; background: white; border-radius: 6px; border: 2px solid #667eea;">QQ：522168878</div>
+                        </div>
+                    </div>
+                    
+                    <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #ffc107;">
+                        <div style="color: #856404; font-size: 14px; line-height: 1.6;">
+                            <strong>💡 温馨提示：</strong><br>
+                            1. 请选择包月或包年套餐进行支付<br>
+                            2. 打款后，请及时联系QQ：<strong>522168878</strong> 开通VIP权限<br>
+                            3. 我们会在收到付款后24小时内为您开通VIP服务
+                        </div>
+                    </div>
+                    
+                    <button onclick="this.closest('div').parentElement.parentElement.remove()" style="background: #667eea; color: white; border: none; padding: 12px 50px; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; transition: all 0.3s;" onmouseover="this.style.background='#5568d3'" onmouseout="this.style.background='#667eea'">
+                        我知道了
+                    </button>
+                </div>
+            `;
+            
+            modal.appendChild(content);
+            document.body.appendChild(modal);
+            
+            // 点击背景关闭
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    modal.remove();
+                }
             });
         }
         
