@@ -3447,30 +3447,73 @@
                         if (isSuper || tier === 'super') {
                             // 超级用户：显示所有功能
                             if (superButtons) superButtons.style.display = 'block';
-                            if (vipButtons) vipButtons.style.display = 'none';
+                            if (vipButtons) {
+                                vipButtons.style.display = 'none';
+                                // 恢复按钮状态（如果之前被禁用）
+                                enableVipButtons(vipButtons);
+                            }
                             if (freeButtons) freeButtons.style.display = 'none';
                         } else if (tier === 'premium') {
                             // VIP用户：显示扫描全市场（无限次）
-                            if (vipButtons) vipButtons.style.display = 'block';
+                            if (vipButtons) {
+                                vipButtons.style.display = 'block';
+                                // 启用所有按钮
+                                enableVipButtons(vipButtons);
+                            }
                             if (freeButtons) freeButtons.style.display = 'none';
                             if (superButtons) superButtons.style.display = 'none';
                         } else {
-                            // 免费用户：只显示查看结果按钮
-                            if (freeButtons) freeButtons.style.display = 'block';
-                            if (vipButtons) vipButtons.style.display = 'none';
+                            // 免费用户：显示所有按钮，但设置为禁用状态（灰色）
+                            if (vipButtons) {
+                                vipButtons.style.display = 'block';
+                                disableVipButtons(vipButtons);
+                            }
+                            if (freeButtons) freeButtons.style.display = 'none';
                             if (superButtons) superButtons.style.display = 'none';
                         }
                     } else {
-                        // 无法获取用户信息，默认显示免费用户按钮
-                        if (freeButtons) freeButtons.style.display = 'block';
-                        if (vipButtons) vipButtons.style.display = 'none';
+                        // 无法获取用户信息，默认显示免费用户按钮（禁用状态）
+                        if (vipButtons) {
+                            vipButtons.style.display = 'block';
+                            disableVipButtons(vipButtons);
+                        }
+                        if (freeButtons) freeButtons.style.display = 'none';
                         if (superButtons) superButtons.style.display = 'none';
                     }
                 } catch (error) {
                     console.error('获取用户信息失败:', error);
-                    // 出错时默认显示免费用户按钮
-                    if (freeButtons) freeButtons.style.display = 'block';
-                    if (vipButtons) vipButtons.style.display = 'none';
+                    // 出错时默认显示免费用户按钮（禁用状态）
+                    if (vipButtons) {
+                        vipButtons.style.display = 'block';
+                        // 禁用所有按钮
+                        const buttons = vipButtons.querySelectorAll('button');
+                        buttons.forEach(btn => {
+                            btn.disabled = true;
+                            btn.style.opacity = '0.5';
+                            btn.style.cursor = 'not-allowed';
+                            if (!btn.hasAttribute('data-free-click-handled')) {
+                                const originalOnclick = btn.getAttribute('onclick');
+                                if (originalOnclick) {
+                                    btn.removeAttribute('onclick');
+                                    btn.setAttribute('data-free-click-handled', 'true');
+                                    btn.setAttribute('data-original-onclick', originalOnclick);
+                                    btn.addEventListener('click', function(e) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        showVipUpgradePrompt();
+                                    });
+                                }
+                            }
+                        });
+                        // 禁用所有输入框
+                        const inputs = vipButtons.querySelectorAll('input, textarea, select');
+                        inputs.forEach(input => {
+                            input.disabled = true;
+                            input.style.opacity = '0.5';
+                            input.style.cursor = 'not-allowed';
+                        });
+                    }
+                    if (freeButtons) freeButtons.style.display = 'none';
                     if (superButtons) superButtons.style.display = 'none';
                 }
             }
@@ -5130,6 +5173,126 @@
             const modal = document.getElementById('watchlistModal');
             if (modal) {
                 modal.style.display = 'none';
+            }
+        }
+        
+        // 启用VIP按钮（恢复按钮的正常状态）
+        function enableVipButtons(vipButtonsElement) {
+            const buttons = vipButtonsElement.querySelectorAll('button');
+            buttons.forEach(btn => {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.style.cursor = 'pointer';
+                // 恢复原有的onclick
+                const originalOnclick = btn.getAttribute('data-original-onclick');
+                if (originalOnclick && btn.hasAttribute('data-free-click-handled')) {
+                    btn.setAttribute('onclick', originalOnclick);
+                    btn.removeAttribute('data-free-click-handled');
+                    btn.removeAttribute('data-original-onclick');
+                    // 移除所有事件监听器（创建新节点替换）
+                    const parent = btn.parentNode;
+                    const newBtn = btn.cloneNode(true);
+                    parent.replaceChild(newBtn, btn);
+                }
+            });
+            // 启用所有输入框
+            const inputs = vipButtonsElement.querySelectorAll('input, textarea, select');
+            inputs.forEach(input => {
+                input.disabled = false;
+                input.style.opacity = '1';
+                input.style.cursor = 'auto';
+            });
+        }
+        
+        // 禁用VIP按钮（免费用户状态）
+        function disableVipButtons(vipButtonsElement) {
+            const buttons = vipButtonsElement.querySelectorAll('button');
+            buttons.forEach(btn => {
+                if (!btn.hasAttribute('data-free-click-handled')) {
+                    const originalOnclick = btn.getAttribute('onclick');
+                    if (originalOnclick) {
+                        btn.setAttribute('data-original-onclick', originalOnclick);
+                        btn.removeAttribute('onclick');
+                        btn.setAttribute('data-free-click-handled', 'true');
+                        btn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            showVipUpgradePrompt();
+                        });
+                    }
+                }
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+                btn.style.cursor = 'not-allowed';
+            });
+            // 禁用所有输入框
+            const inputs = vipButtonsElement.querySelectorAll('input, textarea, select');
+            inputs.forEach(input => {
+                input.disabled = true;
+                input.style.opacity = '0.5';
+                input.style.cursor = 'not-allowed';
+            });
+        }
+        
+        // VIP升级提示（免费用户点击禁用按钮时显示）
+        async function showVipUpgradePrompt() {
+            try {
+                // 获取支付信息
+                const response = await fetch('/api/vip/payment_info', {
+                    method: 'GET',
+                    credentials: 'same-origin'
+                });
+                
+                const result = await response.json();
+                const alipayAccount = result.success ? (result.alipay_account || '522168878@qq.com') : '522168878@qq.com';
+                const wechatAccount = result.success ? (result.wechat_account || '请等待管理员配置') : '请等待管理员配置';
+                
+                // 创建模态框
+                const modal = document.createElement('div');
+                modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center;';
+                
+                const content = document.createElement('div');
+                content.style.cssText = 'background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; box-shadow: 0 4px 20px rgba(0,0,0,0.3); position: relative;';
+                
+                content.innerHTML = `
+                    <div style="text-align: center;">
+                        <h2 style="margin: 0 0 20px 0; color: #333; font-size: 24px;">💎 升级VIP会员</h2>
+                        <p style="color: #666; margin-bottom: 25px; font-size: 16px; line-height: 1.6;">
+                            此功能为VIP专享功能，升级VIP后即可使用所有功能。
+                        </p>
+                        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 25px; text-align: left;">
+                            <div style="margin-bottom: 15px;">
+                                <div style="font-weight: bold; color: #333; margin-bottom: 8px; font-size: 15px;">📱 支付宝账号：</div>
+                                <div style="font-size: 18px; color: #e74c3c; font-weight: bold; word-break: break-all;">${alipayAccount}</div>
+                            </div>
+                            ${wechatAccount !== '请等待管理员配置' ? `
+                            <div>
+                                <div style="font-weight: bold; color: #333; margin-bottom: 8px; font-size: 15px;">💬 微信账号：</div>
+                                <div style="font-size: 18px; color: #07c160; font-weight: bold; word-break: break-all;">${wechatAccount}</div>
+                            </div>
+                            ` : ''}
+                        </div>
+                        <p style="color: #999; font-size: 14px; margin-bottom: 25px;">
+                            付款后请联系管理员开通VIP权限
+                        </p>
+                        <button onclick="this.closest('div').parentElement.remove()" style="background: #667eea; color: white; border: none; padding: 12px 40px; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold;">
+                            知道了
+                        </button>
+                    </div>
+                `;
+                
+                modal.appendChild(content);
+                document.body.appendChild(modal);
+                
+                // 点击背景关闭
+                modal.addEventListener('click', function(e) {
+                    if (e.target === modal) {
+                        modal.remove();
+                    }
+                });
+            } catch (error) {
+                console.error('显示VIP升级提示失败:', error);
+                alert('此功能为VIP专享功能，升级VIP后即可使用。\n\n支付宝账号：522168878@qq.com\n\n付款后请联系管理员开通VIP权限。');
             }
         }
         
