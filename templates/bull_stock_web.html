@@ -640,7 +640,7 @@
             </div>
             
             <!-- 股票列表 -->
-            <div class="stocks-list">
+            <div class="stocks-list" id="stocksListSection">
                 <h2>已添加的大牛股</h2>
                 <div id="stocksContainer">
                     <div class="empty-state">
@@ -3444,6 +3444,8 @@
                         const tier = user.tier || 'free';
                         const isSuper = user.is_super || false;
                         
+                        const stocksListSection = document.getElementById('stocksListSection');
+                        
                         if (isSuper || tier === 'super') {
                             // 超级用户：显示所有功能
                             if (superButtons) superButtons.style.display = 'block';
@@ -3453,6 +3455,7 @@
                                 enableVipButtons(vipButtons);
                             }
                             if (freeButtons) freeButtons.style.display = 'none';
+                            if (stocksListSection) stocksListSection.style.display = 'block';
                         } else if (tier === 'premium') {
                             // VIP用户：显示扫描全市场（无限次）
                             if (vipButtons) {
@@ -3462,23 +3465,27 @@
                             }
                             if (freeButtons) freeButtons.style.display = 'none';
                             if (superButtons) superButtons.style.display = 'none';
+                            if (stocksListSection) stocksListSection.style.display = 'block';
                         } else {
-                            // 免费用户：显示所有按钮，但设置为禁用状态（灰色）
+                            // 免费用户：显示所有按钮，但设置为禁用状态（灰色），隐藏股票列表
                             if (vipButtons) {
                                 vipButtons.style.display = 'block';
                                 disableVipButtons(vipButtons);
                             }
                             if (freeButtons) freeButtons.style.display = 'none';
                             if (superButtons) superButtons.style.display = 'none';
+                            if (stocksListSection) stocksListSection.style.display = 'none';
                         }
                     } else {
                         // 无法获取用户信息，默认显示免费用户按钮（禁用状态）
+                        const stocksListSection = document.getElementById('stocksListSection');
                         if (vipButtons) {
                             vipButtons.style.display = 'block';
                             disableVipButtons(vipButtons);
                         }
                         if (freeButtons) freeButtons.style.display = 'none';
                         if (superButtons) superButtons.style.display = 'none';
+                        if (stocksListSection) stocksListSection.style.display = 'none';
                     }
                 } catch (error) {
                     console.error('获取用户信息失败:', error);
