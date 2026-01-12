@@ -215,13 +215,13 @@ def get_user_tier():
     return 'free'
 
 def get_scan_config():
-    """根据用户等级返回扫描配置"""
+    """根据用户等级返回扫描配置（优化内存使用）"""
     tier = get_user_tier()
     
     if tier == 'super':
-        # 超级用户：最快扫描，无限制
+        # 超级用户：最快扫描，无限制（但考虑内存限制）
         return {
-            'batch_size': 50,      # 50只/批
+            'batch_size': 30,      # 从50降到30，减少内存使用
             'batch_delay': 1,      # 延迟1秒
             'stock_timeout': 10,   # 单股票10秒
             'retry_delay': 2,      # 重试延迟2秒
@@ -233,7 +233,7 @@ def get_scan_config():
     elif tier == 'premium':
         # 收费版（VIP）：系统11:30自动扫描，也可以手动扫描
         return {
-            'batch_size': 50,      # 50只/批
+            'batch_size': 30,      # 从50降到30，减少内存使用
             'batch_delay': 1,      # 延迟1秒
             'stock_timeout': 10,   # 单股票10秒
             'retry_delay': 2,      # 重试延迟2秒
@@ -247,7 +247,7 @@ def get_scan_config():
     else:
         # 免费版：系统每天3:00自动扫描，用户直接看结果
         return {
-            'batch_size': 20,      # 20只/批（更慢）
+            'batch_size': 15,      # 从20降到15，减少内存使用
             'batch_delay': 3,      # 延迟3秒（更慢）
             'stock_timeout': 8,    # 单股票8秒
             'retry_delay': 5,      # 重试延迟5秒
