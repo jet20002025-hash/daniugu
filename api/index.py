@@ -125,12 +125,14 @@ except Exception as e:
             'success': False,
             'error': import_error,
             'message': '导入 bull_stock_web 失败',
-            'import_error_type': import_error_type
+            'import_error_type': import_error_type,
+            'error_detail': import_error_detail[:500] if len(import_error_detail) > 500 else import_error_detail
         }), 500
     
-    print(f"❌ 导入 bull_stock_web 失败: {import_error}")
-    import traceback
-    traceback.print_exc()
+    # 保存导入错误信息，以便在函数内部使用（使用闭包）
+    import_error = str(e)
+    import_error_type = type(e).__name__
+    import_error_detail = error_detail
 
 # ✅ 关键：确保 app 对象在模块级别导出
 # Vercel 会检测这个文件中的 'app' 变量
