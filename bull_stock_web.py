@@ -528,9 +528,26 @@ def favicon():
 @app.route('/login')
 def login_page():
     """登录页面"""
-    if is_logged_in():
-        return redirect(url_for('index'))
-    return render_template('login.html')
+    try:
+        if is_logged_in():
+            return redirect(url_for('index'))
+        return render_template('login.html')
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"[login_page] ❌ 错误: {error_detail}")
+        # 返回简单的 HTML 错误页面，而不是抛出异常
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head><title>登录错误</title></head>
+        <body>
+            <h1>登录页面加载失败</h1>
+            <p>错误: {str(e)}</p>
+            <p><a href="/">返回首页</a></p>
+        </body>
+        </html>
+        """, 500
 
 @app.route('/register')
 def register_page():
@@ -1877,6 +1894,8 @@ def api_version():
 
 @app.route('/api/health', methods=['GET'])
 def api_health():
+    """健康检查端点，用于验证服务是否正常运行"""
+    try:
     """健康检查API"""
     try:
         return jsonify({
