@@ -516,21 +516,61 @@ def index():
     """主页面"""
     try:
         # 检查是否已登录
-        if not is_logged_in():
+        try:
+            logged_in = is_logged_in()
+        except Exception as login_check_error:
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"[index] ⚠️ 检查登录状态失败: {error_detail}")
+            # 如果检查登录状态失败，重定向到登录页面
+            logged_in = False
+        
+        if not logged_in:
             return redirect(url_for('login_page'))
+        
         # ✅ 不在主页渲染时初始化分析器，延迟到API调用时初始化（提升页面加载速度）
         # init_analyzer() 会在第一次API调用时自动初始化
-        return render_template('bull_stock_web.html')
+        try:
+            return render_template('bull_stock_web.html')
+        except Exception as template_error:
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"[index] ❌ 渲染模板失败: {error_detail}")
+            return f"""
+            <!DOCTYPE html>
+            <html>
+            <head><title>页面加载失败</title></head>
+            <body>
+                <h1>页面加载失败</h1>
+                <p>错误: {str(template_error)}</p>
+                <p><a href="/login">前往登录页面</a></p>
+            </body>
+            </html>
+            """, 500
     except Exception as e:
         import traceback
         error_detail = traceback.format_exc()
-        print(f"主页错误: {error_detail}")
-        return f"<h1>服务器错误</h1><pre>{error_detail}</pre>", 500
+        print(f"[index] ❌ 主页错误: {error_detail}")
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head><title>服务器错误</title></head>
+        <body>
+            <h1>服务器错误</h1>
+            <p>错误: {str(e)}</p>
+            <p><a href="/login">前往登录页面</a></p>
+        </body>
+        </html>
+        """, 500
 
 @app.route('/favicon.ico')
 def favicon():
     """处理favicon请求，返回204 No Content"""
-    return '', 204
+    try:
+        return '', 204
+    except Exception as e:
+        # 如果出错，返回空响应
+        return '', 204
 
 @app.route('/login')
 def login_page():
