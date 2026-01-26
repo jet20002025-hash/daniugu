@@ -589,21 +589,78 @@ def favicon():
 @app.route('/login')
 def login_page():
     """登录页面"""
+    print("[login_page] 开始处理登录页面请求...")
     try:
-        if is_logged_in():
-            return redirect(url_for('index'))
-        return render_template('login.html')
+        # 检查是否已登录
+        try:
+            logged_in = is_logged_in()
+            print(f"[login_page] 登录状态检查结果: {logged_in}")
+        except Exception as login_check_error:
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"[login_page] ⚠️ 检查登录状态失败: {error_detail}")
+            logged_in = False
+        
+        if logged_in:
+            print("[login_page] 已登录，重定向到主页")
+            try:
+                return redirect(url_for('index'))
+            except Exception as redirect_error:
+                print(f"[login_page] ⚠️ 重定向失败: {redirect_error}")
+                return redirect('/')
+        
+        # 渲染登录模板
+        print("[login_page] 开始渲染登录模板...")
+        try:
+            # 检查模板文件是否存在
+            template_path = os.path.join(template_dir, 'login.html')
+            print(f"[login_page] 模板路径: {template_path}, 存在: {os.path.exists(template_path)}")
+            if not os.path.exists(template_path):
+                print(f"[login_page] ❌ 模板文件不存在: {template_path}")
+                # 尝试其他可能的路径
+                alt_paths = [
+                    'templates/login.html',
+                    os.path.join(os.path.dirname(__file__), 'templates', 'login.html'),
+                    os.path.join(os.getcwd(), 'templates', 'login.html'),
+                ]
+                for alt_path in alt_paths:
+                    abs_alt_path = os.path.abspath(alt_path)
+                    print(f"[login_page] 尝试备用路径: {abs_alt_path}, 存在: {os.path.exists(abs_alt_path)}")
+                    if os.path.exists(abs_alt_path):
+                        template_path = abs_alt_path
+                        break
+                else:
+                    raise FileNotFoundError(f"找不到 login.html 模板文件。尝试的路径: {template_path}, {alt_paths}")
+            
+            result = render_template('login.html')
+            print("[login_page] ✅ 模板渲染成功")
+            return result
+        except Exception as template_error:
+            import traceback
+            error_detail = traceback.format_exc()
+            print(f"[login_page] ❌ 渲染模板失败: {error_detail}")
+            return f"""
+            <!DOCTYPE html>
+            <html>
+            <head><title>登录错误</title></head>
+            <body>
+                <h1>登录页面加载失败</h1>
+                <p>错误: {str(template_error)}</p>
+                <p>模板路径: {template_dir}</p>
+                <p><a href="/">返回首页</a></p>
+            </body>
+            </html>
+            """, 500
     except Exception as e:
         import traceback
         error_detail = traceback.format_exc()
-        print(f"[login_page] ❌ 错误: {error_detail}")
-        # 返回简单的 HTML 错误页面，而不是抛出异常
+        print(f"[login_page] ❌ 登录页面错误: {error_detail}")
         return f"""
         <!DOCTYPE html>
         <html>
-        <head><title>登录错误</title></head>
+        <head><title>服务器错误</title></head>
         <body>
-            <h1>登录页面加载失败</h1>
+            <h1>服务器错误</h1>
             <p>错误: {str(e)}</p>
             <p><a href="/">返回首页</a></p>
         </body>
