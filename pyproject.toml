@@ -2,6 +2,17 @@
 name = "daniugu"
 version = "1.0.0"
 description = "大牛股分析系统"
+requires-python = ">=3.11"
+dependencies = [
+    "Flask>=2.3.0,<3.0.0",
+    "pandas>=2.0.0,<3.0.0",
+    "numpy>=1.24.0,<2.0.0",
+    "akshare>=1.11.0",
+    "openpyxl>=3.1.0,<4.0.0",
+    "Werkzeug>=2.3.0,<3.0.0",
+    "requests>=2.31.0",
+    "gunicorn>=20.1.0",
+]
 
 [project.scripts]
 app = "api.index:app"
