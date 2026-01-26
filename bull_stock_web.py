@@ -84,7 +84,14 @@ import numpy as np
 import time
 import os
 
-app = Flask(__name__)
+# ✅ 确保模板文件夹路径正确（Vercel 环境中可能需要绝对路径）
+import os
+template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
+if not os.path.exists(template_dir):
+    # 如果 templates 目录不存在，尝试相对路径
+    template_dir = 'templates'
+app = Flask(__name__, template_folder=template_dir)
+print(f"[Flask Init] 模板文件夹: {template_dir}, 存在: {os.path.exists(template_dir)}")
 
 # 登录日志文件
 LOGIN_LOG_FILE = 'login_monitor.log'
