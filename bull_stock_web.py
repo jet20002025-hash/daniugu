@@ -6711,7 +6711,10 @@ def refresh_stock_cache():
         if is_vercel or analyzer.fetcher._use_github_data_only:
             print("[refresh_stock_cache] Vercel 环境检测到，优先从 K 线文件生成缓存...")
             
-            # 先检查 K 线文件目录是否存在
+            # 先确保数据包已下载（在 Vercel 环境中，首次请求时可能还未下载）
+            _ensure_stock_data_downloaded()
+            
+            # 检查 K 线文件目录是否存在
             cache_dir = 'cache'
             weekly_dir = os.path.join(cache_dir, 'weekly_kline')
             daily_dir = os.path.join(cache_dir, 'daily_kline')
@@ -7613,9 +7616,29 @@ def stop_kdj_scan():
     })
 
 
-if __name__ == '__main__':
+# ✅ 数据包下载状态标记（模块级变量，确保只执行一次）
+_data_download_checked = False
+_data_download_lock = None
+
+def _ensure_stock_data_downloaded():
+    """确保股票数据包已下载（在 Vercel/Render 环境中）"""
+    global _data_download_checked, _data_download_lock
     import os
-    import time
+    import threading
+    
+    # 只在首次调用时执行（使用模块级变量和锁确保线程安全）
+    if _data_download_checked:
+        return
+    
+    # 初始化锁（如果还没有）
+    if _data_download_lock is None:
+        _data_download_lock = threading.Lock()
+    
+    # 使用锁确保只执行一次
+    with _data_download_lock:
+        if _data_download_checked:
+            return
+        _data_download_checked = True
     
     # ✅ 在 Vercel 环境中，自动启用 GitHub 数据包模式（不连接实时 API）
     if is_vercel:
@@ -7683,6 +7706,38 @@ if __name__ == '__main__':
             print(f"⚠️  数据检查失败: {e}，继续启动应用")
             import traceback
             traceback.print_exc()
+
+# ✅ 在 Vercel 环境中，在首次请求时触发数据包下载
+# 使用 Flask 的 before_request，但只执行一次
+@app.before_request
+def ensure_data_downloaded():
+    """在每次请求前检查并下载数据包（仅在 Vercel 环境中，且仅执行一次）"""
+    global _data_download_checked
+    if (is_vercel or is_render or os.environ.get('STOCK_DATA_URL')) and not _data_download_checked:
+        try:
+            _ensure_stock_data_downloaded()
+        except Exception as e:
+            # 静默失败，不影响请求处理
+            print(f"[ensure_data_downloaded] ⚠️ 检查数据包时出错: {e}")
+            import traceback
+            traceback.print_exc()
+
+if __name__ == '__main__':
+    import os
+    import time
+    
+    # ✅ 在 Vercel 环境中，自动启用 GitHub 数据包模式（不连接实时 API）
+    if is_vercel:
+        os.environ['USE_GITHUB_DATA_ONLY'] = '1'
+        print("=" * 80)
+        print("✅ Vercel 环境检测到，已启用 USE_GITHUB_DATA_ONLY 模式")
+        print("   系统将优先使用 GitHub 数据包，不连接实时股市 API")
+        print("=" * 80)
+    
+    # ✅ 在本地/Render 环境中，在启动时下载数据包
+    # 注意：在 Vercel 环境中，这个块不会执行，数据包下载在 before_request 中处理
+    if (is_render or os.environ.get('STOCK_DATA_URL')) and not is_vercel:
+        _ensure_stock_data_downloaded()
     
     # 检测是否在Render或其他云平台环境
     # Render 通常会设置 PORT 环境变量，如果设置了 PORT，说明在云环境
