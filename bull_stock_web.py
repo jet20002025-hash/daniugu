@@ -514,10 +514,14 @@ def init_analyzer():
 @app.route('/')
 def index():
     """主页面"""
+    print("[index] 开始处理主页请求...")
     try:
         # 检查是否已登录
+        logged_in = False
         try:
+            print("[index] 检查登录状态...")
             logged_in = is_logged_in()
+            print(f"[index] 登录状态检查结果: {logged_in}")
         except Exception as login_check_error:
             import traceback
             error_detail = traceback.format_exc()
@@ -526,12 +530,22 @@ def index():
             logged_in = False
         
         if not logged_in:
-            return redirect(url_for('login_page'))
+            print("[index] 未登录，重定向到登录页面")
+            try:
+                return redirect(url_for('login_page'))
+            except Exception as redirect_error:
+                print(f"[index] ⚠️ 重定向失败: {redirect_error}")
+                return redirect('/login')
         
         # ✅ 不在主页渲染时初始化分析器，延迟到API调用时初始化（提升页面加载速度）
         # init_analyzer() 会在第一次API调用时自动初始化
+        print("[index] 已登录，开始渲染模板...")
         try:
-            return render_template('bull_stock_web.html')
+            template_path = os.path.join(template_dir, 'bull_stock_web.html')
+            print(f"[index] 模板路径: {template_path}, 存在: {os.path.exists(template_path)}")
+            result = render_template('bull_stock_web.html')
+            print("[index] ✅ 模板渲染成功")
+            return result
         except Exception as template_error:
             import traceback
             error_detail = traceback.format_exc()
