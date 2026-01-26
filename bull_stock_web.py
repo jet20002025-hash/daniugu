@@ -1852,6 +1852,85 @@ def admin_get_users():
             'message': f'服务器错误: {str(e)}'
         }), 500
 
+@app.route('/api/admin/create_super_user', methods=['POST'])
+def admin_create_super_user():
+    """创建或更新超级用户（需要密钥验证）"""
+    try:
+        data = request.get_json() or {}
+        
+        # 验证密钥（从环境变量获取，如果没有设置则使用默认密钥）
+        secret = os.environ.get('SUPER_USER_SECRET', 'create_super_user_2024')
+        provided_secret = data.get('secret')
+        
+        if provided_secret != secret:
+            return jsonify({
+                'success': False,
+                'message': '密钥验证失败'
+            }), 403
+        
+        # 获取用户信息（默认值）
+        username = data.get('username', 'super')
+        password = data.get('password', 'superzwj')
+        email = data.get('email', 'super@admin.com')
+        
+        # 加载用户数据
+        if is_vercel or is_render or has_redis:
+            from user_auth_vercel import load_users, save_users, hash_password
+        else:
+            from user_auth import load_users, save_users, hash_password
+        
+        users = load_users()
+        
+        # 检查用户是否已存在
+        if username in users:
+            # 更新现有用户
+            users[username]['password'] = hash_password(password)
+            users[username]['is_vip'] = True
+            users[username]['is_super'] = True
+            users[username]['is_active'] = True
+            users[username]['email'] = email
+            users[username]['updated_at'] = datetime.now().isoformat()
+            action = '更新'
+        else:
+            # 创建新用户
+            users[username] = {
+                'username': username,
+                'email': email,
+                'password': hash_password(password),
+                'created_at': datetime.now().isoformat(),
+                'last_login': None,
+                'invite_code': 'ADMIN_CREATED',
+                'is_active': True,
+                'is_vip': True,
+                'is_super': True,
+                'is_test_user': False
+            }
+            action = '创建'
+        
+        # 保存用户数据
+        save_users(users)
+        
+        print(f"✅ {action}超级用户成功: {username}")
+        
+        return jsonify({
+            'success': True,
+            'message': f'超级用户已{action}成功',
+            'user': {
+                'username': username,
+                'email': email,
+                'is_vip': True,
+                'is_super': True
+            }
+        })
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"创建超级用户错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'服务器错误: {str(e)}'
+        }), 500
+
 @app.route('/api/admin/set_vip', methods=['POST'])
 @require_login
 def admin_set_vip():
