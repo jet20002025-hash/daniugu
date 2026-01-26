@@ -20,6 +20,8 @@ if not os.environ.get('VERCEL'):
 try:
     # 明确导入 bull_stock_web，避免导入 app.py
     import bull_stock_web
+    
+    # 获取 Flask app 实例 - 这是 Vercel 检测的关键
     app = bull_stock_web.app
     
     # 确保在 Vercel 环境中也添加全局错误处理器（如果 bull_stock_web 中没有）
@@ -58,7 +60,7 @@ try:
             return error
         raise
     
-    print("✅ 成功导入 bull_stock_web")
+    print("✅ 成功导入 bull_stock_web，app 对象已准备就绪")
 except Exception as e:
     # 如果导入失败，创建一个简单的错误处理应用
     from flask import Flask, jsonify
@@ -127,5 +129,6 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
-# Vercel 会自动识别 Flask WSGI 应用
-# 直接导出 app 即可，不需要 BaseHTTPRequestHandler
+# ✅ 关键：确保 app 对象在模块级别导出
+# Vercel 会检测这个文件中的 'app' 变量
+# 这是 Flask 应用的入口点
