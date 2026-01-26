@@ -6908,6 +6908,35 @@ if __name__ == '__main__':
     import os
     import time
     
+    # 在 Render 环境中，检查并下载股票数据（如果配置了）
+    if is_render or os.environ.get('STOCK_DATA_URL'):
+        try:
+            cache_dir = 'cache'
+            stock_data_dir = 'stock_data'
+            
+            # 检查数据是否存在
+            cache_exists = os.path.exists(cache_dir) and os.listdir(cache_dir) if os.path.exists(cache_dir) else False
+            stock_exists = os.path.exists(stock_data_dir) and os.listdir(stock_data_dir) if os.path.exists(stock_data_dir) else False
+            
+            if not cache_exists and not stock_exists:
+                data_url = os.environ.get('STOCK_DATA_URL')
+                if data_url:
+                    print("=" * 80)
+                    print("📥 检测到 Render 环境，开始下载股票数据...")
+                    print("=" * 80)
+                    try:
+                        from download_stock_data import main as download_main
+                        download_main()
+                    except Exception as e:
+                        print(f"⚠️  下载数据失败: {e}")
+                        print("   将使用网络实时获取数据")
+                else:
+                    print("⚠️  未设置 STOCK_DATA_URL，将使用网络实时获取数据")
+            else:
+                print("✅ 股票数据已存在，跳过下载")
+        except Exception as e:
+            print(f"⚠️  数据检查失败: {e}，继续启动应用")
+    
     # 检测是否在Render或其他云平台环境
     # Render 通常会设置 PORT 环境变量，如果设置了 PORT，说明在云环境
     port_env = os.environ.get('PORT')
