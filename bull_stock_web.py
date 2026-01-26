@@ -577,10 +577,20 @@ def api_login():
         if result['success']:
             session['username'] = username
             _log_login_attempt(username, True, login_duration, login_start_datetime, result.get('message', '登录成功'))
-            return jsonify(result)
+            response = jsonify(result)
+            # 禁止缓存登录响应，避免浏览器缓存导致的问题
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+            return response
         else:
             _log_login_attempt(username, False, login_duration, login_start_datetime, result.get('message', '登录失败'))
-            return jsonify(result), 401
+            response = jsonify(result)
+            # 禁止缓存错误响应
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+            return response, 401
             
     except Exception as e:
         import traceback

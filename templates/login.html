@@ -188,8 +188,10 @@
                 const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Cache-Control': 'no-cache'
                     },
+                    cache: 'no-store',  // 禁止缓存登录请求
                     body: JSON.stringify({
                         username: username,
                         password: password
