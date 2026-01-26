@@ -4147,8 +4147,29 @@ def scan_all_stocks():
                 print(f"[scan_all_stocks] ⚠️ {cache_status}")
                 print(f"[scan_all_stocks] 错误详情: {error_detail}")
             
-            # 如果缓存不存在，只在交易时间段内且是 Vercel 环境时提前返回错误（避免超时和数据不一致）
-            # 非交易时间段，允许从 API 获取数据（虽然可能慢，但应该允许用户扫描）
+            # ✅ 如果缓存不存在，先尝试从K线文件列表自动生成（与本地版本行为一致）
+            if not cache_exists:
+                print(f"[scan_all_stocks] ⚠️ 缓存不存在，尝试从K线文件列表自动生成...")
+                try:
+                    from generate_stock_list_from_files import generate_stock_list_from_kline_files
+                    if generate_stock_list_from_kline_files():
+                        # 重新检查缓存
+                        cached_stocks_retry = analyzer.fetcher._get_stock_list_from_cache(check_age=False)
+                        if cached_stocks_retry is not None and len(cached_stocks_retry) > 0:
+                            cache_exists = True
+                            cached_stock_count = len(cached_stocks_retry)
+                            print(f"[scan_all_stocks] ✅ 已从K线文件生成股票列表，股票数: {cached_stock_count} 只")
+                        else:
+                            print(f"[scan_all_stocks] ⚠️ 生成股票列表后，缓存仍为空")
+                    else:
+                        print(f"[scan_all_stocks] ⚠️ 生成股票列表失败")
+                except Exception as gen_error:
+                    import traceback
+                    error_detail = traceback.format_exc()
+                    print(f"[scan_all_stocks] ⚠️ 生成股票列表时出错: {gen_error}")
+                    print(f"[scan_all_stocks] 错误详情: {error_detail}")
+            
+            # 如果缓存仍然不存在，在 Vercel 环境中显示警告（与本地版本行为一致：本地版本会尝试从 API 获取，但 Vercel 环境由于 USE_GITHUB_DATA_ONLY 模式，不能从 API 获取）
             if not cache_exists and is_vercel:
                 from datetime import datetime, timezone, timedelta
                 try:
@@ -4170,67 +4191,41 @@ def scan_all_stocks():
                     )
                     
                     # 只有在交易时间段内，才提前返回错误（避免超时和数据不一致）
-                    # 非交易时间段，允许从 API 获取数据
+                    # 非交易时间段，也显示警告（因为 USE_GITHUB_DATA_ONLY 模式下不能从 API 获取）
+                    error_msg = '⚠️ **缓存未生成（股票列表缓存不存在）**\n\n'
+                    error_msg += f'当前时间: {current_time_str}（{"交易时间段内" if is_in_trading_time else "非交易时间段"}）\n\n'
+                    error_msg += '💡 **解决方案：**\n'
+                    error_msg += '**方案1（推荐）：** 手动触发缓存刷新：访问 https://www.daniugu.online/api/refresh_stock_cache?force=true\n'
+                    error_msg += '   - 手动刷新可能需要30秒，请耐心等待\n'
+                    error_msg += '   - 刷新成功后，再尝试扫描\n\n'
                     if is_in_trading_time:
-                        error_msg = '⚠️ **缓存未生成（股票列表缓存不存在）**\n\n'
-                        error_msg += f'当前时间: {current_time_str}（交易时间段内）\n\n'
-                        error_msg += '💡 **解决方案：**\n'
-                        error_msg += '当前在交易时间段内，数据变化频繁，建议等待缓存生成。\n'
-                        error_msg += '**方案1（推荐）：** 等待几分钟，系统会在下次扫描时自动刷新缓存\n'
-                        error_msg += '**方案2（手动）：** 手动触发缓存刷新：访问 https://www.daniugu.online/api/refresh_stock_cache?force=true\n'
-                        error_msg += '   - 手动刷新可能需要30秒，请耐心等待\n'
-                        error_msg += '   - 刷新成功后，再尝试扫描\n'
-                        error_msg += '\n📌 **说明：**\n'
+                        error_msg += '**方案2：** 等待几分钟，系统会在下次扫描时自动刷新缓存\n'
+                    else:
+                        error_msg += '**方案2：** 等待到交易时间段（9:30-11:30, 13:00-15:00）后重试\n'
+                        error_msg += '   - 交易时间段内，系统会自动刷新缓存（中午11:30，下午15:00）\n'
+                    error_msg += '\n📌 **说明：**\n'
+                    if is_in_trading_time:
                         error_msg += '- 交易时间段内（9:30-11:30, 13:00-15:00）数据变化频繁\n'
                         error_msg += '- 建议等待缓存生成后再扫描，避免数据不一致和超时\n'
-                        
-                        print(f"[scan_all_stocks] ❌ 交易时间段内缓存不存在，提前返回错误（避免超时和数据不一致）")
-                        return jsonify({
-                            'success': False,
-                            'message': error_msg,
-                            'cache_exists': False,
-                            'current_time': current_time_str,
-                            'is_in_trading_time': True
-                        }), 400
                     else:
-                        # 非交易时间段，如果缓存不存在，在 Vercel 环境中也建议先手动刷新缓存
-                        # 因为从 API 获取数据在 Vercel 的 10 秒限制内很可能超时
-                        if is_vercel:
-                            error_msg = '⚠️ **缓存未生成（股票列表缓存不存在）**\n\n'
-                            error_msg += f'当前时间: {current_time_str}（非交易时间段）\n\n'
-                            error_msg += '💡 **问题分析：**\n'
-                            error_msg += '非交易时间段，缓存不存在，从 akshare API 获取股票列表可能需要较长时间（通常需要 10-30 秒）。\n'
-                            error_msg += 'Vercel 环境有 10 秒执行时间限制，从 API 直接获取很可能超时失败。\n\n'
-                            error_msg += '💡 **解决方案（按优先级）：**\n'
-                            error_msg += '**方案1（强烈推荐）：** 手动触发缓存刷新：访问 https://www.daniugu.online/api/refresh_stock_cache?force=true\n'
-                            error_msg += '   - 手动刷新可能需要30秒，但这是后台任务，不受10秒限制\n'
-                            error_msg += '   - 刷新成功后（约30秒后），再尝试扫描\n'
-                            error_msg += '   - 刷新后，下次扫描会使用缓存，速度很快\n\n'
-                            error_msg += '**方案2：** 等待到交易时间段（9:30-11:30, 13:00-15:00）后重试\n'
-                            error_msg += '   - 交易时间段内，系统会自动刷新缓存（中午11:30，下午15:00）\n\n'
-                            error_msg += '**方案3：** 尝试从 API 获取（可能超时，不建议）\n'
-                            error_msg += '   - 如果仍然想尝试，可以稍后重试\n'
-                            error_msg += '   - 但如果超时，建议使用方案1手动刷新缓存\n\n'
-                            error_msg += '📌 **说明：**\n'
-                            error_msg += '- Vercel 环境有 10 秒执行时间限制\n'
-                            error_msg += '- 从 akshare API 获取股票列表通常需要 10-30 秒\n'
-                            error_msg += '- 因此建议先手动刷新缓存，再尝试扫描\n'
-                            
-                            print(f"[scan_all_stocks] ❌ 非交易时间段缓存不存在（Vercel环境），建议先手动刷新缓存（避免超时）")
-                            return jsonify({
-                                'success': False,
-                                'message': error_msg,
-                                'cache_exists': False,
-                                'current_time': current_time_str,
-                                'is_in_trading_time': False,
-                                'is_vercel': True,
-                                'suggestion': '手动刷新缓存'
-                            }), 400
-                        else:
-                            # 本地环境，允许从 API 获取数据（虽然可能慢，但应该允许用户扫描）
-                            print(f"[scan_all_stocks] ⚠️ 非交易时间段缓存不存在（本地环境），将从 API 获取数据（可能需要较长时间，但允许扫描）")
+                        error_msg += '- 系统使用 GitHub 数据包模式，不连接实时 API\n'
+                        error_msg += '- 需要先手动刷新缓存，才能继续扫描\n'
+                    
+                    print(f"[scan_all_stocks] ❌ 缓存不存在（Vercel环境），已尝试自动生成但失败，建议手动刷新缓存")
+                    return jsonify({
+                        'success': False,
+                        'message': error_msg,
+                        'cache_exists': False,
+                        'current_time': current_time_str,
+                        'is_in_trading_time': is_in_trading_time,
+                        'is_vercel': True,
+                        'suggestion': '手动刷新缓存'
+                    }), 400
                 except Exception as e:
-                    print(f"[scan_all_stocks] ⚠️ 检查交易时间时出错: {e}，继续执行（从 API 获取数据）")
+                    print(f"[scan_all_stocks] ⚠️ 检查交易时间时出错: {e}，继续执行")
+            elif not cache_exists:
+                # 本地环境，允许从 API 获取数据（虽然可能慢，但应该允许用户扫描）
+                print(f"[scan_all_stocks] ⚠️ 缓存不存在（本地环境），将从 API 获取数据（可能需要较长时间，但允许扫描）")
             
             try:
                 import time as time_module
@@ -6712,7 +6707,121 @@ def refresh_stock_cache():
                 'current_time': current_time_str
             }), 500
         
-        # 从 akshare API 获取股票列表（后台任务可以使用更长的超时）
+        # ✅ 在 Vercel 环境中，优先从 K 线文件生成缓存（USE_GITHUB_DATA_ONLY 模式）
+        if is_vercel or analyzer.fetcher._use_github_data_only:
+            print("[refresh_stock_cache] Vercel 环境检测到，优先从 K 线文件生成缓存...")
+            
+            # 先检查 K 线文件目录是否存在
+            cache_dir = 'cache'
+            weekly_dir = os.path.join(cache_dir, 'weekly_kline')
+            daily_dir = os.path.join(cache_dir, 'daily_kline')
+            
+            weekly_exists = os.path.exists(weekly_dir) and os.listdir(weekly_dir) if os.path.exists(weekly_dir) else False
+            daily_exists = os.path.exists(daily_dir) and os.listdir(daily_dir) if os.path.exists(daily_dir) else False
+            
+            if not weekly_exists and not daily_exists:
+                # K 线文件目录不存在或为空，说明数据包可能未下载
+                error_msg = '⚠️ **K 线数据文件不存在**\n\n'
+                error_msg += '**问题分析：**\n'
+                error_msg += 'GitHub 数据包可能未下载或解压失败。\n\n'
+                error_msg += '**解决方案：**\n'
+                error_msg += '1. 检查 Vercel 部署日志，确认数据包下载是否成功\n'
+                error_msg += '2. 确认 `STOCK_DATA_URL` 环境变量已正确设置\n'
+                error_msg += '3. 确认 GitHub Releases 中的数据包可以正常下载\n'
+                error_msg += '4. 等待 Vercel 重新部署，系统会自动下载数据包\n\n'
+                error_msg += '**检查步骤：**\n'
+                error_msg += '- 访问 Vercel Dashboard → Deployments → 查看最新部署的日志\n'
+                error_msg += '- 查找 "📥 检测到 Vercel 环境，开始从 GitHub 下载股票数据..." 的日志\n'
+                error_msg += '- 确认是否显示 "✅ 数据下载并解压成功！"\n'
+                
+                print(f"[refresh_stock_cache] ❌ K 线数据文件不存在: weekly_dir={weekly_dir}, daily_dir={daily_dir}")
+                return jsonify({
+                    'success': False,
+                    'message': error_msg,
+                    'current_time': current_time_str,
+                    'is_vercel': True,
+                    'weekly_dir_exists': weekly_exists,
+                    'daily_dir_exists': daily_exists,
+                    'suggestion': '检查数据包下载状态'
+                }), 500
+            
+            # K 线文件存在，尝试生成股票列表
+            try:
+                from generate_stock_list_from_files import generate_stock_list_from_kline_files
+                print(f"[refresh_stock_cache] 开始从 K 线文件生成股票列表...")
+                if generate_stock_list_from_kline_files():
+                    # 验证缓存是否生成成功
+                    cached_stocks = analyzer.fetcher._get_stock_list_from_cache(check_age=False)
+                    if cached_stocks is not None and len(cached_stocks) > 0:
+                        print(f"[refresh_stock_cache] ✅ 已从 K 线文件生成股票列表，股票数: {len(cached_stocks)} 只")
+                        return jsonify({
+                            'success': True,
+                            'message': f'✅ 股票列表缓存已从 K 线文件生成，股票数: {len(cached_stocks)} 只\n\n现在可以正常扫描了！',
+                            'stock_count': len(cached_stocks),
+                            'current_time': current_time_str,
+                            'method': 'from_kline_files',
+                            'is_vercel': True
+                        }), 200
+                    else:
+                        print("[refresh_stock_cache] ⚠️ 生成股票列表后，缓存仍为空")
+                        error_msg = '⚠️ **生成股票列表失败**\n\n'
+                        error_msg += '虽然 K 线文件存在，但生成股票列表后缓存仍为空。\n\n'
+                        error_msg += '**可能的原因：**\n'
+                        error_msg += '1. K 线文件格式不正确\n'
+                        error_msg += '2. 文件权限问题\n'
+                        error_msg += '3. 磁盘空间不足\n\n'
+                        error_msg += '**解决方案：**\n'
+                        error_msg += '请检查 Vercel 部署日志，查看详细的错误信息。'
+                        return jsonify({
+                            'success': False,
+                            'message': error_msg,
+                            'current_time': current_time_str,
+                            'is_vercel': True,
+                            'suggestion': '检查生成日志'
+                        }), 500
+                else:
+                    print("[refresh_stock_cache] ⚠️ 从 K 线文件生成股票列表失败（函数返回 False）")
+                    error_msg = '⚠️ **生成股票列表失败**\n\n'
+                    error_msg += '`generate_stock_list_from_kline_files()` 函数返回 False。\n\n'
+                    error_msg += '**可能的原因：**\n'
+                    error_msg += '1. K 线文件目录为空\n'
+                    error_msg += '2. 文件格式不正确\n'
+                    error_msg += '3. 保存文件时出错\n\n'
+                    error_msg += '**解决方案：**\n'
+                    error_msg += '请检查 Vercel 部署日志，查看详细的错误信息。'
+                    return jsonify({
+                        'success': False,
+                        'message': error_msg,
+                        'current_time': current_time_str,
+                        'is_vercel': True,
+                        'suggestion': '检查生成日志'
+                    }), 500
+            except Exception as gen_error:
+                import traceback
+                error_detail = traceback.format_exc()
+                print(f"[refresh_stock_cache] ⚠️ 从 K 线文件生成股票列表时出错: {gen_error}")
+                print(f"[refresh_stock_cache] 错误详情: {error_detail}")
+                
+                error_msg = f'⚠️ **生成股票列表时出错**\n\n'
+                error_msg += f'错误信息: {str(gen_error)}\n\n'
+                error_msg += '**可能的原因：**\n'
+                error_msg += '1. 导入模块失败\n'
+                error_msg += '2. 文件读取错误\n'
+                error_msg += '3. 其他运行时错误\n\n'
+                error_msg += '**解决方案：**\n'
+                error_msg += '请检查 Vercel 部署日志，查看详细的错误堆栈信息。'
+                
+                return jsonify({
+                    'success': False,
+                    'message': error_msg,
+                    'current_time': current_time_str,
+                    'is_vercel': True,
+                    'error': str(gen_error),
+                    'error_type': type(gen_error).__name__,
+                    'suggestion': '检查错误日志'
+                }), 500
+        
+        # 非 Vercel 环境：从 akshare API 获取股票列表（后台任务可以使用更长的超时）
         print("[refresh_stock_cache] 从 akshare API 获取股票列表...")
         # 注意：这是后台 Cron Job 任务，允许使用更长的超时时间
         # 直接调用 akshare API，不使用 get_all_stocks 的限制（因为它会自动限制 Vercel 环境的超时）
@@ -7516,8 +7625,8 @@ if __name__ == '__main__':
         print("   系统将优先使用 GitHub 数据包，不连接实时股市 API")
         print("=" * 80)
     
-    # 在 Render 环境中，检查并下载股票数据（如果配置了）
-    if is_render or os.environ.get('STOCK_DATA_URL'):
+    # ✅ 在 Render/Vercel 环境中，检查并下载股票数据（如果配置了 STOCK_DATA_URL）
+    if is_render or is_vercel or os.environ.get('STOCK_DATA_URL'):
         try:
             cache_dir = 'cache'
             stock_data_dir = 'stock_data'
@@ -7529,8 +7638,10 @@ if __name__ == '__main__':
             if not cache_exists and not stock_exists:
                 data_url = os.environ.get('STOCK_DATA_URL')
                 if data_url:
+                    env_name = "Vercel" if is_vercel else "Render"
                     print("=" * 80)
-                    print("📥 检测到 Render 环境，开始下载股票数据...")
+                    print(f"📥 检测到 {env_name} 环境，开始从 GitHub 下载股票数据...")
+                    print(f"   数据包 URL: {data_url}")
                     print("=" * 80)
                     try:
                         from download_stock_data import main as download_main
@@ -7551,13 +7662,27 @@ if __name__ == '__main__':
                                 print("   不影响使用（将从API获取股票列表）")
                     except Exception as e:
                         print(f"⚠️  下载数据失败: {e}")
-                        print("   将使用网络实时获取数据")
+                        import traceback
+                        traceback.print_exc()
+                        if is_vercel:
+                            print("   ⚠️  Vercel 环境：由于 USE_GITHUB_DATA_ONLY 模式，将无法从实时 API 获取数据")
+                            print("   请确保 STOCK_DATA_URL 指向有效的 GitHub Releases 数据包")
+                        else:
+                            print("   将使用网络实时获取数据")
                 else:
-                    print("⚠️  未设置 STOCK_DATA_URL，将使用网络实时获取数据")
+                    env_name = "Vercel" if is_vercel else "Render"
+                    print(f"⚠️  未设置 STOCK_DATA_URL 环境变量（{env_name} 环境）")
+                    if is_vercel:
+                        print("   ⚠️  Vercel 环境：由于 USE_GITHUB_DATA_ONLY 模式，必须设置 STOCK_DATA_URL")
+                        print("   请在 Vercel Dashboard 中设置 STOCK_DATA_URL 指向 GitHub Releases 数据包")
+                    else:
+                        print("   数据将从网络实时获取（较慢）")
             else:
                 print("✅ 股票数据已存在，跳过下载")
         except Exception as e:
             print(f"⚠️  数据检查失败: {e}，继续启动应用")
+            import traceback
+            traceback.print_exc()
     
     # 检测是否在Render或其他云平台环境
     # Render 通常会设置 PORT 环境变量，如果设置了 PORT，说明在云环境

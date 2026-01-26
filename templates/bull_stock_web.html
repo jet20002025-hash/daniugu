@@ -2788,13 +2788,15 @@
                 let timeoutId = null;
                 
                 // 设置超时，但只在请求真正超时时才中断
-                // 增加超时时间到60秒，给服务器更多时间处理第一批
+                // ✅ 网络环境（Render）需要更长超时（90秒），因为服务器可能休眠需要唤醒
+                // ✅ 本地环境使用短超时（60秒）
+                const requestTimeout = isNetworkEnvironment() ? 90000 : 60000;
                 timeoutId = setTimeout(() => {
-                    console.warn('[scanAllStocks] 请求超时（60秒），中断请求');
+                    console.warn(`[scanAllStocks] 请求超时（${requestTimeout/1000}秒），中断请求`);
                     console.warn('[scanAllStocks] 注意：虽然请求被中断，但扫描可能已在后台启动');
                     updateProgress(0, '处理中', '请求已提交，正在后台处理，请继续等待...');
                     controller.abort();
-                }, 60000); // 增加到60秒
+                }, requestTimeout);
                 
                 // 在发送请求前更新提示
                 updateProgress(0, '提交中', '正在提交扫描请求...');
@@ -2831,7 +2833,7 @@
                     // 检查是否是 AbortError
                     if (fetchError.name === 'AbortError' || fetchError.message?.includes('aborted') || fetchError.message?.includes('Failed to fetch')) {
                         console.warn('[scanAllStocks] 请求被中断或失败，可能原因：');
-                        console.warn('  1. 请求超时（60秒）- 这在Vercel环境中可能发生，因为第一批处理需要时间');
+                        console.warn(`  1. 请求超时（${requestTimeout/1000}秒）- 这在网络环境中可能发生，因为服务器可能休眠需要唤醒或处理需要时间`);
                         console.warn('  2. 网络连接中断或不稳定');
                         console.warn('  3. 用户在其他设备/标签页启动了扫描');
                         console.warn('[scanAllStocks] 正在检查扫描是否已在后台启动...');
@@ -2848,48 +2850,135 @@
                                 showMessage('登录已过期，请重新登录后重试', 'error');
                                 return;
                             }
-                            if (checkResult.success && checkResult.progress && checkResult.progress.status !== '空闲') {
-                                // 扫描已经在进行中
-                                console.log('[scanAllStocks] ✅ 扫描已在后台启动！', checkResult.progress);
-                                showMessage('扫描已在后台启动！请继续等待进度更新...', 'success');
-                                window._scanJustCleared = false;  // 允许轮询写入本轮的进度
-                                if (checkResult.progress.scan_id) {
-                                    window.currentScanId = checkResult.progress.scan_id;  // 让轮询带 scan_id 拉取正确进度
-                                }
+                            if (checkResult.success && checkResult.progress) {
+                                const status = checkResult.progress.status || '空闲';
+                                const scanId = checkResult.progress.scan_id;
                                 
-                                // 如果返回了scan_id，尝试继续处理后续批次
-                                if (checkResult.progress.scan_id && checkResult.progress.total_batches > 1) {
-                                    const scanId = checkResult.progress.scan_id;
-                                    const totalBatches = checkResult.progress.total_batches;
-                                    const currentBatch = checkResult.progress.batch || 0;
-                                    
-                                    console.log(`[scanAllStocks] 检测到活跃扫描: scan_id=${scanId}, 当前批次=${currentBatch}/${totalBatches}`);
-                                    
-                                    // 如果还有更多批次，自动继续处理
-                                    if (currentBatch < totalBatches) {
-                                        console.log(`[scanAllStocks] 自动继续处理剩余批次: ${currentBatch + 1}/${totalBatches}`);
-                                        autoContinueScan(scanId, currentBatch, totalBatches);
+                                // 检查是否为活跃状态（包括"准备中"、"获取中"、"启动中"、"处理中"）
+                                if (status !== '空闲' && status !== '已完成' && status !== '已停止' && status !== '错误' && status !== '失败') {
+                                    // 扫描已经在进行中
+                                    console.log('[scanAllStocks] ✅ 扫描已在后台启动！', checkResult.progress);
+                                    showMessage('扫描已在后台启动！请继续等待进度更新...', 'success');
+                                    window._scanJustCleared = false;  // 允许轮询写入本轮的进度
+                                    if (scanId) {
+                                        window.currentScanId = scanId;  // 让轮询带 scan_id 拉取正确进度
+                                        console.log(`[scanAllStocks] 已设置 currentScanId: ${scanId}`);
                                     }
+                                    
+                                    // 如果返回了scan_id，尝试继续处理后续批次
+                                    if (scanId && checkResult.progress.total_batches > 1) {
+                                        const totalBatches = checkResult.progress.total_batches;
+                                        const currentBatch = checkResult.progress.batch || 0;
+                                        
+                                        console.log(`[scanAllStocks] 检测到活跃扫描: scan_id=${scanId}, 当前批次=${currentBatch}/${totalBatches}`);
+                                        
+                                        // 如果还有更多批次，自动继续处理
+                                        if (currentBatch < totalBatches) {
+                                            console.log(`[scanAllStocks] 自动继续处理剩余批次: ${currentBatch + 1}/${totalBatches}`);
+                                            autoContinueScan(scanId, currentBatch, totalBatches);
+                                        }
+                                    }
+                                    
+                                    // 不停止进度轮询，继续等待进度更新
+                                    return; // 直接返回，不显示错误
                                 }
-                                
-                                // 不停止进度轮询，继续等待进度更新
-                                return; // 直接返回，不显示错误
                             } else {
                                 // 没有活跃的扫描任务
                                 console.warn('[scanAllStocks] ⚠️ 未检测到活跃的扫描任务，可能扫描启动失败');
-                                showMessage('请求超时，扫描可能未成功启动。请稍后重试或检查网络连接。', 'warning');
-                                // 继续等待几秒，以防扫描刚刚启动但还未更新进度
-                                setTimeout(() => {
-                                    // 再次检查进度
-                                    fetch('/api/get_progress', { cache: 'no-store', credentials: 'same-origin' })
-                                        .then(r => r.json())
-                                        .then(result => {
-                                            if (result.success && result.progress && result.progress.status !== '空闲') {
-                                                showMessage('扫描已启动！请继续等待进度更新...', 'success');
-                                            }
+                                
+                                // 网络环境：可能是服务器响应慢，增加等待时间
+                                if (isNetworkEnvironment()) {
+                                    console.log('[scanAllStocks] 网络环境，可能是服务器响应慢，继续等待...');
+                                    showMessage('请求超时，但扫描可能正在后台启动（网络环境可能需要更长时间）。请继续等待进度更新...', 'info');
+                                    
+                                    // 继续等待更长时间（网络环境），并多次检查
+                                    let checkCount = 0;
+                                    const maxChecks = 8; // 增加到8次（最多80秒）
+                                    const checkInterval = 10000; // 每次间隔10秒
+                                    
+                                    const checkProgress = setInterval(() => {
+                                        checkCount++;
+                                        console.log(`[scanAllStocks] 第 ${checkCount} 次检查扫描状态...`);
+                                        
+                                        fetch('/api/get_progress', { 
+                                            cache: 'no-store', 
+                                            credentials: 'same-origin',
+                                            headers: { 'Cache-Control': 'no-cache' }
                                         })
-                                        .catch(e => console.error('检查进度失败:', e));
-                                }, 3000);
+                                            .then(r => r.json())
+                                            .then(result => {
+                                                console.log(`[scanAllStocks] 第 ${checkCount} 次检查结果:`, result);
+                                                
+                                                if (result.success && result.progress) {
+                                                    const status = result.progress.status || '空闲';
+                                                    const scanId = result.progress.scan_id;
+                                                    
+                                                    console.log(`[scanAllStocks] 扫描状态: ${status}, scan_id: ${scanId || '无'}`);
+                                                    
+                                                    // 检查是否为活跃状态（包括"准备中"）
+                                                    if (status !== '空闲' && status !== '已完成' && status !== '已停止' && status !== '错误' && status !== '失败') {
+                                                        console.log('[scanAllStocks] ✅ 扫描已启动！', result.progress);
+                                                        clearInterval(checkProgress);
+                                                        showMessage('扫描已启动！请继续等待进度更新...', 'success');
+                                                        window._scanJustCleared = false;
+                                                        if (scanId) {
+                                                            window.currentScanId = scanId;
+                                                            console.log(`[scanAllStocks] 已设置 currentScanId: ${scanId}`);
+                                                        }
+                                                        return; // 找到活跃扫描，停止检查
+                                                    }
+                                                    
+                                                    // 如果状态是"准备中"，也认为是活跃的
+                                                    if (status === '准备中' || status === '获取中' || status === '启动中' || status === '处理中') {
+                                                        console.log('[scanAllStocks] ✅ 检测到扫描正在准备/启动中！', result.progress);
+                                                        clearInterval(checkProgress);
+                                                        showMessage('扫描正在启动中，请继续等待进度更新...', 'success');
+                                                        window._scanJustCleared = false;
+                                                        if (scanId) {
+                                                            window.currentScanId = scanId;
+                                                            console.log(`[scanAllStocks] 已设置 currentScanId: ${scanId}`);
+                                                        }
+                                                        return; // 找到活跃扫描，停止检查
+                                                    }
+                                                }
+                                                
+                                                // 达到最大检查次数
+                                                if (checkCount >= maxChecks) {
+                                                    console.warn('[scanAllStocks] ⚠️ 已达到最大检查次数，仍未检测到活跃扫描');
+                                                    clearInterval(checkProgress);
+                                                    showMessage('扫描可能未成功启动。请刷新页面后重试，或检查服务器日志。', 'warning');
+                                                }
+                                            })
+                                            .catch(e => {
+                                                console.error(`[scanAllStocks] 第 ${checkCount} 次检查进度失败:`, e);
+                                                if (checkCount >= maxChecks) {
+                                                    clearInterval(checkProgress);
+                                                    showMessage('无法检查扫描状态。请刷新页面后重试。', 'warning');
+                                                }
+                                            });
+                                    }, checkInterval);
+                                } else {
+                                    // 本地环境：快速失败
+                                    showMessage('请求超时，扫描可能未成功启动。请稍后重试或检查网络连接。', 'warning');
+                                    // 继续等待几秒，以防扫描刚刚启动但还未更新进度
+                                    setTimeout(() => {
+                                        // 再次检查进度
+                                        fetch('/api/get_progress', { cache: 'no-store', credentials: 'same-origin' })
+                                            .then(r => r.json())
+                                            .then(result => {
+                                                if (result.success && result.progress) {
+                                                    const status = result.progress.status || '空闲';
+                                                    if (status !== '空闲' && status !== '已完成' && status !== '已停止' && status !== '错误' && status !== '失败') {
+                                                        showMessage('扫描已启动！请继续等待进度更新...', 'success');
+                                                        if (result.progress.scan_id) {
+                                                            window.currentScanId = result.progress.scan_id;
+                                                        }
+                                                    }
+                                                }
+                                            })
+                                            .catch(e => console.error('检查进度失败:', e));
+                                    }, 3000);
+                                }
                                 return; // 直接返回，不抛出错误
                             }
                         } catch (checkError) {
@@ -3043,11 +3132,61 @@
                             document.getElementById('cancelRefreshBtn').onclick = () => {
                                 refreshCacheDiv.remove();
                             };
-                            document.getElementById('refreshCacheBtn').onclick = () => {
+                            document.getElementById('refreshCacheBtn').onclick = async () => {
                                 refreshCacheDiv.remove();
-                                // 打开新窗口或直接跳转到刷新缓存的 API
-                                window.open('https://www.daniugu.online/api/refresh_stock_cache?force=true', '_blank');
-                                showMessage('正在手动刷新缓存，请等待约30秒后再次尝试扫描...', 'info');
+                                showMessage('正在手动刷新缓存，请稍候...', 'info');
+                                
+                                try {
+                                    // 使用 fetch 调用刷新 API，而不是打开新窗口
+                                    const refreshUrl = isNetworkEnvironment() 
+                                        ? 'https://www.daniugu.online/api/refresh_stock_cache?force=true'
+                                        : '/api/refresh_stock_cache?force=true';
+                                    
+                                    const refreshResponse = await fetch(refreshUrl, {
+                                        method: 'GET',
+                                        cache: 'no-store',
+                                        headers: {
+                                            'Cache-Control': 'no-cache'
+                                        }
+                                    });
+                                    
+                                    const refreshResult = await refreshResponse.json();
+                                    
+                                    if (refreshResult.success) {
+                                        showMessage(`✅ ${refreshResult.message || '缓存刷新成功！'}`, 'success');
+                                        // 等待 2 秒后自动重新检查缓存状态
+                                        setTimeout(async () => {
+                                            try {
+                                                const cacheCheckResponse = await fetch('/api/check_cache_status', {
+                                                    method: 'GET',
+                                                    cache: 'no-store',
+                                                    headers: { 'Cache-Control': 'no-cache' }
+                                                });
+                                                if (cacheCheckResponse.ok) {
+                                                    const cacheResult = await cacheCheckResponse.json();
+                                                    if (cacheResult.success && cacheResult.cache_exists && cacheResult.cached_stock_count > 0) {
+                                                        showMessage(`✅ 缓存已生成（${cacheResult.cached_stock_count} 只股票），现在可以扫描了！`, 'success');
+                                                    }
+                                                }
+                                            } catch (e) {
+                                                console.warn('[refreshCache] 检查缓存状态失败:', e);
+                                            }
+                                        }, 2000);
+                                    } else {
+                                        // 显示详细的错误信息
+                                        const errorMsg = refreshResult.message || '缓存刷新失败';
+                                        showMessage(`❌ ${errorMsg}`, 'error');
+                                        
+                                        // 如果是数据包未下载的错误，提供更详细的提示
+                                        if (errorMsg.includes('K 线数据文件不存在') || errorMsg.includes('数据包')) {
+                                            showMessage('💡 提示：请检查 Vercel 部署日志，确认 GitHub 数据包是否已下载。', 'info');
+                                        }
+                                    }
+                                } catch (error) {
+                                    console.error('[refreshCache] 刷新缓存失败:', error);
+                                    showMessage(`❌ 刷新缓存失败: ${error.message || '网络错误'}`, 'error');
+                                    showMessage('💡 提示：可以手动访问 https://www.daniugu.online/api/refresh_stock_cache?force=true 刷新缓存', 'info');
+                                }
                             };
                         }
                         
@@ -4297,16 +4436,28 @@
             container.innerHTML = html;
         }
         
+        // 检查是否为网络环境（Render等）
+        function isNetworkEnvironment() {
+            const hostname = window.location.hostname;
+            return hostname !== 'localhost' && hostname !== '127.0.0.1' && !hostname.startsWith('192.168.') && !hostname.startsWith('10.');
+        }
+        
         // 检查登录状态（添加超时控制和重试机制）
         async function checkLoginStatus(retryCount = 0) {
             const maxRetries = 0; // ✅ 不重试，直接返回
-            const timeout = 2000; // ✅ 减少到2秒超时（加快响应）
+            // ✅ 网络环境（Render）需要更长超时（60秒），因为服务器可能休眠需要唤醒
+            // ✅ 本地环境使用短超时（2秒）
+            const timeout = isNetworkEnvironment() ? 60000 : 2000;
             
             try {
-                // 添加超时控制（2秒）
+                // 添加超时控制
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => {
-                    console.warn(`[checkLoginStatus] 请求超时（${timeout/1000}秒），返回 false`);
+                    if (isNetworkEnvironment()) {
+                        console.warn(`[checkLoginStatus] 请求超时（${timeout/1000}秒），可能是服务器正在唤醒，请稍后重试`);
+                    } else {
+                        console.warn(`[checkLoginStatus] 请求超时（${timeout/1000}秒），返回 false`);
+                    }
                     controller.abort();
                 }, timeout);
                 
@@ -4363,13 +4514,33 @@
             console.log('[数据更新] 检查是否需要更新数据...');
             
             try {
-                // ✅ 先检查是否应该跳过更新（交易日15:00后已更新过）
+                // ✅ 检查是否应该跳过更新（交易日15:00后已更新过），优先检查
                 try {
                     const timestampResp = await fetch('/api/get_data_update_timestamp');
                     const timestampResult = await timestampResp.json();
                     if (timestampResult.success && timestampResult.should_skip) {
                         console.log(`[数据更新] ${timestampResult.message || '交易已结束，今日已更新，跳过更新'}`);
-                        showMessage(timestampResult.message || '交易已结束，今日已更新，无需更新', 'info');
+                        // ✅ 显示提示，并提供强制更新选项
+                        const message = timestampResult.message || '交易已结束，今日已更新，无需更新';
+                        const confirmMsg = message + '\n\n是否强制更新？';
+                        if (confirm(confirmMsg)) {
+                            // 强制更新：忽略时间戳检查
+                            console.log('[数据更新] 用户选择强制更新');
+                            const startResp = await fetch('/api/start_data_update', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ force: true })
+                            });
+                            const result = await startResp.json();
+                            if (result.success) {
+                                showDataUpdateProgress({ status: 'running', message: '正在强制更新数据...' });
+                                startDataUpdatePolling();
+                            } else {
+                                showMessage(result.message || '强制更新启动失败', 'error');
+                            }
+                        } else {
+                            showMessage(message, 'info');
+                        }
                         return;
                     }
                 } catch (e) {
@@ -4388,7 +4559,27 @@
                 // ✅ 检查是否应该跳过更新（优先检查，即使数据不新鲜也要跳过）
                 if (freshness.should_skip || freshness.skip_reason === 'trading_hours_ended' || freshness.skip_reason === 'trading_hours_ended_no_timestamp') {
                     console.log(`[数据更新] ✅ ${freshness.message || '交易已结束，今日已更新，跳过更新'}`);
-                    showMessage(freshness.message || '交易已结束，今日已更新，无需更新', 'info');
+                    // ✅ 显示提示，并提供强制更新选项
+                    const message = freshness.message || '交易已结束，今日已更新，无需更新';
+                    const confirmMsg = message + '\n\n是否强制更新？';
+                    if (confirm(confirmMsg)) {
+                        // 强制更新：忽略时间戳检查
+                        console.log('[数据更新] 用户选择强制更新');
+                        const startResp = await fetch('/api/start_data_update', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ force: true })
+                        });
+                        const result = await startResp.json();
+                        if (result.success) {
+                            showDataUpdateProgress({ status: 'running', message: '正在强制更新数据...' });
+                            startDataUpdatePolling();
+                        } else {
+                            showMessage(result.message || '强制更新启动失败', 'error');
+                        }
+                    } else {
+                        showMessage(message, 'info');
+                    }
                     return;
                 }
                 
@@ -4517,6 +4708,24 @@
                             progress.status === 'merging' ? '#9b59b6' :
                             progress.status === 'error' ? '#e74c3c' : '#3498db';
             
+            // ✅ 格式化已用时间
+            let elapsedTimeStr = '';
+            if (progress.elapsed_time !== undefined) {
+                const elapsed = progress.elapsed_time;
+                if (elapsed < 60) {
+                    elapsedTimeStr = `${Math.floor(elapsed)}秒`;
+                } else if (elapsed < 3600) {
+                    const minutes = Math.floor(elapsed / 60);
+                    const secs = Math.floor(elapsed % 60);
+                    elapsedTimeStr = `${minutes}分${secs}秒`;
+                } else {
+                    const hours = Math.floor(elapsed / 3600);
+                    const minutes = Math.floor((elapsed % 3600) / 60);
+                    const secs = Math.floor(elapsed % 60);
+                    elapsedTimeStr = `${hours}小时${minutes}分${secs}秒`;
+                }
+            }
+            
             progressDiv.innerHTML = `
                 <div style="font-weight:bold;margin-bottom:8px;">${statusIcon} 数据更新</div>
                 <div style="background:#eee;border-radius:4px;height:8px;margin-bottom:8px;">
@@ -4526,6 +4735,7 @@
                     ${progress.message || ''}
                     ${progress.current_stock ? `<br>当前: ${progress.current_stock}` : ''}
                     ${progress.processed ? `<br>进度: ${progress.processed}/${progress.total} (${percentage}%)` : ''}
+                    ${elapsedTimeStr ? `<br><strong>已用时间: ${elapsedTimeStr}</strong>` : ''}
                     ${progress.data_source ? `<br>数据源: ${progress.data_source === 'sina' ? '新浪' : '东方财富'}` : ''}
                     ${progress.updated_count ? `<br>已更新: ${progress.updated_count} 只` : ''}
                     ${progress.failed_count ? `<br>失败: ${progress.failed_count} 只` : ''}
@@ -4641,12 +4851,14 @@
                 
                 // 获取用户信息（已内置超时和重试机制，这里只设置最大等待时间）
                 try {
+                    // ✅ 网络环境使用长超时（60秒），本地环境使用短超时（3秒）
+                    const timeout = isNetworkEnvironment() ? 60000 : 3000;
                     const user = await Promise.race([
-                    getUserInfo(), // getUserInfo 内部已有超时和重试机制（3秒，不重试）
-                    new Promise((resolve) => setTimeout(() => {
-                        console.warn('[updateFunctionButtonsVisibility] 获取用户信息超时（3秒），使用默认显示');
-                        resolve(null);
-                    }, 3000)) // ✅ 减少到3秒
+                        getUserInfo(), // getUserInfo 内部已有超时和重试机制
+                        new Promise((resolve) => setTimeout(() => {
+                            console.warn(`[updateFunctionButtonsVisibility] 获取用户信息超时（${timeout/1000}秒），使用默认显示`);
+                            resolve(null);
+                        }, timeout))
                     ]);
                     
                     if (user) {
@@ -5118,12 +5330,14 @@
             }
             
             // ✅ 根据用户等级加载内容（异步，不阻塞）
+            // ✅ 网络环境使用长超时（60秒），本地环境使用短超时（3秒）
+            const timeout = isNetworkEnvironment() ? 60000 : 3000;
             Promise.race([
                 (async () => {
                     try {
                         const user = await Promise.race([
                             getUserInfo(),
-                            new Promise((resolve) => setTimeout(() => resolve(null), 3000)) // ✅ 减少到3秒
+                            new Promise((resolve) => setTimeout(() => resolve(null), timeout))
                         ]);
                         
                         if (user && !isLocalEnvironment()) {
@@ -5139,9 +5353,9 @@
                     }
                 })(),
                 new Promise((resolve) => setTimeout(() => {
-                    console.warn('[initPageLoad] 获取用户信息超时（3秒），使用默认加载');
+                    console.warn(`[initPageLoad] 获取用户信息超时（${timeout/1000}秒），使用默认加载`);
                     resolve();
-                }, 3000)) // ✅ 减少到3秒
+                }, timeout))
             ]).catch(err => {
                 console.error('[initPageLoad] 加载内容失败:', err);
             });
@@ -5680,7 +5894,9 @@
         // 获取用户信息（添加超时控制和重试机制）
         async function getUserInfo(retryCount = 0) {
             const maxRetries = 0; // ✅ 不重试，直接返回
-            const timeout = 3000; // ✅ 减少到3秒超时（加快响应）
+            // ✅ 网络环境（Render）需要更长超时（60秒），因为服务器可能休眠需要唤醒
+            // ✅ 本地环境使用短超时（3秒）
+            const timeout = isNetworkEnvironment() ? 60000 : 3000;
             
             try {
                 // 添加超时控制（3秒）
@@ -5765,38 +5981,56 @@
                 return;
             }
             
-            // 先显示加载状态
-            userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #666;">加载中...</div>';
+            // 先显示加载状态（网络环境显示更详细的提示）
+            if (isNetworkEnvironment()) {
+                userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #666;">⏳ 正在连接服务器（免费版可能需要60秒唤醒）...</div>';
+            } else {
+                userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #666;">加载中...</div>';
+            }
             
             try {
-                // ✅ 使用快速超时（3秒），不等待太久
+                // ✅ 网络环境使用长超时（60秒），本地环境使用短超时（3秒）
+                const timeout = isNetworkEnvironment() ? 60000 : 3000;
                 const isLoggedIn = await Promise.race([
                     checkLoginStatus(),
                     new Promise((resolve) => setTimeout(() => {
-                        console.warn('[displayUserInfo] 检查登录状态超时（3秒）');
+                        console.warn(`[displayUserInfo] 检查登录状态超时（${timeout/1000}秒）`);
                         resolve(false);
-                    }, 3000)) // ✅ 减少到3秒
+                    }, timeout))
                 ]);
                 
                 if (!isLoggedIn) {
                     console.warn('[displayUserInfo] 用户未登录或检查超时');
                     // ✅ 显示错误信息，允许用户点击刷新
-                    userInfoDiv.innerHTML = `
-                        <div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">
-                            加载超时，点击刷新
-                        </div>
-                        <div style="font-size: 10px; color: #999; margin-top: 3px;">
-                            提示：可能是网络问题，请刷新重试
-                        </div>
-                    `;
+                    if (isNetworkEnvironment()) {
+                        userInfoDiv.innerHTML = `
+                            <div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">
+                                ⚠️ 服务器唤醒中，点击刷新重试
+                            </div>
+                            <div style="font-size: 10px; color: #999; margin-top: 3px;">
+                                提示：免费版服务器休眠后首次访问需要60秒唤醒
+                            </div>
+                        `;
+                    } else {
+                        userInfoDiv.innerHTML = `
+                            <div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">
+                                加载超时，点击刷新
+                            </div>
+                            <div style="font-size: 10px; color: #999; margin-top: 3px;">
+                                提示：可能是网络问题，请刷新重试
+                            </div>
+                        `;
+                    }
                     return;
                 }
                 
-                // ✅ 如果已登录，快速获取用户详细信息（添加超时）
+                // ✅ 如果已登录，获取用户详细信息（网络环境使用长超时）
                 let loginCheckResponse;
                 try {
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 3000); // ✅ 3秒超时
+                    // ✅ 网络环境使用长超时（60秒），本地环境使用短超时（3秒）
+                    const timeout = isNetworkEnvironment() ? 60000 : 3000;
+                    const timeoutId = setTimeout(() => controller.abort(), timeout);
                     
                     loginCheckResponse = await fetch('/api/check_login', {
                         method: 'GET',
@@ -5868,13 +6102,14 @@
                     return;
                 }
                 
-                // ✅ 获取用户信息（添加超时，快速失败）
+                // ✅ 获取用户信息（网络环境使用长超时）
+                const timeout = isNetworkEnvironment() ? 60000 : 3000;
                 const user = await Promise.race([
                     getUserInfo(),
                     new Promise((resolve) => setTimeout(() => {
-                        console.warn('[displayUserInfo] 获取用户信息超时（3秒）');
+                        console.warn(`[displayUserInfo] 获取用户信息超时（${timeout/1000}秒）`);
                         resolve(null);
-                    }, 3000)) // ✅ 3秒超时
+                    }, timeout))
                 ]);
                 if (!user) {
                     // ✅ 如果获取用户信息失败，显示错误信息

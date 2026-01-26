@@ -933,15 +933,15 @@ class BullStockAnalyzer:
             today_str = dt_now.now().strftime('%Y-%m-%d')
             is_today = date_str == today_str
             
-            # ✅ 如果扫描日期是今天，优先从接口获取最新价格（确保是最新的）
+            # ✅ 如果扫描日期是今天，强制从接口获取最新价格（不使用缓存，确保是最新的）
             if is_today:
                 try:
                     end_ymd = date_str.replace('-', '')
                     from datetime import datetime as _dt, timedelta
                     d = _dt.strptime(date_str, '%Y-%m-%d')
                     start_ymd = (d - timedelta(days=14)).strftime('%Y%m%d')
-                    # get_daily_kline_range 总是从接口获取，不使用缓存
-                    daily_df = self.fetcher.get_daily_kline_range(stock_code, start_ymd, end_ymd)
+                    # ✅ 强制从接口获取，不使用缓存（use_cache=False）
+                    daily_df = self.fetcher.get_daily_kline_range(stock_code, start_ymd, end_ymd, use_cache=False, local_only=False)
                     if daily_df is not None and len(daily_df) > 0 and '收盘' in daily_df.columns:
                         daily_df = daily_df.copy()
                         daily_df['日期'] = pd.to_datetime(daily_df['日期'], errors='coerce')
@@ -951,11 +951,10 @@ class BullStockAnalyzer:
                         if len(before) > 0:
                             latest_price = float(before.iloc[-1]['收盘'])
                             latest_date = before.iloc[-1]['日期']
-                            # ✅ 调试：确认获取到的价格和日期
-                            # print(f"[调试-价格获取] {stock_code} 从接口获取到日期 {latest_date.strftime('%Y-%m-%d')} 的价格: {latest_price:.2f} (请求日期: {date_str})")
+                            print(f"[价格获取] {stock_code} 从接口获取今天({date_str})价格: {latest_price:.2f} (日期: {latest_date.strftime('%Y-%m-%d')})")
                             return latest_price
                 except Exception as e:
-                    # print(f"[调试-价格获取] {stock_code} 接口获取失败: {str(e)[:50]}")
+                    print(f"[价格获取] {stock_code} 接口获取失败: {str(e)[:50]}")
                     pass
             
             # 1) 先试 cache（非今天或接口获取失败时）
@@ -972,35 +971,33 @@ class BullStockAnalyzer:
                             cached_price = float(before.iloc[-1]['收盘'])
                             cached_date = before.iloc[-1]['日期']
                             
-                            # ✅ 调试：确认从缓存获取的价格和日期
-                            # if not is_today:
-                            #     print(f"[调试-价格获取] {stock_code} 从缓存获取到日期 {cached_date.strftime('%Y-%m-%d')} 的价格: {cached_price:.2f} (请求日期: {date_str})")
-                            
                             # ✅ 如果扫描日期是今天，检查缓存数据是否是最新的（最新日期应该是今天或昨天）
                             if is_today:
                                 days_diff = (target - cached_date).days
                                 if days_diff > 1:  # 缓存数据超过1天，可能不是最新的
-                                    # 缓存数据太旧，尝试从接口获取
+                                    # 缓存数据太旧，强制从接口获取
                                     try:
                                         end_ymd = date_str.replace('-', '')
                                         from datetime import datetime as _dt, timedelta
                                         d = _dt.strptime(date_str, '%Y-%m-%d')
                                         start_ymd = (d - timedelta(days=14)).strftime('%Y%m%d')
-                                        # get_daily_kline_range 总是从接口获取，不使用缓存
-                                        daily_df = self.fetcher.get_daily_kline_range(stock_code, start_ymd, end_ymd)
+                                        # ✅ 强制从接口获取，不使用缓存
+                                        daily_df = self.fetcher.get_daily_kline_range(stock_code, start_ymd, end_ymd, use_cache=False, local_only=False)
                                         if daily_df is not None and len(daily_df) > 0 and '收盘' in daily_df.columns:
                                             daily_df = daily_df.copy()
                                             daily_df['日期'] = pd.to_datetime(daily_df['日期'], errors='coerce')
                                             daily_df = daily_df.dropna(subset=['日期']).sort_values('日期')
                                             before = daily_df[daily_df['日期'] <= target]
                                             if len(before) > 0:
-                                                return float(before.iloc[-1]['收盘'])
+                                                latest_price = float(before.iloc[-1]['收盘'])
+                                                latest_date = before.iloc[-1]['日期']
+                                                print(f"[价格获取] {stock_code} 缓存太旧，从接口获取今天价格: {latest_price:.2f} (日期: {latest_date.strftime('%Y-%m-%d')})")
+                                                return latest_price
                                     except Exception:
                                         pass
                             
                             return cached_price
                 except Exception as e:
-                    # print(f"[调试-价格获取] {stock_code} 缓存读取失败: {str(e)[:50]}")
                     pass
             
             # 2) 再试接口（缓存中没有时）
@@ -1008,7 +1005,7 @@ class BullStockAnalyzer:
             from datetime import datetime as _dt, timedelta
             d = _dt.strptime(date_str, '%Y-%m-%d')
             start_ymd = (d - timedelta(days=14)).strftime('%Y%m%d')
-            daily_df = self.fetcher.get_daily_kline_range(stock_code, start_ymd, end_ymd)
+            daily_df = self.fetcher.get_daily_kline_range(stock_code, start_ymd, end_ymd, use_cache=not is_today, local_only=False)
             if daily_df is not None and len(daily_df) > 0 and '收盘' in daily_df.columns:
                 daily_df = daily_df.copy()
                 daily_df['日期'] = pd.to_datetime(daily_df['日期'], errors='coerce')
@@ -1018,7 +1015,6 @@ class BullStockAnalyzer:
                 if len(before) > 0:
                     return float(before.iloc[-1]['收盘'])
         except Exception as e:
-            # print(f"[调试-价格获取] {stock_code} 获取价格异常: {str(e)[:50]}")
             pass
         return None
     
