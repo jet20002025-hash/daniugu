@@ -1,25 +1,66 @@
-*.log
-*.pid
-*.json
-!trained_model.json
-*.xlsx
-*.sh
+# Python 缓存和虚拟环境
 __pycache__/
-*.pyc
-.env
+*.py[cod]
+*$py.class
+*.so
+.Python
 .venv/
 venv/
-node_modules/
+ENV/
+
+# 大型数据目录（不应部署到 Vercel）
+cache/
+stock_data/
+models/
+*.tar.gz
+*.zip
+
+# 日志文件
+*.log
+*.pid
+
+# 用户数据文件
+users.json
+invite_codes.json
+vip_applications.json
+*.xlsx
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
 .DS_Store
-符合条件的股票_*.json
-选股结果_*.xlsx
+Thumbs.db
+
+# 项目特定（测试文件、备份等）
 test_*.py
 *_test.py
 *_backup.py
-app.py
-surge_analysis_web.py
-weekly_kline_web.py
-surge_analysis_web_backup.py
-users.json
-invite_codes.json
+符合条件的股票_*.json
+选股结果_*.xlsx
+*.sh
 
+# Vercel
+.vercel
+
+# 大型输出文件
+backtest_*.csv
+backtest_*.json
+backtest_*.txt
+scan_result_*.json
+training_*.json
+retrain_*.json
+test_result_*.json
+login_test_*.json
+
+# 文档（可选，如果不需要部署）
+*.md
+!README.md
+
+# 其他大型文件
+*.html
+trained_model*.html
