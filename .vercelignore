@@ -64,5 +64,7 @@ login_test_*.json
 !README.md
 
 # 其他大型文件
-*.html
+# 排除大型 HTML 文件，但保留模板文件
 trained_model*.html
+# 但保留模板文件
+!templates/*.html
