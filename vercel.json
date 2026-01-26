@@ -6,11 +6,6 @@
       "dest": "api/index.py"
     }
   ],
-  "functions": {
-    "api/**/*.py": {
-      "maxDuration": 10
-    }
-  },
   "crons": [
     {
       "path": "/api/cron?scan_type=noon",
