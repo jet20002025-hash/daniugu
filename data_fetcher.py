@@ -20,6 +20,9 @@ class DataFetcher:
     def __init__(self):
         self.stock_list = None
         self._market_cap_cache = None  # 缓存市值数据，避免重复获取
+        # ✅ 检测是否在 Vercel 环境（优先使用 GitHub 数据包，不连接实时 API）
+        self._is_vercel = os.environ.get('VERCEL') == '1' or os.environ.get('USE_GITHUB_DATA_ONLY') == '1'
+        self._use_github_data_only = self._is_vercel or os.environ.get('USE_GITHUB_DATA_ONLY') == '1'
 
     # =========================
     # 本地文件缓存（用于本地环境预下载/预热）
@@ -372,6 +375,18 @@ class DataFetcher:
         import os
         import time
         
+        # ✅ 如果设置了 USE_GITHUB_DATA_ONLY，只使用缓存，不调用实时 API
+        if self._use_github_data_only:
+            print("[get_all_stocks] ⚠️  USE_GITHUB_DATA_ONLY 模式：只使用缓存，不连接实时 API")
+            cached = self._get_stock_list_from_cache()
+            if cached is not None and len(cached) > 0:
+                print(f"[get_all_stocks] ✅ 从缓存获取 {len(cached)} 只股票")
+                self.stock_list = cached
+                return cached
+            else:
+                print("[get_all_stocks] ❌ 缓存不存在，且 USE_GITHUB_DATA_ONLY 模式下不连接实时 API")
+                return None
+        
         # 首先尝试从缓存获取（优先从缓存读取，避免每次调用 akshare API）
         # ✅ 本地策略：不要每次登录/进入页面都刷新。按“每日两次”节流刷新：
         # - 11:30（午盘后）
@@ -626,6 +641,11 @@ class DataFetcher:
         :param timeout: 超时时间（秒），默认5秒
         :return: 流通股本（万股），如果获取失败返回None
         """
+        # ✅ 如果设置了 USE_GITHUB_DATA_ONLY，不连接实时 API
+        if self._use_github_data_only:
+            print(f"[get_circulating_shares] ⚠️  USE_GITHUB_DATA_ONLY 模式：不连接实时 API，返回 None")
+            return None
+        
         try:
             import threading
             import time
@@ -708,6 +728,11 @@ class DataFetcher:
         :param timeout: 超时时间（秒），默认5秒
         :return: 流通市值（亿元），如果获取失败返回None
         """
+        # ✅ 如果设置了 USE_GITHUB_DATA_ONLY，不连接实时 API
+        if self._use_github_data_only:
+            print(f"[calculate_circulating_market_cap] ⚠️  USE_GITHUB_DATA_ONLY 模式：不连接实时 API，返回 None")
+            return None
+        
         try:
             import threading
             import time
@@ -807,6 +832,11 @@ class DataFetcher:
         :param timeout: 超时时间（秒），默认5秒
         :return: 总市值（亿元），如果获取失败返回None
         """
+        # ✅ 如果设置了 USE_GITHUB_DATA_ONLY，不连接实时 API
+        if self._use_github_data_only:
+            print(f"[get_market_cap] ⚠️  USE_GITHUB_DATA_ONLY 模式：不连接实时 API，返回 None")
+            return None
+        
         try:
             import threading
             import time
@@ -876,6 +906,10 @@ class DataFetcher:
         :param local_only: 是否仅用本地（不从网络获取）；若 True 且本地无数据则返回 None
         :return: DataFrame，包含日期、开盘、收盘、最高、最低、成交量等
         """
+        # ✅ 如果设置了 USE_GITHUB_DATA_ONLY，强制使用本地缓存
+        if self._use_github_data_only:
+            local_only = True
+            use_cache = True
         if os.environ.get("TRAIN_LOCAL_ONLY") == "1":
             local_only = True
         if use_cache or local_only:
@@ -1240,6 +1274,10 @@ class DataFetcher:
         :param use_cache: 是否优先从本地缓存读取
         :param local_only: 是否仅用本地；若 True 且本地无数据则返回 None
         """
+        # ✅ 如果设置了 USE_GITHUB_DATA_ONLY，强制使用本地缓存
+        if self._use_github_data_only:
+            local_only = True
+            use_cache = True
         if os.environ.get("TRAIN_LOCAL_ONLY") == "1":
             local_only = True
         if use_cache or local_only:
@@ -1336,6 +1374,10 @@ class DataFetcher:
         :param local_only: 是否仅使用本地数据（不从网络获取），默认False
         :return: DataFrame，包含周日期、开盘、收盘、最高、最低、周成交量等
         """
+        # ✅ 如果设置了 USE_GITHUB_DATA_ONLY，强制使用本地缓存
+        if self._use_github_data_only:
+            local_only = True
+            use_cache = True
         if os.environ.get("TRAIN_LOCAL_ONLY") == "1":
             local_only = True
         if use_cache or local_only:

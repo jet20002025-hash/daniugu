@@ -7373,6 +7373,14 @@ if __name__ == '__main__':
     import os
     import time
     
+    # ✅ 在 Vercel 环境中，自动启用 GitHub 数据包模式（不连接实时 API）
+    if is_vercel:
+        os.environ['USE_GITHUB_DATA_ONLY'] = '1'
+        print("=" * 80)
+        print("✅ Vercel 环境检测到，已启用 USE_GITHUB_DATA_ONLY 模式")
+        print("   系统将优先使用 GitHub 数据包，不连接实时股市 API")
+        print("=" * 80)
+    
     # 在 Render 环境中，检查并下载股票数据（如果配置了）
     if is_render or os.environ.get('STOCK_DATA_URL'):
         try:
