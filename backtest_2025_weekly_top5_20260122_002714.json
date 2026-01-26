@@ -1,0 +1,1603 @@
+{
+  "start_date": "2025-01-01",
+  "end_date": "2025-12-31",
+  "scan_mode": "weekly",
+  "scan_dates_count": 53,
+  "total_trading_days": 261,
+  "min_match_score": 0.6,
+  "max_market_cap": 100.0,
+  "max_stocks_per_week": 5,
+  "results": [
+    {
+      "date": "2025-01-01",
+      "stocks": [
+        {
+          "stock_code": "688586",
+          "stock_name": "江航装备",
+          "match_score": 0.972
+        },
+        {
+          "stock_code": "603916",
+          "stock_name": "苏博特",
+          "match_score": 0.951
+        },
+        {
+          "stock_code": "600927",
+          "stock_name": "永安期货",
+          "match_score": 0.946
+        },
+        {
+          "stock_code": "603506",
+          "stock_name": "南都物业",
+          "match_score": 0.94
+        },
+        {
+          "stock_code": "300839",
+          "stock_name": "博汇股份",
+          "match_score": 0.936
+        }
+      ]
+    },
+    {
+      "date": "2025-01-06",
+      "stocks": [
+        {
+          "stock_code": "600663",
+          "stock_name": "陆家嘴",
+          "match_score": 0.942
+        },
+        {
+          "stock_code": "605299",
+          "stock_name": "舒华体育",
+          "match_score": 0.94
+        },
+        {
+          "stock_code": "603909",
+          "stock_name": "建发合诚",
+          "match_score": 0.936
+        },
+        {
+          "stock_code": "605377",
+          "stock_name": "华旺科技",
+          "match_score": 0.934
+        },
+        {
+          "stock_code": "002661",
+          "stock_name": "克明食品",
+          "match_score": 0.931
+        }
+      ]
+    },
+    {
+      "date": "2025-01-13",
+      "stocks": [
+        {
+          "stock_code": "605056",
+          "stock_name": "咸亨国际",
+          "match_score": 0.973
+        },
+        {
+          "stock_code": "002860",
+          "stock_name": "星帅尔",
+          "match_score": 0.956
+        },
+        {
+          "stock_code": "300258",
+          "stock_name": "精锻科技",
+          "match_score": 0.955
+        },
+        {
+          "stock_code": "600184",
+          "stock_name": "光电股份",
+          "match_score": 0.955
+        },
+        {
+          "stock_code": "605155",
+          "stock_name": "西大门",
+          "match_score": 0.951
+        }
+      ]
+    },
+    {
+      "date": "2025-01-20",
+      "stocks": [
+        {
+          "stock_code": "603928",
+          "stock_name": "兴业股份",
+          "match_score": 0.978
+        },
+        {
+          "stock_code": "603506",
+          "stock_name": "南都物业",
+          "match_score": 0.972
+        },
+        {
+          "stock_code": "603010",
+          "stock_name": "万盛股份",
+          "match_score": 0.963
+        },
+        {
+          "stock_code": "603113",
+          "stock_name": "金能科技",
+          "match_score": 0.961
+        },
+        {
+          "stock_code": "000061",
+          "stock_name": "农 产 品",
+          "match_score": 0.959
+        }
+      ]
+    },
+    {
+      "date": "2025-01-27",
+      "stocks": [
+        {
+          "stock_code": "300839",
+          "stock_name": "博汇股份",
+          "match_score": 0.989
+        },
+        {
+          "stock_code": "600768",
+          "stock_name": "宁波富邦",
+          "match_score": 0.986
+        },
+        {
+          "stock_code": "603022",
+          "stock_name": "新通联",
+          "match_score": 0.957
+        },
+        {
+          "stock_code": "603006",
+          "stock_name": "联明股份",
+          "match_score": 0.956
+        },
+        {
+          "stock_code": "300597",
+          "stock_name": "吉大通信",
+          "match_score": 0.954
+        }
+      ]
+    },
+    {
+      "date": "2025-02-03",
+      "stocks": [
+        {
+          "stock_code": "300839",
+          "stock_name": "博汇股份",
+          "match_score": 0.989
+        },
+        {
+          "stock_code": "600768",
+          "stock_name": "宁波富邦",
+          "match_score": 0.986
+        },
+        {
+          "stock_code": "603022",
+          "stock_name": "新通联",
+          "match_score": 0.957
+        },
+        {
+          "stock_code": "603006",
+          "stock_name": "联明股份",
+          "match_score": 0.956
+        },
+        {
+          "stock_code": "300597",
+          "stock_name": "吉大通信",
+          "match_score": 0.954
+        }
+      ]
+    },
+    {
+      "date": "2025-02-10",
+      "stocks": [
+        {
+          "stock_code": "603221",
+          "stock_name": "爱丽家居",
+          "match_score": 0.996
+        },
+        {
+          "stock_code": "002731",
+          "stock_name": "萃华珠宝",
+          "match_score": 0.995
+        },
+        {
+          "stock_code": "688579",
+          "stock_name": "山大地纬",
+          "match_score": 0.995
+        },
+        {
+          "stock_code": "002144",
+          "stock_name": "宏达高科",
+          "match_score": 0.993
+        },
+        {
+          "stock_code": "000061",
+          "stock_name": "农 产 品",
+          "match_score": 0.992
+        }
+      ]
+    },
+    {
+      "date": "2025-02-17",
+      "stocks": [
+        {
+          "stock_code": "300614",
+          "stock_name": "百川畅银",
+          "match_score": 1.0
+        },
+        {
+          "stock_code": "300389",
+          "stock_name": "艾比森",
+          "match_score": 0.997
+        },
+        {
+          "stock_code": "688247",
+          "stock_name": "宣泰医药",
+          "match_score": 0.995
+        },
+        {
+          "stock_code": "603648",
+          "stock_name": "畅联股份",
+          "match_score": 0.993
+        },
+        {
+          "stock_code": "000411",
+          "stock_name": "英特集团",
+          "match_score": 0.984
+        }
+      ]
+    },
+    {
+      "date": "2025-02-24",
+      "stocks": [
+        {
+          "stock_code": "603648",
+          "stock_name": "畅联股份",
+          "match_score": 0.999
+        },
+        {
+          "stock_code": "300389",
+          "stock_name": "艾比森",
+          "match_score": 0.99
+        },
+        {
+          "stock_code": "000576",
+          "stock_name": "甘化科工",
+          "match_score": 0.982
+        },
+        {
+          "stock_code": "688496",
+          "stock_name": "清越科技",
+          "match_score": 0.977
+        },
+        {
+          "stock_code": "688247",
+          "stock_name": "宣泰医药",
+          "match_score": 0.975
+        }
+      ]
+    },
+    {
+      "date": "2025-03-03",
+      "stocks": [
+        {
+          "stock_code": "600419",
+          "stock_name": "天润乳业",
+          "match_score": 0.982
+        },
+        {
+          "stock_code": "000586",
+          "stock_name": "汇源通信",
+          "match_score": 0.969
+        },
+        {
+          "stock_code": "603221",
+          "stock_name": "爱丽家居",
+          "match_score": 0.968
+        },
+        {
+          "stock_code": "603648",
+          "stock_name": "畅联股份",
+          "match_score": 0.966
+        },
+        {
+          "stock_code": "002381",
+          "stock_name": "双箭股份",
+          "match_score": 0.963
+        }
+      ]
+    },
+    {
+      "date": "2025-03-10",
+      "stocks": [
+        {
+          "stock_code": "603273",
+          "stock_name": "天元智能",
+          "match_score": 0.948
+        },
+        {
+          "stock_code": "600419",
+          "stock_name": "天润乳业",
+          "match_score": 0.946
+        },
+        {
+          "stock_code": "603696",
+          "stock_name": "安记食品",
+          "match_score": 0.941
+        },
+        {
+          "stock_code": "688130",
+          "stock_name": "晶华微",
+          "match_score": 0.934
+        },
+        {
+          "stock_code": "603028",
+          "stock_name": "赛福天",
+          "match_score": 0.912
+        }
+      ]
+    },
+    {
+      "date": "2025-03-17",
+      "stocks": [
+        {
+          "stock_code": "603028",
+          "stock_name": "赛福天",
+          "match_score": 0.955
+        },
+        {
+          "stock_code": "605567",
+          "stock_name": "春雪食品",
+          "match_score": 0.935
+        },
+        {
+          "stock_code": "603027",
+          "stock_name": "千禾味业",
+          "match_score": 0.918
+        },
+        {
+          "stock_code": "603182",
+          "stock_name": "嘉华股份",
+          "match_score": 0.905
+        },
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.897
+        }
+      ]
+    },
+    {
+      "date": "2025-03-24",
+      "stocks": [
+        {
+          "stock_code": "688173",
+          "stock_name": "希荻微",
+          "match_score": 0.963
+        },
+        {
+          "stock_code": "601827",
+          "stock_name": "三峰环境",
+          "match_score": 0.962
+        },
+        {
+          "stock_code": "603823",
+          "stock_name": "百合花",
+          "match_score": 0.959
+        },
+        {
+          "stock_code": "600847",
+          "stock_name": "万里股份",
+          "match_score": 0.957
+        },
+        {
+          "stock_code": "688707",
+          "stock_name": "振华新材",
+          "match_score": 0.956
+        }
+      ]
+    },
+    {
+      "date": "2025-03-31",
+      "stocks": [
+        {
+          "stock_code": "300901",
+          "stock_name": "中胤时尚",
+          "match_score": 0.968
+        },
+        {
+          "stock_code": "688505",
+          "stock_name": "复旦张江",
+          "match_score": 0.962
+        },
+        {
+          "stock_code": "300749",
+          "stock_name": "顶固集创",
+          "match_score": 0.96
+        },
+        {
+          "stock_code": "603137",
+          "stock_name": "恒尚节能",
+          "match_score": 0.958
+        },
+        {
+          "stock_code": "300225",
+          "stock_name": "*ST金泰",
+          "match_score": 0.955
+        }
+      ]
+    },
+    {
+      "date": "2025-04-07",
+      "stocks": [
+        {
+          "stock_code": "002234",
+          "stock_name": "民和股份",
+          "match_score": 0.962
+        },
+        {
+          "stock_code": "605228",
+          "stock_name": "神通科技",
+          "match_score": 0.956
+        },
+        {
+          "stock_code": "000504",
+          "stock_name": "*ST生物",
+          "match_score": 0.949
+        },
+        {
+          "stock_code": "301126",
+          "stock_name": "达嘉维康",
+          "match_score": 0.947
+        },
+        {
+          "stock_code": "603098",
+          "stock_name": "森特股份",
+          "match_score": 0.944
+        }
+      ]
+    },
+    {
+      "date": "2025-04-14",
+      "stocks": [
+        {
+          "stock_code": "920402",
+          "stock_name": "硅烷科技",
+          "match_score": 0.964
+        },
+        {
+          "stock_code": "920974",
+          "stock_name": "凯大催化",
+          "match_score": 0.958
+        },
+        {
+          "stock_code": "600774",
+          "stock_name": "汉商集团",
+          "match_score": 0.948
+        },
+        {
+          "stock_code": "000626",
+          "stock_name": "远大控股",
+          "match_score": 0.942
+        },
+        {
+          "stock_code": "920266",
+          "stock_name": "生物谷",
+          "match_score": 0.939
+        }
+      ]
+    },
+    {
+      "date": "2025-04-21",
+      "stocks": [
+        {
+          "stock_code": "002780",
+          "stock_name": "三夫户外",
+          "match_score": 0.969
+        },
+        {
+          "stock_code": "300932",
+          "stock_name": "三友联众",
+          "match_score": 0.957
+        },
+        {
+          "stock_code": "002968",
+          "stock_name": "新大正",
+          "match_score": 0.956
+        },
+        {
+          "stock_code": "300901",
+          "stock_name": "中胤时尚",
+          "match_score": 0.949
+        },
+        {
+          "stock_code": "920792",
+          "stock_name": "东和新材",
+          "match_score": 0.948
+        }
+      ]
+    },
+    {
+      "date": "2025-04-28",
+      "stocks": [
+        {
+          "stock_code": "300483",
+          "stock_name": "首华燃气",
+          "match_score": 0.992
+        },
+        {
+          "stock_code": "301098",
+          "stock_name": "金埔园林",
+          "match_score": 0.985
+        },
+        {
+          "stock_code": "002968",
+          "stock_name": "新大正",
+          "match_score": 0.975
+        },
+        {
+          "stock_code": "002209",
+          "stock_name": "达 意 隆",
+          "match_score": 0.97
+        },
+        {
+          "stock_code": "300889",
+          "stock_name": "爱克股份",
+          "match_score": 0.97
+        }
+      ]
+    },
+    {
+      "date": "2025-05-05",
+      "stocks": [
+        {
+          "stock_code": "002591",
+          "stock_name": "恒大高新",
+          "match_score": 0.967
+        },
+        {
+          "stock_code": "002836",
+          "stock_name": "新宏泽",
+          "match_score": 0.961
+        },
+        {
+          "stock_code": "300462",
+          "stock_name": "ST华铭",
+          "match_score": 0.961
+        },
+        {
+          "stock_code": "003011",
+          "stock_name": "海象新材",
+          "match_score": 0.957
+        },
+        {
+          "stock_code": "300483",
+          "stock_name": "首华燃气",
+          "match_score": 0.953
+        }
+      ]
+    },
+    {
+      "date": "2025-05-12",
+      "stocks": [
+        {
+          "stock_code": "002826",
+          "stock_name": "易明医药",
+          "match_score": 0.945
+        },
+        {
+          "stock_code": "300437",
+          "stock_name": "清水源",
+          "match_score": 0.91
+        },
+        {
+          "stock_code": "002019",
+          "stock_name": "亿帆医药",
+          "match_score": 0.897
+        },
+        {
+          "stock_code": "603213",
+          "stock_name": "镇洋发展",
+          "match_score": 0.893
+        },
+        {
+          "stock_code": "603196",
+          "stock_name": "日播时尚",
+          "match_score": 0.892
+        }
+      ]
+    },
+    {
+      "date": "2025-05-19",
+      "stocks": [
+        {
+          "stock_code": "920974",
+          "stock_name": "凯大催化",
+          "match_score": 0.972
+        },
+        {
+          "stock_code": "603155",
+          "stock_name": "新亚强",
+          "match_score": 0.969
+        },
+        {
+          "stock_code": "600689",
+          "stock_name": "上海三毛",
+          "match_score": 0.968
+        },
+        {
+          "stock_code": "603768",
+          "stock_name": "常青股份",
+          "match_score": 0.956
+        },
+        {
+          "stock_code": "600636",
+          "stock_name": "*ST国化",
+          "match_score": 0.955
+        }
+      ]
+    },
+    {
+      "date": "2025-05-26",
+      "stocks": [
+        {
+          "stock_code": "603727",
+          "stock_name": "博迈科",
+          "match_score": 0.993
+        },
+        {
+          "stock_code": "000586",
+          "stock_name": "汇源通信",
+          "match_score": 0.974
+        },
+        {
+          "stock_code": "605299",
+          "stock_name": "舒华体育",
+          "match_score": 0.968
+        },
+        {
+          "stock_code": "300732",
+          "stock_name": "设研院",
+          "match_score": 0.967
+        },
+        {
+          "stock_code": "301217",
+          "stock_name": "铜冠铜箔",
+          "match_score": 0.964
+        }
+      ]
+    },
+    {
+      "date": "2025-06-02",
+      "stocks": [
+        {
+          "stock_code": "300462",
+          "stock_name": "ST华铭",
+          "match_score": 0.974
+        },
+        {
+          "stock_code": "300389",
+          "stock_name": "艾比森",
+          "match_score": 0.971
+        },
+        {
+          "stock_code": "300112",
+          "stock_name": "万讯自控",
+          "match_score": 0.963
+        },
+        {
+          "stock_code": "300437",
+          "stock_name": "清水源",
+          "match_score": 0.946
+        },
+        {
+          "stock_code": "000586",
+          "stock_name": "汇源通信",
+          "match_score": 0.942
+        }
+      ]
+    },
+    {
+      "date": "2025-06-09",
+      "stocks": [
+        {
+          "stock_code": "300389",
+          "stock_name": "艾比森",
+          "match_score": 0.972
+        },
+        {
+          "stock_code": "301126",
+          "stock_name": "达嘉维康",
+          "match_score": 0.971
+        },
+        {
+          "stock_code": "002242",
+          "stock_name": "九阳股份",
+          "match_score": 0.966
+        },
+        {
+          "stock_code": "300314",
+          "stock_name": "戴维医疗",
+          "match_score": 0.966
+        },
+        {
+          "stock_code": "300462",
+          "stock_name": "ST华铭",
+          "match_score": 0.965
+        }
+      ]
+    },
+    {
+      "date": "2025-06-16",
+      "stocks": [
+        {
+          "stock_code": "300437",
+          "stock_name": "清水源",
+          "match_score": 0.974
+        },
+        {
+          "stock_code": "300774",
+          "stock_name": "倍杰特",
+          "match_score": 0.967
+        },
+        {
+          "stock_code": "300306",
+          "stock_name": "远方信息",
+          "match_score": 0.966
+        },
+        {
+          "stock_code": "688496",
+          "stock_name": "清越科技",
+          "match_score": 0.961
+        },
+        {
+          "stock_code": "920175",
+          "stock_name": "东方碳素",
+          "match_score": 0.961
+        }
+      ]
+    },
+    {
+      "date": "2025-06-23",
+      "stocks": [
+        {
+          "stock_code": "002026",
+          "stock_name": "山东威达",
+          "match_score": 0.952
+        },
+        {
+          "stock_code": "600184",
+          "stock_name": "光电股份",
+          "match_score": 0.952
+        },
+        {
+          "stock_code": "301321",
+          "stock_name": "翰博高新",
+          "match_score": 0.948
+        },
+        {
+          "stock_code": "603089",
+          "stock_name": "正裕工业",
+          "match_score": 0.944
+        },
+        {
+          "stock_code": "920039",
+          "stock_name": "国义招标",
+          "match_score": 0.939
+        }
+      ]
+    },
+    {
+      "date": "2025-06-30",
+      "stocks": [
+        {
+          "stock_code": "920266",
+          "stock_name": "生物谷",
+          "match_score": 0.971
+        },
+        {
+          "stock_code": "301136",
+          "stock_name": "招标股份",
+          "match_score": 0.969
+        },
+        {
+          "stock_code": "300978",
+          "stock_name": "东箭科技",
+          "match_score": 0.965
+        },
+        {
+          "stock_code": "301332",
+          "stock_name": "德尔玛",
+          "match_score": 0.96
+        },
+        {
+          "stock_code": "301126",
+          "stock_name": "达嘉维康",
+          "match_score": 0.959
+        }
+      ]
+    },
+    {
+      "date": "2025-07-07",
+      "stocks": [
+        {
+          "stock_code": "301149",
+          "stock_name": "隆华新材",
+          "match_score": 0.982
+        },
+        {
+          "stock_code": "920266",
+          "stock_name": "生物谷",
+          "match_score": 0.982
+        },
+        {
+          "stock_code": "603926",
+          "stock_name": "铁流股份",
+          "match_score": 0.965
+        },
+        {
+          "stock_code": "301060",
+          "stock_name": "兰卫医学",
+          "match_score": 0.959
+        },
+        {
+          "stock_code": "301136",
+          "stock_name": "招标股份",
+          "match_score": 0.954
+        }
+      ]
+    },
+    {
+      "date": "2025-07-14",
+      "stocks": [
+        {
+          "stock_code": "301060",
+          "stock_name": "兰卫医学",
+          "match_score": 0.967
+        },
+        {
+          "stock_code": "920266",
+          "stock_name": "生物谷",
+          "match_score": 0.966
+        },
+        {
+          "stock_code": "301149",
+          "stock_name": "隆华新材",
+          "match_score": 0.965
+        },
+        {
+          "stock_code": "920729",
+          "stock_name": "永顺生物",
+          "match_score": 0.96
+        },
+        {
+          "stock_code": "601827",
+          "stock_name": "三峰环境",
+          "match_score": 0.957
+        }
+      ]
+    },
+    {
+      "date": "2025-07-21",
+      "stocks": [
+        {
+          "stock_code": "300559",
+          "stock_name": "佳发教育",
+          "match_score": 0.974
+        },
+        {
+          "stock_code": "002111",
+          "stock_name": "威海广泰",
+          "match_score": 0.958
+        },
+        {
+          "stock_code": "300550",
+          "stock_name": "和仁科技",
+          "match_score": 0.95
+        },
+        {
+          "stock_code": "300565",
+          "stock_name": "科信技术",
+          "match_score": 0.944
+        },
+        {
+          "stock_code": "001209",
+          "stock_name": "洪兴股份",
+          "match_score": 0.938
+        }
+      ]
+    },
+    {
+      "date": "2025-07-28",
+      "stocks": [
+        {
+          "stock_code": "603055",
+          "stock_name": "台华新材",
+          "match_score": 0.964
+        },
+        {
+          "stock_code": "688315",
+          "stock_name": "诺禾致源",
+          "match_score": 0.961
+        },
+        {
+          "stock_code": "603408",
+          "stock_name": "建霖家居",
+          "match_score": 0.96
+        },
+        {
+          "stock_code": "301062",
+          "stock_name": "上海艾录",
+          "match_score": 0.954
+        },
+        {
+          "stock_code": "605555",
+          "stock_name": "德昌股份",
+          "match_score": 0.952
+        }
+      ]
+    },
+    {
+      "date": "2025-08-04",
+      "stocks": [
+        {
+          "stock_code": "300565",
+          "stock_name": "科信技术",
+          "match_score": 0.969
+        },
+        {
+          "stock_code": "688315",
+          "stock_name": "诺禾致源",
+          "match_score": 0.949
+        },
+        {
+          "stock_code": "600692",
+          "stock_name": "亚通股份",
+          "match_score": 0.944
+        },
+        {
+          "stock_code": "002825",
+          "stock_name": "纳尔股份",
+          "match_score": 0.943
+        },
+        {
+          "stock_code": "300650",
+          "stock_name": "太龙股份",
+          "match_score": 0.94
+        }
+      ]
+    },
+    {
+      "date": "2025-08-11",
+      "stocks": [
+        {
+          "stock_code": "603838",
+          "stock_name": "*ST四通",
+          "match_score": 0.97
+        },
+        {
+          "stock_code": "300599",
+          "stock_name": "雄塑科技",
+          "match_score": 0.961
+        },
+        {
+          "stock_code": "605081",
+          "stock_name": "*ST太和",
+          "match_score": 0.958
+        },
+        {
+          "stock_code": "301062",
+          "stock_name": "上海艾录",
+          "match_score": 0.957
+        },
+        {
+          "stock_code": "300349",
+          "stock_name": "金卡智能",
+          "match_score": 0.954
+        }
+      ]
+    },
+    {
+      "date": "2025-08-18",
+      "stocks": [
+        {
+          "stock_code": "600894",
+          "stock_name": "广日股份",
+          "match_score": 0.951
+        },
+        {
+          "stock_code": "603838",
+          "stock_name": "*ST四通",
+          "match_score": 0.951
+        },
+        {
+          "stock_code": "000004",
+          "stock_name": "*ST国华",
+          "match_score": 0.948
+        },
+        {
+          "stock_code": "603559",
+          "stock_name": "ST通脉",
+          "match_score": 0.938
+        },
+        {
+          "stock_code": "601163",
+          "stock_name": "三角轮胎",
+          "match_score": 0.934
+        }
+      ]
+    },
+    {
+      "date": "2025-08-25",
+      "stocks": [
+        {
+          "stock_code": "688287",
+          "stock_name": "*ST观典",
+          "match_score": 0.97
+        },
+        {
+          "stock_code": "603559",
+          "stock_name": "ST通脉",
+          "match_score": 0.968
+        },
+        {
+          "stock_code": "603357",
+          "stock_name": "设计总院",
+          "match_score": 0.963
+        },
+        {
+          "stock_code": "603055",
+          "stock_name": "台华新材",
+          "match_score": 0.96
+        },
+        {
+          "stock_code": "600639",
+          "stock_name": "浦东金桥",
+          "match_score": 0.956
+        }
+      ]
+    },
+    {
+      "date": "2025-09-01",
+      "stocks": [
+        {
+          "stock_code": "603357",
+          "stock_name": "设计总院",
+          "match_score": 0.941
+        },
+        {
+          "stock_code": "920496",
+          "stock_name": "许昌智能",
+          "match_score": 0.94
+        },
+        {
+          "stock_code": "603058",
+          "stock_name": "永吉股份",
+          "match_score": 0.937
+        },
+        {
+          "stock_code": "301149",
+          "stock_name": "隆华新材",
+          "match_score": 0.934
+        },
+        {
+          "stock_code": "300437",
+          "stock_name": "清水源",
+          "match_score": 0.926
+        }
+      ]
+    },
+    {
+      "date": "2025-09-08",
+      "stocks": [
+        {
+          "stock_code": "920175",
+          "stock_name": "东方碳素",
+          "match_score": 0.943
+        },
+        {
+          "stock_code": "920266",
+          "stock_name": "生物谷",
+          "match_score": 0.923
+        },
+        {
+          "stock_code": "002200",
+          "stock_name": "*ST交投",
+          "match_score": 0.921
+        },
+        {
+          "stock_code": "920985",
+          "stock_name": "海泰新能",
+          "match_score": 0.918
+        },
+        {
+          "stock_code": "603058",
+          "stock_name": "永吉股份",
+          "match_score": 0.916
+        }
+      ]
+    },
+    {
+      "date": "2025-09-15",
+      "stocks": [
+        {
+          "stock_code": "300462",
+          "stock_name": "ST华铭",
+          "match_score": 0.972
+        },
+        {
+          "stock_code": "603982",
+          "stock_name": "泉峰汽车",
+          "match_score": 0.961
+        },
+        {
+          "stock_code": "603223",
+          "stock_name": "恒通股份",
+          "match_score": 0.955
+        },
+        {
+          "stock_code": "600615",
+          "stock_name": "鑫源智造",
+          "match_score": 0.951
+        },
+        {
+          "stock_code": "002485",
+          "stock_name": "ST雪发",
+          "match_score": 0.94
+        }
+      ]
+    },
+    {
+      "date": "2025-09-22",
+      "stocks": [
+        {
+          "stock_code": "688287",
+          "stock_name": "*ST观典",
+          "match_score": 0.961
+        },
+        {
+          "stock_code": "002319",
+          "stock_name": "乐通股份",
+          "match_score": 0.94
+        },
+        {
+          "stock_code": "000004",
+          "stock_name": "*ST国华",
+          "match_score": 0.937
+        },
+        {
+          "stock_code": "603007",
+          "stock_name": "*ST花王",
+          "match_score": 0.936
+        },
+        {
+          "stock_code": "002633",
+          "stock_name": "申科股份",
+          "match_score": 0.927
+        }
+      ]
+    },
+    {
+      "date": "2025-09-29",
+      "stocks": [
+        {
+          "stock_code": "688565",
+          "stock_name": "力源科技",
+          "match_score": 0.966
+        },
+        {
+          "stock_code": "301102",
+          "stock_name": "兆讯传媒",
+          "match_score": 0.94
+        },
+        {
+          "stock_code": "688496",
+          "stock_name": "清越科技",
+          "match_score": 0.938
+        },
+        {
+          "stock_code": "603506",
+          "stock_name": "南都物业",
+          "match_score": 0.937
+        },
+        {
+          "stock_code": "688579",
+          "stock_name": "山大地纬",
+          "match_score": 0.933
+        }
+      ]
+    },
+    {
+      "date": "2025-10-06",
+      "stocks": [
+        {
+          "stock_code": "603506",
+          "stock_name": "南都物业",
+          "match_score": 0.939
+        },
+        {
+          "stock_code": "600768",
+          "stock_name": "宁波富邦",
+          "match_score": 0.917
+        },
+        {
+          "stock_code": "600080",
+          "stock_name": "金花股份",
+          "match_score": 0.914
+        },
+        {
+          "stock_code": "002848",
+          "stock_name": "*ST高斯",
+          "match_score": 0.912
+        },
+        {
+          "stock_code": "603022",
+          "stock_name": "新通联",
+          "match_score": 0.912
+        }
+      ]
+    },
+    {
+      "date": "2025-10-13",
+      "stocks": [
+        {
+          "stock_code": "002357",
+          "stock_name": "富临运业",
+          "match_score": 0.947
+        },
+        {
+          "stock_code": "300243",
+          "stock_name": "瑞丰高材",
+          "match_score": 0.938
+        },
+        {
+          "stock_code": "300610",
+          "stock_name": "晨化股份",
+          "match_score": 0.936
+        },
+        {
+          "stock_code": "002848",
+          "stock_name": "*ST高斯",
+          "match_score": 0.93
+        },
+        {
+          "stock_code": "300093",
+          "stock_name": "*ST金刚",
+          "match_score": 0.926
+        }
+      ]
+    },
+    {
+      "date": "2025-10-20",
+      "stocks": [
+        {
+          "stock_code": "688565",
+          "stock_name": "力源科技",
+          "match_score": 0.97
+        },
+        {
+          "stock_code": "601963",
+          "stock_name": "重庆银行",
+          "match_score": 0.942
+        },
+        {
+          "stock_code": "600768",
+          "stock_name": "宁波富邦",
+          "match_score": 0.937
+        },
+        {
+          "stock_code": "603458",
+          "stock_name": "勘设股份",
+          "match_score": 0.937
+        },
+        {
+          "stock_code": "601798",
+          "stock_name": "蓝科高新",
+          "match_score": 0.936
+        }
+      ]
+    },
+    {
+      "date": "2025-10-27",
+      "stocks": [
+        {
+          "stock_code": "603506",
+          "stock_name": "南都物业",
+          "match_score": 0.955
+        },
+        {
+          "stock_code": "301126",
+          "stock_name": "达嘉维康",
+          "match_score": 0.951
+        },
+        {
+          "stock_code": "300030",
+          "stock_name": "阳普医疗",
+          "match_score": 0.95
+        },
+        {
+          "stock_code": "603357",
+          "stock_name": "设计总院",
+          "match_score": 0.95
+        },
+        {
+          "stock_code": "301048",
+          "stock_name": "金鹰重工",
+          "match_score": 0.948
+        }
+      ]
+    },
+    {
+      "date": "2025-11-03",
+      "stocks": [
+        {
+          "stock_code": "002234",
+          "stock_name": "民和股份",
+          "match_score": 0.969
+        },
+        {
+          "stock_code": "300243",
+          "stock_name": "瑞丰高材",
+          "match_score": 0.968
+        },
+        {
+          "stock_code": "600636",
+          "stock_name": "*ST国化",
+          "match_score": 0.959
+        },
+        {
+          "stock_code": "603789",
+          "stock_name": "*ST星农",
+          "match_score": 0.947
+        },
+        {
+          "stock_code": "300550",
+          "stock_name": "和仁科技",
+          "match_score": 0.945
+        }
+      ]
+    },
+    {
+      "date": "2025-11-10",
+      "stocks": [
+        {
+          "stock_code": "300112",
+          "stock_name": "万讯自控",
+          "match_score": 0.968
+        },
+        {
+          "stock_code": "920402",
+          "stock_name": "硅烷科技",
+          "match_score": 0.967
+        },
+        {
+          "stock_code": "920496",
+          "stock_name": "许昌智能",
+          "match_score": 0.953
+        },
+        {
+          "stock_code": "603387",
+          "stock_name": "基蛋生物",
+          "match_score": 0.948
+        },
+        {
+          "stock_code": "300550",
+          "stock_name": "和仁科技",
+          "match_score": 0.936
+        }
+      ]
+    },
+    {
+      "date": "2025-11-17",
+      "stocks": [
+        {
+          "stock_code": "603357",
+          "stock_name": "设计总院",
+          "match_score": 0.949
+        },
+        {
+          "stock_code": "300112",
+          "stock_name": "万讯自控",
+          "match_score": 0.946
+        },
+        {
+          "stock_code": "920339",
+          "stock_name": "恒太照明",
+          "match_score": 0.946
+        },
+        {
+          "stock_code": "920974",
+          "stock_name": "凯大催化",
+          "match_score": 0.937
+        },
+        {
+          "stock_code": "002443",
+          "stock_name": "金洲管道",
+          "match_score": 0.935
+        }
+      ]
+    },
+    {
+      "date": "2025-11-24",
+      "stocks": [
+        {
+          "stock_code": "600350",
+          "stock_name": "山东高速",
+          "match_score": 0.953
+        },
+        {
+          "stock_code": "603838",
+          "stock_name": "*ST四通",
+          "match_score": 0.929
+        },
+        {
+          "stock_code": "601369",
+          "stock_name": "陕鼓动力",
+          "match_score": 0.916
+        },
+        {
+          "stock_code": "603937",
+          "stock_name": "丽岛新材",
+          "match_score": 0.914
+        },
+        {
+          "stock_code": "688021",
+          "stock_name": "奥福科技",
+          "match_score": 0.912
+        }
+      ]
+    },
+    {
+      "date": "2025-12-01",
+      "stocks": [
+        {
+          "stock_code": "603429",
+          "stock_name": "集友股份",
+          "match_score": 0.975
+        },
+        {
+          "stock_code": "002443",
+          "stock_name": "金洲管道",
+          "match_score": 0.971
+        },
+        {
+          "stock_code": "000605",
+          "stock_name": "渤海股份",
+          "match_score": 0.952
+        },
+        {
+          "stock_code": "603311",
+          "stock_name": "金海高科",
+          "match_score": 0.94
+        },
+        {
+          "stock_code": "688285",
+          "stock_name": "高铁电气",
+          "match_score": 0.937
+        }
+      ]
+    },
+    {
+      "date": "2025-12-08",
+      "stocks": [
+        {
+          "stock_code": "688597",
+          "stock_name": "煜邦电力",
+          "match_score": 0.973
+        },
+        {
+          "stock_code": "603429",
+          "stock_name": "集友股份",
+          "match_score": 0.947
+        },
+        {
+          "stock_code": "603269",
+          "stock_name": "海鸥股份",
+          "match_score": 0.943
+        },
+        {
+          "stock_code": "002660",
+          "stock_name": "茂硕电源",
+          "match_score": 0.934
+        },
+        {
+          "stock_code": "300154",
+          "stock_name": "瑞凌股份",
+          "match_score": 0.926
+        }
+      ]
+    },
+    {
+      "date": "2025-12-15",
+      "stocks": [
+        {
+          "stock_code": "603558",
+          "stock_name": "健盛集团",
+          "match_score": 0.923
+        },
+        {
+          "stock_code": "603311",
+          "stock_name": "金海高科",
+          "match_score": 0.92
+        },
+        {
+          "stock_code": "301127",
+          "stock_name": "武汉天源",
+          "match_score": 0.907
+        },
+        {
+          "stock_code": "603080",
+          "stock_name": "新疆火炬",
+          "match_score": 0.906
+        },
+        {
+          "stock_code": "603025",
+          "stock_name": "大豪科技",
+          "match_score": 0.903
+        }
+      ]
+    },
+    {
+      "date": "2025-12-22",
+      "stocks": [
+        {
+          "stock_code": "002253",
+          "stock_name": "*ST智胜",
+          "match_score": 0.965
+        },
+        {
+          "stock_code": "300154",
+          "stock_name": "瑞凌股份",
+          "match_score": 0.965
+        },
+        {
+          "stock_code": "001322",
+          "stock_name": "箭牌家居",
+          "match_score": 0.926
+        },
+        {
+          "stock_code": "603387",
+          "stock_name": "基蛋生物",
+          "match_score": 0.926
+        },
+        {
+          "stock_code": "603838",
+          "stock_name": "*ST四通",
+          "match_score": 0.924
+        }
+      ]
+    },
+    {
+      "date": "2025-12-29",
+      "stocks": [
+        {
+          "stock_code": "600284",
+          "stock_name": "浦东建设",
+          "match_score": 0.956
+        },
+        {
+          "stock_code": "002140",
+          "stock_name": "东华科技",
+          "match_score": 0.945
+        },
+        {
+          "stock_code": "002111",
+          "stock_name": "威海广泰",
+          "match_score": 0.941
+        },
+        {
+          "stock_code": "300154",
+          "stock_name": "瑞凌股份",
+          "match_score": 0.935
+        },
+        {
+          "stock_code": "002949",
+          "stock_name": "华阳国际",
+          "match_score": 0.931
+        }
+      ]
+    }
+  ],
+  "elapsed_time_seconds": 64494.12456917763
+}

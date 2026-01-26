@@ -1,0 +1,9 @@
+{
+  "scan_date": "2026-01-05",
+  "min_match_score": 0.9,
+  "max_market_cap": 100.0,
+  "elapsed_seconds": 177.914538,
+  "found_count": 0,
+  "total_scanned": 5472,
+  "candidates": []
+}

@@ -1,0 +1,106 @@
+{
+  "report_type": "backtest_validation",
+  "generated_at": "2026-01-15T19:34:53.917143",
+  "backtest_config": {
+    "start_date": "2026-01-08",
+    "end_date": "2026-01-15",
+    "scan_mode": "weekly",
+    "min_match_score": 0.83,
+    "max_market_cap": 100.0,
+    "max_stocks_per_day": 1,
+    "periods": [
+      14,
+      28
+    ]
+  },
+  "statistics": {
+    "total_days": 2,
+    "days_with_stocks": 2,
+    "valid_stocks": 1,
+    "periods_stats": {
+      "14天": {
+        "count": 1,
+        "avg_gain": 2.57,
+        "max_gain": 2.57,
+        "min_gain": 2.57,
+        "positive_count": 1,
+        "positive_rate": 100.0,
+        "risk_metrics": {
+          "max_drawdown_pct": 0.0,
+          "volatility": 0.0,
+          "sharpe_ratio": 0.0,
+          "sortino_ratio": 0.0,
+          "win_loss_ratio": 0.0,
+          "avg_win": 2.57,
+          "avg_loss": 0.0,
+          "win_count": 1,
+          "loss_count": 0,
+          "avg_return": 2.57,
+          "total_return": 2.57,
+          "positive_rate": 100.0
+        }
+      },
+      "28天": {
+        "count": 1,
+        "avg_gain": 2.57,
+        "max_gain": 2.57,
+        "min_gain": 2.57,
+        "positive_count": 1,
+        "positive_rate": 100.0,
+        "risk_metrics": {
+          "max_drawdown_pct": 0.0,
+          "volatility": 0.0,
+          "sharpe_ratio": 0.0,
+          "sortino_ratio": 0.0,
+          "win_loss_ratio": 0.0,
+          "avg_win": 2.57,
+          "avg_loss": 0.0,
+          "win_count": 1,
+          "loss_count": 0,
+          "avg_return": 2.57,
+          "total_return": 2.57,
+          "positive_rate": 100.0
+        }
+      }
+    }
+  },
+  "detailed_results": [
+    {
+      "date": "2026-01-08",
+      "stocks": [
+        {
+          "stock_code": "000037",
+          "stock_name": "深南电A",
+          "match_score": 0.877,
+          "buy_price": 8.57,
+          "buy_date": "2026-01-08",
+          "gains": {
+            "14天": {
+              "gain": 2.57,
+              "end_price": 8.79,
+              "end_date": "2026-01-15",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 2.57,
+              "end_price": 8.79,
+              "end_date": "2026-01-15",
+              "actual_days": 7
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2026-01-12",
+      "stocks": [
+        {
+          "stock_code": "000037",
+          "stock_name": "深南电A",
+          "match_score": 0.877,
+          "error": "无法计算收益"
+        }
+      ]
+    }
+  ]
+}

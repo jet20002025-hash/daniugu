@@ -2,6 +2,10 @@
 数据获取模块
 使用akshare获取A股市场数据
 """
+import os
+# 尽量避免系统代理/环境代理影响数据拉取（本地预下载/扫描更稳定）
+os.environ.setdefault("NO_PROXY", "*")
+os.environ.setdefault("no_proxy", "*")
 import akshare as ak
 import pandas as pd
 import time
@@ -16,6 +20,28 @@ class DataFetcher:
     def __init__(self):
         self.stock_list = None
         self._market_cap_cache = None  # 缓存市值数据，避免重复获取
+
+    # =========================
+    # 本地文件缓存（用于本地环境预下载/预热）
+    # =========================
+    def _local_cache_dir(self) -> str:
+        import os
+        base = os.environ.get("LOCAL_CACHE_DIR")
+        if base:
+            return base
+        # 默认放在项目目录下的 cache/（使用文件所在目录而非当前工作目录）
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache")
+
+    def _local_cache_paths(self):
+        import os
+        base = self._local_cache_dir()
+        return {
+            "base": base,
+            "stock_list_json": os.path.join(base, "stock_list_all.json"),
+            "stock_list_meta": os.path.join(base, "stock_list_all.meta.json"),
+            "weekly_dir": os.path.join(base, "weekly_kline"),
+            "daily_dir": os.path.join(base, "daily_kline"),
+        }
         
     def _get_stock_list_from_cache(self, check_age=False):
         """
@@ -127,6 +153,49 @@ class DataFetcher:
                         print(f"[get_all_stocks] ⚠️ Vercel KV 缓存数据格式错误: {type(stock_data)}")
             except Exception as e:
                 print(f"[get_all_stocks] ⚠️ 从 Vercel KV 缓存获取失败: {e}")
+            
+            # ✅ 本地文件缓存（无 Redis/KV 时的兜底）
+            try:
+                paths = self._local_cache_paths()
+                stock_path = paths["stock_list_json"]
+                meta_path = paths["stock_list_meta"]
+                if os.path.exists(stock_path):
+                    with open(stock_path, "r", encoding="utf-8") as f:
+                        stock_data = json.load(f)
+                    if isinstance(stock_data, list) and len(stock_data) > 0:
+                        stock_df = pd.DataFrame(stock_data)
+                        cache_timestamp = None
+                        is_expired = False
+                        if os.path.exists(meta_path):
+                            try:
+                                with open(meta_path, "r", encoding="utf-8") as f:
+                                    meta = json.load(f)
+                                cache_timestamp = meta.get("saved_at")
+                                ttl = meta.get("ttl", 86400)
+                                if check_age and cache_timestamp:
+                                    age = datetime.now(timezone.utc).timestamp() - float(cache_timestamp)
+                                    # 交易时段内缓存超过5分钟视为过期；非交易时段按 ttl 判断
+                                    beijing_now = datetime.now(timezone.utc) + timedelta(hours=8)
+                                    is_in_trading_time = (
+                                        (beijing_now.hour == 9 and beijing_now.minute >= 30) or
+                                        beijing_now.hour == 10 or
+                                        (beijing_now.hour == 11 and beijing_now.minute <= 30) or
+                                        beijing_now.hour == 13 or
+                                        beijing_now.hour == 14 or
+                                        (beijing_now.hour == 15 and beijing_now.minute == 0)
+                                    )
+                                    if is_in_trading_time and age > 300:
+                                        is_expired = True
+                                    elif (not is_in_trading_time) and ttl and age > float(ttl):
+                                        is_expired = True
+                            except Exception:
+                                pass
+                        if check_age:
+                            return stock_df, cache_timestamp, is_expired
+                        return stock_df
+            except Exception as e:
+                # 静默失败
+                pass
                 
         except Exception as e:
             print(f"[get_all_stocks] ⚠️ 从缓存获取股票列表失败: {e}")
@@ -261,6 +330,26 @@ class DataFetcher:
                 print(f"[_save_stock_list_to_cache] ⚠️ 保存到 Vercel KV 缓存失败: {e}")
                 print(f"[_save_stock_list_to_cache] 错误详情: {error_detail}")
                 # Vercel KV 失败不是致命错误，继续执行
+            
+            # ✅ 本地文件缓存兜底（即使云端缓存不可用，也能用于本地定时预下载）
+            try:
+                import os
+                from datetime import timezone
+                paths = self._local_cache_paths()
+                os.makedirs(paths["base"], exist_ok=True)
+                with open(paths["stock_list_json"], "w", encoding="utf-8") as f:
+                    json.dump(stock_data, f, ensure_ascii=False)
+                with open(paths["stock_list_meta"], "w", encoding="utf-8") as f:
+                    json.dump(
+                        {"saved_at": datetime.now(timezone.utc).timestamp(), "ttl": 86400},
+                        f,
+                        ensure_ascii=False,
+                    )
+                print(f"[_save_stock_list_to_cache] ✅ 股票列表已保存到本地缓存: {paths['stock_list_json']}")
+                return True
+            except Exception as e:
+                # 继续走下面的统一失败返回
+                pass
                 
         except Exception as e:
             import traceback
@@ -284,42 +373,55 @@ class DataFetcher:
         import time
         
         # 首先尝试从缓存获取（优先从缓存读取，避免每次调用 akshare API）
-        # 在交易时间段内，检查缓存年龄，如果过期则刷新
+        # ✅ 本地策略：不要每次登录/进入页面都刷新。按“每日两次”节流刷新：
+        # - 11:30（午盘后）
+        # - 15:00（收盘后）
+        # 只有当缓存时间早于当日对应检查点时，才触发一次刷新；否则直接用缓存。
         print("[get_all_stocks] 尝试从缓存获取股票列表...")
         from datetime import datetime, timezone, timedelta
         beijing_now = datetime.now(timezone.utc) + timedelta(hours=8)
-        is_in_trading_time = (
-            (beijing_now.hour == 9 and beijing_now.minute >= 30) or
-            beijing_now.hour == 10 or
-            (beijing_now.hour == 11 and beijing_now.minute <= 30) or
-            beijing_now.hour == 13 or
-            beijing_now.hour == 14 or
-            (beijing_now.hour == 15 and beijing_now.minute == 0)
-        )
+
+        def _checkpoint_dt(now_bj: datetime) -> tuple:
+            """返回 (required_checkpoint_dt, label)。如果当前时间还没到 11:30，则返回 (None, None)。"""
+            cp_1130 = now_bj.replace(hour=11, minute=30, second=0, microsecond=0)
+            cp_1500 = now_bj.replace(hour=15, minute=0, second=0, microsecond=0)
+            if now_bj >= cp_1500:
+                return cp_1500, "15:00"
+            if now_bj >= cp_1130:
+                return cp_1130, "11:30"
+            return None, None
+
+        def _need_refresh_by_checkpoints(now_bj: datetime, cache_ts_utc: float) -> bool:
+            """判断是否需要按每日检查点刷新缓存。cache_ts_utc 为 UTC 时间戳（秒）。"""
+            if not cache_ts_utc:
+                return False
+            required_cp, _ = _checkpoint_dt(now_bj)
+            if required_cp is None:
+                return False
+            cache_bj = datetime.fromtimestamp(float(cache_ts_utc), tz=timezone.utc) + timedelta(hours=8)
+            # 只要缓存时间早于当日对应检查点，就认为需要刷新一次
+            return cache_bj < required_cp
         
-        # 如果在交易时间段内，检查缓存年龄
-        expired_cache = None  # 保存过期缓存，作为回退方案
-        if is_in_trading_time:
-            cached_stocks, cache_timestamp, is_expired = self._get_stock_list_from_cache(check_age=True)
-            if cached_stocks is not None and len(cached_stocks) > 0 and not is_expired:
+        # 统一按“每日两次检查点”判断是否需要刷新
+        expired_cache = None  # 保存旧缓存，作为回退方案
+        cached_stocks, cache_timestamp, _legacy_is_expired = self._get_stock_list_from_cache(check_age=True)
+        if cached_stocks is not None and len(cached_stocks) > 0:
+            # 没有拿到缓存时间戳（比如 KV 无法推断）就默认不刷新，避免每次登录触发网络请求
+            need_refresh = _need_refresh_by_checkpoints(beijing_now, cache_timestamp) if cache_timestamp else False
+            if not need_refresh:
                 self.stock_list = cached_stocks
-                print(f"[get_all_stocks] ✅ 从缓存获取成功（交易时间段内，缓存未过期），股票数: {len(cached_stocks)} 只")
+                cp_dt, cp_label = _checkpoint_dt(beijing_now)
+                if cp_label:
+                    print(f"[get_all_stocks] ✅ 使用缓存（已满足当日 {cp_label} 检查点，不刷新），股票数: {len(cached_stocks)} 只")
+                else:
+                    print(f"[get_all_stocks] ✅ 使用缓存（未到 11:30 检查点，不刷新），股票数: {len(cached_stocks)} 只")
                 return cached_stocks
-            elif cached_stocks is not None and len(cached_stocks) > 0 and is_expired:
-                print(f"[get_all_stocks] ⚠️ 缓存已过期（交易时间段内，缓存超过5分钟），将从 API 获取最新数据...")
-                expired_cache = cached_stocks  # 保存过期缓存，作为回退方案
-                # 继续执行，从 API 获取最新数据
-            elif cached_stocks is None:
-                print(f"[get_all_stocks] ⚠️ 缓存不存在，将从 API 获取...")
-            else:
-                print(f"[get_all_stocks] ⚠️ 缓存数据为空，将从 API 获取...")
+            # 需要刷新：保留旧缓存做回退
+            expired_cache = cached_stocks
+            cp_dt, cp_label = _checkpoint_dt(beijing_now)
+            print(f"[get_all_stocks] ⚠️ 缓存早于当日 {cp_label} 检查点，将尝试从 API 刷新股票列表...")
         else:
-            # 非交易时间段，直接使用缓存（如果存在）
-            cached_stocks = self._get_stock_list_from_cache(check_age=False)
-            if cached_stocks is not None and len(cached_stocks) > 0:
-                self.stock_list = cached_stocks
-                print(f"[get_all_stocks] ✅ 从缓存获取成功，股票数: {len(cached_stocks)} 只（非交易时间段，无需调用 akshare API）")
-                return cached_stocks
+            print(f"[get_all_stocks] ⚠️ 缓存不存在或为空，将从 API 获取...")
         
         print("[get_all_stocks] ⚠️ 缓存中没有股票列表，开始从 akshare API 获取...")
         print("[get_all_stocks] 💡 提示：建议在交易时间段通过 Cron Job 自动刷新缓存，避免扫描时超时")
@@ -517,6 +619,187 @@ class DataFetcher:
             return expired_cache
         return None
     
+    def get_circulating_shares(self, stock_code, timeout=5):
+        """
+        获取股票流通股本（单位：万股）
+        :param stock_code: 股票代码（如 '000001'）
+        :param timeout: 超时时间（秒），默认5秒
+        :return: 流通股本（万股），如果获取失败返回None
+        """
+        try:
+            import threading
+            import time
+            
+            # 使用缓存，避免重复获取全部股票数据
+            if self._market_cap_cache is None:
+                # 使用实时行情接口（批量获取）- 这个操作可能很慢，使用超时保护
+                result = [None]
+                error = [None]
+                
+                def fetch_all_stocks():
+                    try:
+                        result[0] = ak.stock_zh_a_spot_em()
+                    except Exception as e:
+                        error[0] = e
+                
+                # 如果缓存为空，需要获取全部股票数据（可能很慢）
+                fetch_thread = threading.Thread(target=fetch_all_stocks)
+                fetch_thread.daemon = True
+                fetch_thread.start()
+                fetch_thread.join(timeout=timeout)
+                
+                if fetch_thread.is_alive():
+                    # 超时了，返回None，不阻塞
+                    return None
+                
+                if error[0]:
+                    return None
+                
+                df = result[0]
+                if df is not None and not df.empty:
+                    self._market_cap_cache = df
+                else:
+                    return None
+            else:
+                df = self._market_cap_cache
+            
+            if df is not None and not df.empty:
+                # 查找对应股票（代码列是字符串类型）
+                stock_code_str = str(stock_code)
+                stock_row = df[df['代码'] == stock_code_str]
+                
+                if not stock_row.empty:
+                    # 尝试从多个可能的列名获取流通股本
+                    circulating_shares = None
+                    for col in ['流通股', '流通股本', '流通市值']:
+                        if col in stock_row.columns:
+                            shares_str = str(stock_row.iloc[0][col])
+                            if pd.notna(shares_str) and shares_str not in ['nan', 'None', '']:
+                                try:
+                                    # 保存原始值，用于判断单位
+                                    original_value = str(stock_row.iloc[0][col])
+                                    # 处理"万"单位和逗号
+                                    shares_str = shares_str.replace(',', '').replace('万', '')
+                                    circulating_shares = float(shares_str)
+                                    
+                                    # 如果原始值包含"万"，说明单位已经是万股，直接返回
+                                    # 如果不包含"万"，说明单位是股，需要转换为万股
+                                    if '万' not in original_value:
+                                        circulating_shares = circulating_shares / 10000  # 股转换为万股
+                                    
+                                    return circulating_shares
+                                except (ValueError, TypeError):
+                                    continue
+                    
+                    # 如果没找到流通股本，但找到了流通市值，可以尝试用当前价格反推
+                    # 但这个方法需要当前价格，所以这里不实现
+                    return None
+            
+            return None
+        except Exception as e:
+            # 静默失败，返回None
+            return None
+    
+    def calculate_circulating_market_cap(self, stock_code, current_price, timeout=5):
+        """
+        计算股票流通市值（流通股本 * 当前股价）（单位：亿元）
+        :param stock_code: 股票代码（如 '000001'）
+        :param current_price: 当前股价
+        :param timeout: 超时时间（秒），默认5秒
+        :return: 流通市值（亿元），如果获取失败返回None
+        """
+        try:
+            import threading
+            import time
+            
+            # 使用缓存，避免重复获取全部股票数据
+            if self._market_cap_cache is None:
+                # 使用实时行情接口（批量获取）- 这个操作可能很慢，使用超时保护
+                result = [None]
+                error = [None]
+                
+                def fetch_all_stocks():
+                    try:
+                        result[0] = ak.stock_zh_a_spot_em()
+                    except Exception as e:
+                        error[0] = e
+                
+                # 如果缓存为空，需要获取全部股票数据（可能很慢）
+                fetch_thread = threading.Thread(target=fetch_all_stocks)
+                fetch_thread.daemon = True
+                fetch_thread.start()
+                fetch_thread.join(timeout=timeout)
+                
+                if fetch_thread.is_alive():
+                    # 超时了，返回None，不阻塞
+                    return None
+                
+                if error[0]:
+                    return None
+                
+                df = result[0]
+                if df is not None and not df.empty:
+                    self._market_cap_cache = df
+                else:
+                    return None
+            else:
+                df = self._market_cap_cache
+            
+            if df is not None and not df.empty:
+                # 查找对应股票（代码列是字符串类型）
+                # 确保stock_code是字符串格式
+                stock_code_str = str(stock_code)
+                stock_row = df[df['代码'] == stock_code_str]
+                
+                if not stock_row.empty:
+                    # 优先使用流通市值
+                    if '流通市值' in stock_row.columns:
+                        market_cap = stock_row.iloc[0]['流通市值']
+                        if pd.notna(market_cap):
+                            try:
+                                market_cap = float(market_cap)
+                                # 流通市值单位是元，转换为亿元
+                                return market_cap / 100000000
+                            except (ValueError, TypeError):
+                                pass
+                    
+                    # 如果流通市值不存在，尝试使用流通股本计算
+                    # 优先使用新方法获取流通股本
+                    circulating_shares = self.get_circulating_shares(stock_code, timeout=1)  # 使用短超时，因为缓存已存在
+                    
+                    # 如果新方法失败，尝试从当前数据中直接获取
+                    if circulating_shares is None:
+                        for col in ['流通股', '流通股本']:
+                            if col in stock_row.columns:
+                                shares_str = str(stock_row.iloc[0][col])
+                                if pd.notna(shares_str) and shares_str not in ['nan', 'None', '']:
+                                    try:
+                                        # 保存原始值，用于判断单位
+                                        original_value = str(stock_row.iloc[0][col])
+                                        # 处理"万"单位和逗号
+                                        shares_str = shares_str.replace(',', '').replace('万', '')
+                                        circulating_shares = float(shares_str)
+                                        
+                                        # 如果原始值不包含"万"，说明单位是股，需要转换为万股
+                                        if '万' not in original_value:
+                                            circulating_shares = circulating_shares / 10000  # 股转换为万股
+                                        
+                                        break
+                                    except (ValueError, TypeError):
+                                        continue
+                    
+                    # 如果找到流通股本（单位：万股），用当前股价计算流通市值（单位：亿元）
+                    # 流通市值 = 流通股本（万股） * 当前股价（元/股） / 10000（万元转亿元）
+                    if circulating_shares is not None and current_price:
+                        market_cap = (circulating_shares * current_price) / 10000  # 万股 * 元/股 / 10000 = 亿元
+                        return market_cap
+            
+            return None
+        except Exception as e:
+            # 静默失败，返回None（可以取消注释下面的行来调试）
+            # print(f"计算流通市值失败 {stock_code}: {e}")
+            return None
+    
     def get_market_cap(self, stock_code, timeout=5):
         """
         获取股票总市值（单位：亿元）
@@ -584,22 +867,54 @@ class DataFetcher:
             # print(f"获取市值失败 {stock_code}: {e}")
             return None
     
-    def get_daily_kline(self, stock_code, period="1y"):
+    def get_daily_kline(self, stock_code, period="1y", use_cache=True, local_only=False):
         """
         获取日K线数据
         :param stock_code: 股票代码（如 '000001'）
         :param period: 时间周期，'1y'表示1年
+        :param use_cache: 是否优先使用本地缓存
+        :param local_only: 是否仅用本地（不从网络获取）；若 True 且本地无数据则返回 None
         :return: DataFrame，包含日期、开盘、收盘、最高、最低、成交量等
         """
+        if os.environ.get("TRAIN_LOCAL_ONLY") == "1":
+            local_only = True
+        if use_cache or local_only:
+            cached = self._get_daily_kline_from_cache(stock_code)
+            if cached is not None and len(cached) > 0:
+                end_ts = datetime.now()
+                start_ts = end_ts - timedelta(days=365 * 2)
+                cached = cached.copy()
+                cached["_dt"] = pd.to_datetime(cached["日期"], errors="coerce")
+                cached = cached.dropna(subset=["_dt"])
+                mask = (cached["_dt"] >= start_ts) & (cached["_dt"] <= end_ts)
+                out = cached.loc[mask].drop(columns=["_dt"], errors="ignore").sort_values("日期").reset_index(drop=True)
+                if len(out) > 0:
+                    return out
+            if local_only:
+                return None
         try:
-            # 计算开始日期（2年前，确保有足够历史数据）
-            # 结束日期使用今天，确保获取最新数据
             end_date = datetime.now().strftime('%Y%m%d')
             start_date = (datetime.now() - timedelta(days=365 * 2)).strftime('%Y%m%d')
             
-            # 获取日K线数据
-            df = ak.stock_zh_a_hist(symbol=stock_code, period="daily", 
-                                    start_date=start_date, end_date=end_date, adjust="qfq")
+            df = None
+            last_err = None
+            for attempt in range(3):
+                try:
+                    df = ak.stock_zh_a_hist(
+                        symbol=stock_code,
+                        period="daily",
+                        start_date=start_date,
+                        end_date=end_date,
+                        adjust="qfq",
+                    )
+                    last_err = None
+                    break
+                except Exception as e:
+                    last_err = e
+                    # 轻量退避
+                    time.sleep(0.6 * (2 ** attempt))
+            if df is None and last_err is not None:
+                raise last_err
             
             if df is None or df.empty:
                 return None
@@ -717,18 +1032,45 @@ class DataFetcher:
             print(f"获取 {stock_code} 日K线数据失败: {e}")
             return None
     
-    def _get_weekly_kline_from_cache(self, stock_code):
+    def _get_weekly_kline_from_cache(self, stock_code, local_files_only=False):
         """
-        从缓存中获取周K线数据
-        :param stock_code: 股票代码（如 '000001'）
-        :return: DataFrame 或 None
+        从缓存中获取周K线数据（本地文件优先）
+        :param local_files_only: 若 True，仅读本地 CSV/JSON，不访问 Redis/KV（扫描加速）
         """
+        import os
+        import json
+        import pandas as pd
+        
+        paths = self._local_cache_paths()
+        weekly_dir = paths["weekly_dir"]
+        csv_path = os.path.join(weekly_dir, f"{stock_code}.csv")
+        json_path = os.path.join(weekly_dir, f"{stock_code}.json")
+        
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path)
+            if df is not None and len(df) > 0:
+                if '日期' in df.columns:
+                    df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
+                    df = df.dropna(subset=['日期'])
+                    df = df.sort_values('日期').reset_index(drop=True)
+                return df
+        
+        if os.path.exists(json_path):
+            with open(json_path, "r", encoding="utf-8") as f:
+                stock_data = json.load(f)
+            if isinstance(stock_data, list) and len(stock_data) > 0:
+                df = pd.DataFrame(stock_data)
+                if '日期' in df.columns:
+                    df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
+                    df = df.dropna(subset=['日期'])
+                    df = df.sort_values('日期').reset_index(drop=True)
+                return df
+        
+        if local_files_only:
+            return None
+        
         try:
-            import os
-            import json
-            
-            # 尝试使用 Upstash Redis
-            redis_url = os.environ.get('UPSTASH_REDIS_REST_URL')
+            redis_url = os.environ.get("UPSTASH_REDIS_REST_URL")
             redis_token = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
             if redis_url and redis_token:
                 import requests
@@ -781,6 +1123,31 @@ class DataFetcher:
             
             return None
         except Exception as e:
+            return None
+    
+    def _get_daily_kline_from_cache(self, stock_code):
+        """
+        从本地缓存读取日K线（cache/daily_kline/{code}.csv）
+        :return: DataFrame 或 None
+        """
+        import os
+        paths = self._local_cache_paths()
+        csv_path = os.path.join(paths["daily_dir"], f"{stock_code}.csv")
+        if not os.path.exists(csv_path):
+            return None
+        try:
+            df = pd.read_csv(csv_path, encoding="utf-8-sig")
+            if df is None or len(df) == 0:
+                return None
+            if "日期" not in df.columns:
+                return None
+            df["日期"] = pd.to_datetime(df["日期"], errors="coerce")
+            df = df.dropna(subset=["日期"]).sort_values("日期").reset_index(drop=True)
+            for col in ["开盘", "收盘", "最高", "最低"]:
+                if col not in df.columns:
+                    return None
+            return df
+        except Exception:
             return None
     
     def _save_weekly_kline_to_cache(self, stock_code, weekly_df, ttl=86400):
@@ -838,26 +1205,159 @@ class DataFetcher:
                 return True
             except Exception:
                 pass
+
+            # ✅ 本地文件缓存兜底
+            try:
+                import os
+                from datetime import timezone
+                paths = self._local_cache_paths()
+                weekly_dir = paths["weekly_dir"]
+                os.makedirs(weekly_dir, exist_ok=True)
+                json_path = os.path.join(weekly_dir, f"{stock_code}.json")
+                meta_path = os.path.join(weekly_dir, f"{stock_code}.meta.json")
+                with open(json_path, "w", encoding="utf-8") as f:
+                    f.write(stock_json)
+                with open(meta_path, "w", encoding="utf-8") as f:
+                    json.dump(
+                        {"saved_at": datetime.now(timezone.utc).timestamp(), "ttl": ttl},
+                        f,
+                        ensure_ascii=False,
+                    )
+                return True
+            except Exception:
+                pass
             
             return False
         except Exception as e:
             return False
+
+    # =========================
+    # 可指定日期区间的数据获取（用于本地离线下载 2024-2025）
+    # =========================
+    def get_daily_kline_range(self, stock_code: str, start_date: str, end_date: str, adjust: str = "qfq", use_cache=True, local_only=False):
+        """
+        获取日K线数据（指定日期区间，YYYYMMDD）
+        :param use_cache: 是否优先从本地缓存读取
+        :param local_only: 是否仅用本地；若 True 且本地无数据则返回 None
+        """
+        if os.environ.get("TRAIN_LOCAL_ONLY") == "1":
+            local_only = True
+        if use_cache or local_only:
+            cached = self._get_daily_kline_from_cache(stock_code)
+            if cached is not None and len(cached) > 0:
+                cached = cached.copy()
+                cached["日期"] = pd.to_datetime(cached["日期"], errors="coerce")
+                cached = cached.dropna(subset=["日期"])
+                cached["_ymd"] = cached["日期"].dt.strftime("%Y%m%d")
+                start_d = str(start_date).replace("-", "")[:8]
+                end_d = str(end_date).replace("-", "")[:8]
+                mask = (cached["_ymd"] >= start_d) & (cached["_ymd"] <= end_d)
+                out = cached.loc[mask].drop(columns=["_ymd"], errors="ignore").sort_values("日期").reset_index(drop=True)
+                if len(out) > 0:
+                    return out
+            if local_only:
+                return None
+        try:
+            df = None
+            last_err = None
+            for attempt in range(5):
+                try:
+                    df = ak.stock_zh_a_hist(
+                        symbol=str(stock_code),
+                        period="daily",
+                        start_date=str(start_date).replace("-", "")[:8],
+                        end_date=str(end_date).replace("-", "")[:8],
+                        adjust=adjust,
+                    )
+                    last_err = None
+                    break
+                except Exception as e:
+                    last_err = e
+                    time.sleep(0.8 * (2 ** attempt))
+            if df is None and last_err is not None:
+                raise last_err
+            if df is None or df.empty:
+                return None
+
+            if len(df.columns) > 0:
+                df = df.rename(columns={df.columns[0]: "日期"})
+            if "日期" in df.columns:
+                df["日期"] = pd.to_datetime(df["日期"], errors="coerce")
+                df = df.dropna(subset=["日期"]).sort_values("日期").reset_index(drop=True)
+            return df
+        except Exception as e:
+            return None
+
+    def get_weekly_kline_range(self, stock_code: str, start_date: str, end_date: str, adjust: str = "qfq"):
+        """
+        获取周K线数据（指定日期区间，YYYYMMDD）
+        """
+        try:
+            df = None
+            last_err = None
+            for attempt in range(5):
+                try:
+                    df = ak.stock_zh_a_hist(
+                        symbol=str(stock_code),
+                        period="weekly",
+                        start_date=start_date,
+                        end_date=end_date,
+                        adjust=adjust,
+                    )
+                    last_err = None
+                    break
+                except Exception as e:
+                    last_err = e
+                    time.sleep(0.8 * (2 ** attempt))
+            if df is None and last_err is not None:
+                raise last_err
+            if df is None or df.empty:
+                return None
+
+            # 尽量对齐 get_weekly_kline 的清洗
+            if len(df.columns) >= 1:
+                df = df.rename(columns={df.columns[0]: "日期"})
+            if "日期" in df.columns:
+                df["日期"] = pd.to_datetime(df["日期"], errors="coerce")
+                df = df.dropna(subset=["日期"]).sort_values("日期").reset_index(drop=True)
+            # 成交量列名统一（如果存在）
+            if "成交量" in df.columns and "周成交量" not in df.columns:
+                df = df.rename(columns={"成交量": "周成交量"})
+            return df
+        except Exception:
+            return None
     
-    def get_weekly_kline(self, stock_code, period="1y", use_cache=True):
+    def get_weekly_kline(self, stock_code, period="1y", use_cache=True, local_only=False):
         """
         获取周K线数据（包含周成交量）
         :param stock_code: 股票代码（如 '000001'）
         :param period: 时间周期，'1y'表示1年（实际使用2年）
         :param use_cache: 是否使用缓存，默认True
+        :param local_only: 是否仅使用本地数据（不从网络获取），默认False
         :return: DataFrame，包含周日期、开盘、收盘、最高、最低、周成交量等
         """
-        # 优先从缓存读取
-        if use_cache:
-            cached_df = self._get_weekly_kline_from_cache(stock_code)
+        if os.environ.get("TRAIN_LOCAL_ONLY") == "1":
+            local_only = True
+        if use_cache or local_only:
+            cached_df = self._get_weekly_kline_from_cache(stock_code, local_files_only=local_only)
             if cached_df is not None and len(cached_df) > 0:
                 # 注释掉print输出以提高性能
                 # print(f"[get_weekly_kline] ✅ 从缓存获取 {stock_code} 的周K线数据: {len(cached_df)} 周")
                 return cached_df
+            
+            # 如果是仅本地模式且缓存不存在，直接返回None（不尝试网络下载）
+            if local_only:
+                # 记录需要下载的股票（用于后续提示）
+                if not hasattr(self, '_missing_stocks'):
+                    self._missing_stocks = set()
+                self._missing_stocks.add(stock_code)
+                return None
+        
+        # 如果本地没有数据且不是local_only模式，继续尝试从网络获取
+        # 记录需要下载的股票（用于后续提示）
+        if not hasattr(self, '_missing_stocks'):
+            self._missing_stocks = set()
+        self._missing_stocks.add(stock_code)
         
         try:
             # 注释掉print输出以提高性能
@@ -869,8 +1369,25 @@ class DataFetcher:
                 
                 # 注释掉print输出以提高性能
                 # print(f"尝试直接获取周K线: {stock_code}, {start_date} - {end_date}")
-                df = ak.stock_zh_a_hist(symbol=stock_code, period="weekly", 
-                                        start_date=start_date, end_date=end_date, adjust="qfq")
+                # 带重试，减少 RemoteDisconnected 等偶发错误导致的失败率
+                df = None
+                last_err = None
+                for attempt in range(3):
+                    try:
+                        df = ak.stock_zh_a_hist(
+                            symbol=stock_code,
+                            period="weekly",
+                            start_date=start_date,
+                            end_date=end_date,
+                            adjust="qfq",
+                        )
+                        last_err = None
+                        break
+                    except Exception as e:
+                        last_err = e
+                        time.sleep(0.6 * (2 ** attempt))
+                if df is None and last_err is not None:
+                    raise last_err
                 # 注释掉print输出以提高性能
                 # print(f"直接获取周K线结果: {df is not None}, {len(df) if df is not None else 0} 条")
                 

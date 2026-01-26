@@ -1,0 +1,526 @@
+{
+  "test_config": {
+    "test_type": "direct_function_call",
+    "test_timestamp": "2026-01-22T22:49:11.064328",
+    "test_users": [
+      {
+        "username": "super",
+        "password": "super123",
+        "type": "超级用户"
+      },
+      {
+        "username": "vip",
+        "password": "vip123",
+        "type": "VIP用户"
+      },
+      {
+        "username": "free",
+        "password": "free123",
+        "type": "免费用户"
+      }
+    ]
+  },
+  "results": [
+    {
+      "username": "super",
+      "test_name": "超级用户",
+      "test_results": [
+        {
+          "test_number": 1,
+          "username": "super",
+          "test_name": "超级用户",
+          "start_time": "2026-01-22T22:49:08.225583",
+          "end_time": "2026-01-22T22:49:08.226566",
+          "response_time_ms": 0.982,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "super",
+            "email": "super@test.com",
+            "is_vip": true
+          }
+        },
+        {
+          "test_number": 2,
+          "username": "super",
+          "test_name": "超级用户",
+          "start_time": "2026-01-22T22:49:08.331614",
+          "end_time": "2026-01-22T22:49:08.331962",
+          "response_time_ms": 0.353,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "super",
+            "email": "super@test.com",
+            "is_vip": true
+          }
+        },
+        {
+          "test_number": 3,
+          "username": "super",
+          "test_name": "超级用户",
+          "start_time": "2026-01-22T22:49:08.437032",
+          "end_time": "2026-01-22T22:49:08.437885",
+          "response_time_ms": 0.861,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "super",
+            "email": "super@test.com",
+            "is_vip": true
+          }
+        },
+        {
+          "test_number": 4,
+          "username": "super",
+          "test_name": "超级用户",
+          "start_time": "2026-01-22T22:49:08.539704",
+          "end_time": "2026-01-22T22:49:08.540787",
+          "response_time_ms": 1.09,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "super",
+            "email": "super@test.com",
+            "is_vip": true
+          }
+        },
+        {
+          "test_number": 5,
+          "username": "super",
+          "test_name": "超级用户",
+          "start_time": "2026-01-22T22:49:08.643219",
+          "end_time": "2026-01-22T22:49:08.644494",
+          "response_time_ms": 1.283,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "super",
+            "email": "super@test.com",
+            "is_vip": true
+          }
+        },
+        {
+          "test_number": 6,
+          "username": "super",
+          "test_name": "超级用户",
+          "start_time": "2026-01-22T22:49:08.749579",
+          "end_time": "2026-01-22T22:49:08.750388",
+          "response_time_ms": 0.815,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "super",
+            "email": "super@test.com",
+            "is_vip": true
+          }
+        },
+        {
+          "test_number": 7,
+          "username": "super",
+          "test_name": "超级用户",
+          "start_time": "2026-01-22T22:49:08.855494",
+          "end_time": "2026-01-22T22:49:08.856097",
+          "response_time_ms": 0.618,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "super",
+            "email": "super@test.com",
+            "is_vip": true
+          }
+        },
+        {
+          "test_number": 8,
+          "username": "super",
+          "test_name": "超级用户",
+          "start_time": "2026-01-22T22:49:08.961163",
+          "end_time": "2026-01-22T22:49:08.962226",
+          "response_time_ms": 1.069,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "super",
+            "email": "super@test.com",
+            "is_vip": true
+          }
+        },
+        {
+          "test_number": 9,
+          "username": "super",
+          "test_name": "超级用户",
+          "start_time": "2026-01-22T22:49:09.067360",
+          "end_time": "2026-01-22T22:49:09.068323",
+          "response_time_ms": 1.002,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "super",
+            "email": "super@test.com",
+            "is_vip": true
+          }
+        },
+        {
+          "test_number": 10,
+          "username": "super",
+          "test_name": "超级用户",
+          "start_time": "2026-01-22T22:49:09.173413",
+          "end_time": "2026-01-22T22:49:09.174167",
+          "response_time_ms": 0.76,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "super",
+            "email": "super@test.com",
+            "is_vip": true
+          }
+        }
+      ],
+      "statistics": {
+        "total_tests": 10,
+        "successful_tests": 10,
+        "failed_tests": 0,
+        "success_rate": 100.0,
+        "min_time_ms": 0.353,
+        "max_time_ms": 1.283,
+        "avg_time_ms": 0.883,
+        "median_time_ms": 0.921
+      },
+      "test_timestamp": "2026-01-22T22:49:09.174397"
+    },
+    {
+      "username": "vip",
+      "test_name": "VIP用户",
+      "test_results": [
+        {
+          "test_number": 1,
+          "username": "vip",
+          "test_name": "VIP用户",
+          "start_time": "2026-01-22T22:49:09.174415",
+          "end_time": "2026-01-22T22:49:09.174755",
+          "response_time_ms": 0.339,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "vip",
+            "email": "vip@test.com",
+            "is_vip": true
+          }
+        },
+        {
+          "test_number": 2,
+          "username": "vip",
+          "test_name": "VIP用户",
+          "start_time": "2026-01-22T22:49:09.279817",
+          "end_time": "2026-01-22T22:49:09.280589",
+          "response_time_ms": 0.778,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "vip",
+            "email": "vip@test.com",
+            "is_vip": true
+          }
+        },
+        {
+          "test_number": 3,
+          "username": "vip",
+          "test_name": "VIP用户",
+          "start_time": "2026-01-22T22:49:09.385674",
+          "end_time": "2026-01-22T22:49:09.386542",
+          "response_time_ms": 0.875,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "vip",
+            "email": "vip@test.com",
+            "is_vip": true
+          }
+        },
+        {
+          "test_number": 4,
+          "username": "vip",
+          "test_name": "VIP用户",
+          "start_time": "2026-01-22T22:49:09.491644",
+          "end_time": "2026-01-22T22:49:09.492457",
+          "response_time_ms": 0.825,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "vip",
+            "email": "vip@test.com",
+            "is_vip": true
+          }
+        },
+        {
+          "test_number": 5,
+          "username": "vip",
+          "test_name": "VIP用户",
+          "start_time": "2026-01-22T22:49:09.595442",
+          "end_time": "2026-01-22T22:49:09.596143",
+          "response_time_ms": 0.705,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "vip",
+            "email": "vip@test.com",
+            "is_vip": true
+          }
+        },
+        {
+          "test_number": 6,
+          "username": "vip",
+          "test_name": "VIP用户",
+          "start_time": "2026-01-22T22:49:09.701217",
+          "end_time": "2026-01-22T22:49:09.702006",
+          "response_time_ms": 0.796,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "vip",
+            "email": "vip@test.com",
+            "is_vip": true
+          }
+        },
+        {
+          "test_number": 7,
+          "username": "vip",
+          "test_name": "VIP用户",
+          "start_time": "2026-01-22T22:49:09.804152",
+          "end_time": "2026-01-22T22:49:09.804970",
+          "response_time_ms": 0.826,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "vip",
+            "email": "vip@test.com",
+            "is_vip": true
+          }
+        },
+        {
+          "test_number": 8,
+          "username": "vip",
+          "test_name": "VIP用户",
+          "start_time": "2026-01-22T22:49:09.908870",
+          "end_time": "2026-01-22T22:49:09.909934",
+          "response_time_ms": 1.072,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "vip",
+            "email": "vip@test.com",
+            "is_vip": true
+          }
+        },
+        {
+          "test_number": 9,
+          "username": "vip",
+          "test_name": "VIP用户",
+          "start_time": "2026-01-22T22:49:10.014330",
+          "end_time": "2026-01-22T22:49:10.014801",
+          "response_time_ms": 0.477,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "vip",
+            "email": "vip@test.com",
+            "is_vip": true
+          }
+        },
+        {
+          "test_number": 10,
+          "username": "vip",
+          "test_name": "VIP用户",
+          "start_time": "2026-01-22T22:49:10.119878",
+          "end_time": "2026-01-22T22:49:10.120705",
+          "response_time_ms": 0.835,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "vip",
+            "email": "vip@test.com",
+            "is_vip": true
+          }
+        }
+      ],
+      "statistics": {
+        "total_tests": 10,
+        "successful_tests": 10,
+        "failed_tests": 0,
+        "success_rate": 100.0,
+        "min_time_ms": 0.339,
+        "max_time_ms": 1.072,
+        "avg_time_ms": 0.753,
+        "median_time_ms": 0.81
+      },
+      "test_timestamp": "2026-01-22T22:49:10.120949"
+    },
+    {
+      "username": "free",
+      "test_name": "免费用户",
+      "test_results": [
+        {
+          "test_number": 1,
+          "username": "free",
+          "test_name": "免费用户",
+          "start_time": "2026-01-22T22:49:10.120984",
+          "end_time": "2026-01-22T22:49:10.121486",
+          "response_time_ms": 0.502,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "free",
+            "email": "free@test.com",
+            "is_vip": false
+          }
+        },
+        {
+          "test_number": 2,
+          "username": "free",
+          "test_name": "免费用户",
+          "start_time": "2026-01-22T22:49:10.226018",
+          "end_time": "2026-01-22T22:49:10.226827",
+          "response_time_ms": 0.816,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "free",
+            "email": "free@test.com",
+            "is_vip": false
+          }
+        },
+        {
+          "test_number": 3,
+          "username": "free",
+          "test_name": "免费用户",
+          "start_time": "2026-01-22T22:49:10.331932",
+          "end_time": "2026-01-22T22:49:10.332714",
+          "response_time_ms": 0.791,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "free",
+            "email": "free@test.com",
+            "is_vip": false
+          }
+        },
+        {
+          "test_number": 4,
+          "username": "free",
+          "test_name": "免费用户",
+          "start_time": "2026-01-22T22:49:10.435063",
+          "end_time": "2026-01-22T22:49:10.435723",
+          "response_time_ms": 0.667,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "free",
+            "email": "free@test.com",
+            "is_vip": false
+          }
+        },
+        {
+          "test_number": 5,
+          "username": "free",
+          "test_name": "免费用户",
+          "start_time": "2026-01-22T22:49:10.540803",
+          "end_time": "2026-01-22T22:49:10.542091",
+          "response_time_ms": 1.295,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "free",
+            "email": "free@test.com",
+            "is_vip": false
+          }
+        },
+        {
+          "test_number": 6,
+          "username": "free",
+          "test_name": "免费用户",
+          "start_time": "2026-01-22T22:49:10.643276",
+          "end_time": "2026-01-22T22:49:10.644287",
+          "response_time_ms": 1.019,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "free",
+            "email": "free@test.com",
+            "is_vip": false
+          }
+        },
+        {
+          "test_number": 7,
+          "username": "free",
+          "test_name": "免费用户",
+          "start_time": "2026-01-22T22:49:10.749395",
+          "end_time": "2026-01-22T22:49:10.750263",
+          "response_time_ms": 0.876,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "free",
+            "email": "free@test.com",
+            "is_vip": false
+          }
+        },
+        {
+          "test_number": 8,
+          "username": "free",
+          "test_name": "免费用户",
+          "start_time": "2026-01-22T22:49:10.855126",
+          "end_time": "2026-01-22T22:49:10.856063",
+          "response_time_ms": 0.949,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "free",
+            "email": "free@test.com",
+            "is_vip": false
+          }
+        },
+        {
+          "test_number": 9,
+          "username": "free",
+          "test_name": "免费用户",
+          "start_time": "2026-01-22T22:49:10.959884",
+          "end_time": "2026-01-22T22:49:10.960919",
+          "response_time_ms": 1.041,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "free",
+            "email": "free@test.com",
+            "is_vip": false
+          }
+        },
+        {
+          "test_number": 10,
+          "username": "free",
+          "test_name": "免费用户",
+          "start_time": "2026-01-22T22:49:11.063892",
+          "end_time": "2026-01-22T22:49:11.064230",
+          "response_time_ms": 0.345,
+          "success": true,
+          "message": "登录成功",
+          "user_info": {
+            "username": "free",
+            "email": "free@test.com",
+            "is_vip": false
+          }
+        }
+      ],
+      "statistics": {
+        "total_tests": 10,
+        "successful_tests": 10,
+        "failed_tests": 0,
+        "success_rate": 100.0,
+        "min_time_ms": 0.345,
+        "max_time_ms": 1.295,
+        "avg_time_ms": 0.83,
+        "median_time_ms": 0.846
+      },
+      "test_timestamp": "2026-01-22T22:49:11.064294"
+    }
+  ]
+}

@@ -1,0 +1,256 @@
+{
+  "test_config": {
+    "base_url": "http://localhost:5000",
+    "test_timestamp": "2026-01-22T22:48:04.781611",
+    "test_users": [
+      {
+        "username": "super",
+        "password": "super123",
+        "type": "超级用户"
+      },
+      {
+        "username": "vip",
+        "password": "vip123",
+        "type": "VIP用户"
+      },
+      {
+        "username": "free",
+        "password": "free123",
+        "type": "免费用户"
+      }
+    ]
+  },
+  "results": [
+    {
+      "username": "super",
+      "test_name": "超级用户",
+      "test_results": [
+        {
+          "test_number": 1,
+          "username": "super",
+          "test_name": "超级用户",
+          "start_time": "2026-01-22T22:47:58.679417",
+          "end_time": "2026-01-22T22:47:58.683163",
+          "response_time_ms": 3.74,
+          "status_code": null,
+          "success": false,
+          "message": "请求异常: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+          "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))"
+        },
+        {
+          "test_number": 2,
+          "username": "super",
+          "test_name": "超级用户",
+          "start_time": "2026-01-22T22:47:59.188509",
+          "end_time": "2026-01-22T22:47:59.191306",
+          "response_time_ms": 2.79,
+          "status_code": null,
+          "success": false,
+          "message": "请求异常: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+          "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))"
+        },
+        {
+          "test_number": 3,
+          "username": "super",
+          "test_name": "超级用户",
+          "start_time": "2026-01-22T22:47:59.692494",
+          "end_time": "2026-01-22T22:47:59.696354",
+          "response_time_ms": 3.86,
+          "status_code": null,
+          "success": false,
+          "message": "请求异常: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+          "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))"
+        },
+        {
+          "test_number": 4,
+          "username": "super",
+          "test_name": "超级用户",
+          "start_time": "2026-01-22T22:48:00.201190",
+          "end_time": "2026-01-22T22:48:00.204775",
+          "response_time_ms": 3.58,
+          "status_code": null,
+          "success": false,
+          "message": "请求异常: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+          "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))"
+        },
+        {
+          "test_number": 5,
+          "username": "super",
+          "test_name": "超级用户",
+          "start_time": "2026-01-22T22:48:00.710058",
+          "end_time": "2026-01-22T22:48:00.714588",
+          "response_time_ms": 4.52,
+          "status_code": null,
+          "success": false,
+          "message": "请求异常: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+          "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))"
+        }
+      ],
+      "statistics": {
+        "total_tests": 5,
+        "successful_tests": 0,
+        "failed_tests": 5,
+        "success_rate": 0,
+        "min_time_ms": null,
+        "max_time_ms": null,
+        "avg_time_ms": null,
+        "median_time_ms": null
+      },
+      "test_timestamp": "2026-01-22T22:48:00.714665"
+    },
+    {
+      "username": "vip",
+      "test_name": "VIP用户",
+      "test_results": [
+        {
+          "test_number": 1,
+          "username": "vip",
+          "test_name": "VIP用户",
+          "start_time": "2026-01-22T22:48:00.714828",
+          "end_time": "2026-01-22T22:48:00.717374",
+          "response_time_ms": 2.54,
+          "status_code": null,
+          "success": false,
+          "message": "请求异常: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+          "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))"
+        },
+        {
+          "test_number": 2,
+          "username": "vip",
+          "test_name": "VIP用户",
+          "start_time": "2026-01-22T22:48:01.222743",
+          "end_time": "2026-01-22T22:48:01.226433",
+          "response_time_ms": 3.69,
+          "status_code": null,
+          "success": false,
+          "message": "请求异常: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+          "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))"
+        },
+        {
+          "test_number": 3,
+          "username": "vip",
+          "test_name": "VIP用户",
+          "start_time": "2026-01-22T22:48:01.730626",
+          "end_time": "2026-01-22T22:48:01.733872",
+          "response_time_ms": 3.24,
+          "status_code": null,
+          "success": false,
+          "message": "请求异常: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+          "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))"
+        },
+        {
+          "test_number": 4,
+          "username": "vip",
+          "test_name": "VIP用户",
+          "start_time": "2026-01-22T22:48:02.234543",
+          "end_time": "2026-01-22T22:48:02.239392",
+          "response_time_ms": 4.84,
+          "status_code": null,
+          "success": false,
+          "message": "请求异常: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+          "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))"
+        },
+        {
+          "test_number": 5,
+          "username": "vip",
+          "test_name": "VIP用户",
+          "start_time": "2026-01-22T22:48:02.742255",
+          "end_time": "2026-01-22T22:48:02.745099",
+          "response_time_ms": 2.84,
+          "status_code": null,
+          "success": false,
+          "message": "请求异常: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+          "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))"
+        }
+      ],
+      "statistics": {
+        "total_tests": 5,
+        "successful_tests": 0,
+        "failed_tests": 5,
+        "success_rate": 0,
+        "min_time_ms": null,
+        "max_time_ms": null,
+        "avg_time_ms": null,
+        "median_time_ms": null
+      },
+      "test_timestamp": "2026-01-22T22:48:02.745183"
+    },
+    {
+      "username": "free",
+      "test_name": "免费用户",
+      "test_results": [
+        {
+          "test_number": 1,
+          "username": "free",
+          "test_name": "免费用户",
+          "start_time": "2026-01-22T22:48:02.745283",
+          "end_time": "2026-01-22T22:48:02.747147",
+          "response_time_ms": 1.86,
+          "status_code": null,
+          "success": false,
+          "message": "请求异常: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+          "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))"
+        },
+        {
+          "test_number": 2,
+          "username": "free",
+          "test_name": "免费用户",
+          "start_time": "2026-01-22T22:48:03.252496",
+          "end_time": "2026-01-22T22:48:03.256635",
+          "response_time_ms": 4.13,
+          "status_code": null,
+          "success": false,
+          "message": "请求异常: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+          "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))"
+        },
+        {
+          "test_number": 3,
+          "username": "free",
+          "test_name": "免费用户",
+          "start_time": "2026-01-22T22:48:03.760035",
+          "end_time": "2026-01-22T22:48:03.763827",
+          "response_time_ms": 3.79,
+          "status_code": null,
+          "success": false,
+          "message": "请求异常: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+          "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))"
+        },
+        {
+          "test_number": 4,
+          "username": "free",
+          "test_name": "免费用户",
+          "start_time": "2026-01-22T22:48:04.269095",
+          "end_time": "2026-01-22T22:48:04.271183",
+          "response_time_ms": 2.09,
+          "status_code": null,
+          "success": false,
+          "message": "请求异常: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+          "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))"
+        },
+        {
+          "test_number": 5,
+          "username": "free",
+          "test_name": "免费用户",
+          "start_time": "2026-01-22T22:48:04.776565",
+          "end_time": "2026-01-22T22:48:04.781494",
+          "response_time_ms": 4.92,
+          "status_code": null,
+          "success": false,
+          "message": "请求异常: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+          "error": "HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/login (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=5000): Failed to establish a new connection: [Errno 61] Connection refused\"))"
+        }
+      ],
+      "statistics": {
+        "total_tests": 5,
+        "successful_tests": 0,
+        "failed_tests": 5,
+        "success_rate": 0,
+        "min_time_ms": null,
+        "max_time_ms": null,
+        "avg_time_ms": null,
+        "median_time_ms": null
+      },
+      "test_timestamp": "2026-01-22T22:48:04.781554"
+    }
+  ]
+}

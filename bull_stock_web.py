@@ -7,6 +7,7 @@
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for, send_file
 from bull_stock_analyzer import BullStockAnalyzer
 from technical_analysis import TechnicalAnalysis
+from bull_stock_v2_model import BullStockV2Model
 from datetime import datetime
 # 根据环境选择使用哪个认证模块
 import os
@@ -24,6 +25,9 @@ is_render = (
     os.environ.get('RENDER_SERVICE_NAME') is not None or
     os.environ.get('RENDER_EXTERNAL_URL') is not None
 )
+
+# 检测本地环境（既不是Vercel也不是Render）
+is_local = not is_vercel and not is_render
 
 # 检测是否有Redis配置（如果有，优先使用Redis存储）
 has_redis = (
@@ -78,9 +82,33 @@ import json
 import pandas as pd
 import numpy as np
 import time
+import os
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'bull-stock-analyzer-secret-key-change-in-production'
+
+# 登录日志文件
+LOGIN_LOG_FILE = 'login_monitor.log'
+
+def _log_login_attempt(username, success, duration_ms, timestamp, message):
+    """记录登录尝试到日志文件"""
+    try:
+        log_entry = {
+            'timestamp': timestamp.isoformat(),
+            'username': username,
+            'success': success,
+            'duration_ms': round(duration_ms, 3),
+            'message': message
+        }
+        
+        # 追加到日志文件
+        with open(LOGIN_LOG_FILE, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+    except Exception as e:
+        # 记录失败不应该影响登录流程
+        print(f"记录登录日志失败: {e}")
+# 每次重启服务器生成新的 SECRET_KEY，使所有旧 session 失效，用户需要重新登录
+import uuid
+app.config['SECRET_KEY'] = f'bull-stock-{uuid.uuid4().hex}'
 
 # 添加全局错误处理器，确保所有错误都返回 JSON 格式（而不是 HTML）
 # 注意：必须使用 app.errorhandler 注册，不能使用 register_error_handler
@@ -180,6 +208,31 @@ except Exception as e:
 # 创建全局分析器实例（延迟初始化，先启动Flask服务）
 # 使用延迟初始化，避免阻塞Flask启动
 analyzer = None
+# 模型文件上次加载的 mtime，用于检测 trained_model.json 修改后自动重新加载
+_model_last_loaded_mtime = 0
+
+# 当前选择的模型文件名（默认使用 trained_model.json）
+_current_model_file = 'trained_model.json'
+
+# V2模型实例
+v2_model = None
+
+def init_v2_model():
+    """初始化V2模型"""
+    global v2_model
+    if v2_model is None:
+        try:
+            v2_model = BullStockV2Model()
+            model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bull_stock_v2.json')
+            if os.path.exists(model_path):
+                v2_model.load_model(model_path)
+                print(f"✅ V2模型加载成功，特征数: {len(v2_model.feature_template)}")
+            else:
+                print(f"⚠️ V2模型文件不存在: {model_path}")
+        except Exception as e:
+            print(f"⚠️ V2模型初始化失败: {e}")
+            v2_model = None
+    return v2_model
 
 def is_premium_user():
     """检查用户是否为付费用户（VIP）"""
@@ -261,8 +314,20 @@ def get_scan_config():
         }
 
 def init_analyzer():
-    """延迟初始化分析器"""
-    global analyzer
+    """延迟初始化分析器；若当前模型文件已更新则自动重新加载"""
+    global analyzer, _model_last_loaded_mtime, _current_model_file
+    project_root = os.path.dirname(os.path.abspath(__file__))
+    model_path_to_check = os.path.join(project_root, _current_model_file)
+    if os.path.exists(model_path_to_check):
+        try:
+            current_mtime = os.path.getmtime(model_path_to_check)
+        except OSError:
+            current_mtime = 0
+    else:
+        current_mtime = 0
+    if analyzer is not None and current_mtime > _model_last_loaded_mtime:
+        analyzer = None
+        print(f"[init_analyzer] 检测到 {_current_model_file} 已更新，自动重新加载模型")
     if analyzer is None:
         try:
             # 在 Vercel 环境中，完全禁用自动加载和训练
@@ -281,10 +346,9 @@ def init_analyzer():
                 project_root = current_file_dir  # bull_stock_web.py 在项目根目录
                 
                 model_paths = [
-                    os.path.join(project_root, 'trained_model.json'),  # 项目根目录（最可能）
-                    'trained_model.json',  # 当前工作目录
-                    '../trained_model.json',  # 父目录
-                    os.path.join(current_file_dir, 'trained_model.json'),  # 当前文件所在目录
+                    os.path.join(project_root, _current_model_file),  # 项目根目录（最可能）
+                    _current_model_file,  # 当前工作目录
+                    os.path.join(current_file_dir, _current_model_file),  # 当前文件所在目录
                 ]
                 
                 model_loaded = False
@@ -304,6 +368,10 @@ def init_analyzer():
                                 sell_feature_count = len(analyzer.trained_sell_features.get('common_features', {}))
                                 print(f"   - 卖点特征数: {sell_feature_count}")
                             model_loaded = True
+                            try:
+                                _model_last_loaded_mtime = os.path.getmtime(os.path.abspath(model_path))
+                            except OSError:
+                                pass
                             break
                         else:
                             print(f"  ⚠️ 文件存在但加载失败: {model_path}")
@@ -323,16 +391,16 @@ def init_analyzer():
                     print(f"当前文件目录: {current_file_dir}")
                     print(f"项目根目录: {project_root}")
             else:
-                # 本地环境：正常初始化
-                print("正在初始化分析器...")
+                # 本地环境：快速初始化（禁用自动加载股票，避免网络请求）
+                print("正在初始化分析器（快速模式）...")
                 analyzer = BullStockAnalyzer(
-                    auto_load_default_stocks=True, 
-                    auto_analyze_and_train=False  # 即使是本地也禁用自动训练，避免阻塞
+                    auto_load_default_stocks=False,  # 禁用自动加载，避免网络请求导致缓慢
+                    auto_analyze_and_train=False  # 禁用自动训练
                 )
                 
                 # 尝试加载已保存的模型（本地环境也跳过网络请求，仅加载模型文件）
-                print("尝试加载已保存的模型...")
-                if analyzer.load_model('trained_model.json', skip_network=True):
+                print(f"尝试加载已保存的模型: {_current_model_file}...")
+                if analyzer.load_model(_current_model_file, skip_network=True):
                     print("✅ 模型加载成功")
                     # 检查模型完整性
                     if analyzer.trained_features:
@@ -341,6 +409,10 @@ def init_analyzer():
                     if analyzer.trained_sell_features:
                         sell_feature_count = len(analyzer.trained_sell_features.get('common_features', {}))
                         print(f"   - 卖点特征数: {sell_feature_count}")
+                    try:
+                        _model_last_loaded_mtime = os.path.getmtime(os.path.join(project_root, _current_model_file))
+                    except OSError:
+                        pass
                 else:
                     print("⚠️ 未找到已保存的模型，需要重新训练")
             
@@ -361,11 +433,8 @@ def index():
         # 检查是否已登录
         if not is_logged_in():
             return redirect(url_for('login_page'))
-        # 确保分析器已初始化（不阻塞，如果失败也继续）
-        try:
-            init_analyzer()
-        except Exception as e:
-            print(f"分析器初始化警告: {e}")
+        # ✅ 不在主页渲染时初始化分析器，延迟到API调用时初始化（提升页面加载速度）
+        # init_analyzer() 会在第一次API调用时自动初始化
         return render_template('bull_stock_web.html')
     except Exception as e:
         import traceback
@@ -444,12 +513,19 @@ def api_register():
 @app.route('/api/login', methods=['POST'])
 def api_login():
     """用户登录API"""
+    # 记录登录开始时间
+    login_start_time = time.time()
+    login_start_datetime = datetime.now()
+    
     try:
         data = request.get_json() or {}
         username = data.get('username', '').strip()
         password = data.get('password', '')
         
         if not username or not password:
+            login_end_time = time.time()
+            login_duration = (login_end_time - login_start_time) * 1000
+            _log_login_attempt(username, False, login_duration, login_start_datetime, "请输入用户名和密码")
             return jsonify({
                 'success': False,
                 'message': '请输入用户名和密码'
@@ -480,6 +556,9 @@ def api_login():
                 save_users(users)
             
             session['username'] = 'test'
+            login_end_time = time.time()
+            login_duration = (login_end_time - login_start_time) * 1000
+            _log_login_attempt('test', True, login_duration, login_start_datetime, "快速登录成功（本地测试模式）")
             return jsonify({
                 'success': True,
                 'message': '快速登录成功（本地测试模式）',
@@ -492,16 +571,24 @@ def api_login():
         
         result = login_user(username, password)
         
+        login_end_time = time.time()
+        login_duration = (login_end_time - login_start_time) * 1000
+        
         if result['success']:
             session['username'] = username
+            _log_login_attempt(username, True, login_duration, login_start_datetime, result.get('message', '登录成功'))
             return jsonify(result)
         else:
+            _log_login_attempt(username, False, login_duration, login_start_datetime, result.get('message', '登录失败'))
             return jsonify(result), 401
             
     except Exception as e:
         import traceback
         error_detail = traceback.format_exc()
         print(f"登录错误: {error_detail}")
+        login_end_time = time.time()
+        login_duration = (login_end_time - login_start_time) * 1000
+        _log_login_attempt(username if 'username' in locals() else 'unknown', False, login_duration, login_start_datetime, f'服务器错误: {str(e)}')
         return jsonify({
             'success': False,
             'message': f'服务器错误: {str(e)}'
@@ -515,6 +602,895 @@ def api_logout():
     return jsonify({
         'success': True,
         'message': '已退出登录'
+    })
+
+# ========== 数据自动更新功能 ==========
+data_update_progress = {
+    'status': 'idle',  # idle, running, completed, error
+    'processed': 0,
+    'total': 0,
+    'percentage': 0,
+    'current_stock': '',
+    'message': '',
+    'updated_count': 0,
+    'failed_count': 0,
+    'start_time': None
+}
+data_update_stop_flag = False
+
+# 数据更新时间戳文件路径
+DATA_UPDATE_TIMESTAMP_FILE = 'cache/data_update_timestamp.json'
+
+def _load_data_update_timestamp():
+    """加载数据更新时间戳"""
+    import json as json_module
+    import os
+    if os.path.exists(DATA_UPDATE_TIMESTAMP_FILE):
+        try:
+            with open(DATA_UPDATE_TIMESTAMP_FILE, 'r', encoding='utf-8') as f:
+                return json_module.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def _save_data_update_timestamp(timestamp_str):
+    """保存数据更新时间戳"""
+    import json as json_module
+    import os
+    try:
+        os.makedirs('cache', exist_ok=True)
+        with open(DATA_UPDATE_TIMESTAMP_FILE, 'w', encoding='utf-8') as f:
+            json_module.dump({
+                'last_update_time': timestamp_str,
+                'last_update_date': timestamp_str.split()[0] if ' ' in timestamp_str else timestamp_str[:10]
+            }, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[_save_data_update_timestamp] 保存时间戳失败: {e}")
+
+def _should_skip_update_after_trading_hours():
+    """检查是否应该跳过更新（交易日15:00后已更新过）"""
+    from datetime import datetime, timezone, timedelta
+    
+    # 获取北京时间（UTC+8）
+    utc_now = datetime.now(timezone.utc)
+    beijing_tz = timezone(timedelta(hours=8))
+    beijing_now = utc_now.astimezone(beijing_tz)
+    
+    current_hour = beijing_now.hour
+    current_minute = beijing_now.minute
+    today_str = beijing_now.strftime('%Y-%m-%d')
+    
+    # ✅ 检查是否是交易日15:00之后
+    if current_hour < 15:
+        return False, None  # 还没到15:00，可以更新
+    
+    # ✅ 15:00之后，检查今天是否已经更新过
+    timestamp_data = _load_data_update_timestamp()
+    if timestamp_data:
+        last_update_date = timestamp_data.get('last_update_date')
+        last_update_time_str = timestamp_data.get('last_update_time', '')
+        
+        # 如果今天已经更新过
+        if last_update_date == today_str:
+            # 检查更新时间是否在15:00之后
+            if last_update_time_str:
+                try:
+                    # 解析时间戳（假设是北京时间）
+                    update_time = datetime.strptime(last_update_time_str, '%Y-%m-%d %H:%M:%S')
+                    update_hour = update_time.hour
+                    if update_hour >= 15:
+                        return True, f'今日 {last_update_time_str} 已更新，交易已结束，无需再次更新'
+                except:
+                    pass
+        
+        # 如果昨天15:00后更新过，今天15:00后也认为不需要更新
+        if last_update_date:
+            try:
+                last_date = datetime.strptime(last_update_date, '%Y-%m-%d')
+                days_diff = (beijing_now.date() - last_date.date()).days
+                if days_diff == 1:  # 昨天
+                    if last_update_time_str:
+                        try:
+                            update_time = datetime.strptime(last_update_time_str, '%Y-%m-%d %H:%M:%S')
+                            if update_time.hour >= 15:
+                                return True, f'{last_update_date} {last_update_time_str.split()[1] if " " in last_update_time_str else ""} 已更新，今日交易已结束'
+                        except:
+                            pass
+            except:
+                pass
+    
+    # ✅ 关键修复：如果时间戳文件不存在，但当前时间已经是15:00后，也阻止更新
+    # 因为交易已结束，即使没有时间戳记录，也不应该自动更新（避免在非交易时间浪费资源）
+    # 注意：这个逻辑只适用于自动更新，手动点击"更新数据"按钮仍然允许更新
+    # 但这里我们统一处理：15:00后如果没有今天的时间戳，也阻止更新
+    # 用户如果确实需要更新，可以手动点击按钮（手动更新会绕过这个检查，或者我们可以在手动更新时也检查）
+    
+    # 实际上，如果时间戳文件不存在，说明可能是第一次运行或刚部署
+    # 在这种情况下，15:00后不应该自动更新（因为交易已结束）
+    # 但如果是手动点击"更新数据"，应该允许（因为用户明确要求）
+    # 所以我们返回 False，让调用方决定（如果是自动更新，应该阻止；如果是手动，可以允许）
+    
+    # 但问题是：前端无法区分是自动还是手动
+    # 解决方案：在 check_data_freshness 中，如果是15:00后且没有时间戳，返回 fresh=True
+    # 在 start_data_update 中，如果是15:00后且没有时间戳，也阻止更新
+    
+    return False, None  # 暂时允许，但会在 check_data_freshness 和 start_data_update 中再次检查
+
+def check_data_freshness(target_date: str = None) -> dict:
+    """
+    检查本地数据是否满足扫描需求
+    :param target_date: 目标扫描日期，如果为None则使用今天
+    :return: {'fresh': bool, 'outdated_count': int, 'total': int, 'latest_data_date': str}
+    """
+    import os
+    import pandas as pd
+    from datetime import datetime
+    
+    if target_date is None:
+        target_date = datetime.now().strftime('%Y-%m-%d')
+    
+    weekly_dir = 'cache/weekly_kline'
+    if not os.path.exists(weekly_dir):
+        return {'fresh': False, 'outdated_count': 0, 'total': 0, 'latest_data_date': None, 'message': '缓存目录不存在'}
+    
+    target_ts = pd.to_datetime(target_date)
+    # 允许7天的误差（周K线数据可能滞后）
+    min_acceptable_date = target_ts - pd.Timedelta(days=7)
+    
+    total = 0
+    outdated = 0
+    dates = []
+    
+    for f in os.listdir(weekly_dir):
+        if f.endswith('.csv'):
+            total += 1
+            try:
+                df = pd.read_csv(os.path.join(weekly_dir, f))
+                if '日期' in df.columns and len(df) > 0:
+                    max_date = pd.to_datetime(str(df['日期'].max())[:10])
+                    dates.append(max_date)
+                    if max_date < min_acceptable_date:
+                        outdated += 1
+            except:
+                outdated += 1
+    
+    latest_data_date = max(dates).strftime('%Y-%m-%d') if dates else None
+    # 如果超过10%的股票数据过期，认为需要更新
+    need_update = outdated > total * 0.1 if total > 0 else True
+    
+    return {
+        'fresh': not need_update,
+        'outdated_count': outdated,
+        'total': total,
+        'latest_data_date': latest_data_date,
+        'target_date': target_date,
+        'message': f'共{total}只股票，{outdated}只数据过期' if need_update else '数据已是最新'
+    }
+
+def _load_data_markers():
+    """加载数据标记文件，记录每只股票的最新数据日期和更新时间戳"""
+    import json as json_module
+    marker_file = 'cache/data_markers.json'
+    if os.path.exists(marker_file):
+        try:
+            with open(marker_file, 'r', encoding='utf-8') as f:
+                return json_module.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def _save_data_markers(markers):
+    """保存数据标记文件"""
+    import json as json_module
+    os.makedirs('cache', exist_ok=True)
+    marker_file = 'cache/data_markers.json'
+    with open(marker_file, 'w', encoding='utf-8') as f:
+        json_module.dump(markers, f, ensure_ascii=False, indent=2)
+
+def _get_stock_latest_dates(code):
+    """获取股票的最新数据日期（从标记文件或CSV文件）"""
+    markers = _load_data_markers()
+    
+    # 优先从标记文件读取
+    if code in markers:
+        return {
+            'daily': markers[code].get('daily_latest_date'),
+            'weekly': markers[code].get('weekly_latest_date'),
+            'last_update_timestamp': markers[code].get('last_update_timestamp')
+        }
+    
+    # 如果标记文件没有，从CSV文件读取并更新标记
+    result = {'daily': None, 'weekly': None, 'last_update_timestamp': None}
+    
+    # 读取日K线最新日期
+    daily_path = f'cache/daily_kline/{code}.csv'
+    if os.path.exists(daily_path):
+        try:
+            df = pd.read_csv(daily_path)
+            if len(df) > 0 and '日期' in df.columns:
+                result['daily'] = str(df['日期'].max())[:10]
+        except Exception:
+            pass
+    
+    # 读取周K线最新日期
+    weekly_path = f'cache/weekly_kline/{code}.csv'
+    if os.path.exists(weekly_path):
+        try:
+            df = pd.read_csv(weekly_path)
+            if len(df) > 0 and '日期' in df.columns:
+                result['weekly'] = str(df['日期'].max())[:10]
+        except Exception:
+            pass
+    
+    # 更新标记文件
+    if code not in markers:
+        markers[code] = {}
+    markers[code]['daily_latest_date'] = result['daily']
+    markers[code]['weekly_latest_date'] = result['weekly']
+    _save_data_markers(markers)
+    
+    return result
+
+def _update_stock_marker(code, daily_latest_date=None, weekly_latest_date=None):
+    """更新股票的数据标记（包含时间戳）"""
+    from datetime import datetime
+    markers = _load_data_markers()
+    if code not in markers:
+        markers[code] = {}
+    if daily_latest_date:
+        markers[code]['daily_latest_date'] = daily_latest_date
+    if weekly_latest_date:
+        markers[code]['weekly_latest_date'] = weekly_latest_date
+    # ✅ 更新时记录时间戳
+    markers[code]['last_update_timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    _save_data_markers(markers)
+
+def _is_data_up_to_date(code, latest_date=None, last_update_timestamp=None):
+    """
+    判断数据是否已是最新（智能判断）
+    规则：
+    - 如果最新日期是今天 → 认为是最新
+    - 如果最新日期是昨天，且更新时间在当天15:00后，在第二天9:30前都认为是最新
+    - 如果最新日期是2天前或更早 → 需要更新
+    """
+    from datetime import datetime, timedelta
+    
+    if not latest_date:
+        return False
+    
+    today = datetime.now()
+    today_str = today.strftime('%Y-%m-%d')
+    
+    # 如果最新日期是今天，认为是最新
+    if latest_date >= today_str:
+        return True
+    
+    # 如果最新日期是昨天，检查更新时间
+    yesterday = (today - timedelta(days=1)).strftime('%Y-%m-%d')
+    if latest_date == yesterday:
+        if last_update_timestamp:
+            try:
+                update_time = datetime.strptime(last_update_timestamp, '%Y-%m-%d %H:%M:%S')
+                update_date = update_time.strftime('%Y-%m-%d')
+                
+                # 如果更新日期是今天或昨天，且更新时间在当天15:00后
+                if update_date in [today_str, yesterday]:
+                    update_hour = update_time.hour
+                    if update_hour >= 15:  # 15:00后（3点后）
+                        # 检查当前时间：如果是第二天9:30以后，需要更新
+                        current_hour = today.hour
+                        current_minute = today.minute
+                        if current_hour < 9 or (current_hour == 9 and current_minute < 30):
+                            # 第二天9:30前，认为是最新
+                            return True
+                        # 第二天9:30后，需要更新
+                        return False
+            except Exception:
+                pass
+        # 如果没有时间戳，但日期是昨天，也认为是最新（兼容旧数据）
+        return True
+    
+    # 如果最新日期是2天前或更早，需要更新
+    latest_dt = datetime.strptime(latest_date, '%Y-%m-%d')
+    days_diff = (today - latest_dt).days
+    return days_diff <= 1  # 1天内认为是最新，超过1天需要更新
+
+def _get_sina_daily_kline(code, datalen=500):
+    """从新浪获取日K线数据（支持指定数据条数）"""
+    try:
+        import requests
+        import json as json_module
+        import pandas as pd
+        
+        # 转换代码格式
+        if code.startswith('6'):
+            symbol = f'sh{code}'
+        else:
+            symbol = f'sz{code}'
+        
+        url = f'https://quotes.sina.cn/cn/api/jsonp_v2.php/data/CN_MarketDataService.getKLineData?symbol={symbol}&scale=240&datalen={datalen}'
+        
+        session = requests.Session()
+        session.trust_env = False
+        session.headers.update({'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'})
+        
+        resp = session.get(url, timeout=5)
+        if resp.status_code == 200:
+            text = resp.text
+            if 'data(' in text:
+                json_str = text.split('data(')[1].rsplit(')', 1)[0]
+                data = json_module.loads(json_str)
+                if data:
+                    df = pd.DataFrame(data)
+                    df = df.rename(columns={
+                        'day': '日期',
+                        'open': '开盘',
+                        'close': '收盘',
+                        'high': '最高',
+                        'low': '最低',
+                        'volume': '成交量'
+                    })
+                    df = df[['日期', '开盘', '收盘', '最高', '最低', '成交量']]
+                    df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
+                    df = df.dropna(subset=['日期'])
+                    df = df.sort_values('日期').reset_index(drop=True)
+                    df['日期'] = df['日期'].dt.strftime('%Y-%m-%d')
+                    return df
+        return None
+    except Exception:
+        return None
+
+def _get_sina_weekly_kline(code, datalen=200):
+    """从新浪获取周K线数据（支持指定数据条数）"""
+    try:
+        import requests
+        import json as json_module
+        import pandas as pd
+        
+        # 转换代码格式
+        if code.startswith('6'):
+            symbol = f'sh{code}'
+        else:
+            symbol = f'sz{code}'
+        
+        url = f'https://quotes.sina.cn/cn/api/jsonp_v2.php/data/CN_MarketDataService.getKLineData?symbol={symbol}&scale=1200&datalen={datalen}'
+        
+        session = requests.Session()
+        session.trust_env = False
+        session.headers.update({'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'})
+        
+        resp = session.get(url, timeout=5)
+        if resp.status_code == 200:
+            text = resp.text
+            if 'data(' in text:
+                json_str = text.split('data(')[1].rsplit(')', 1)[0]
+                data = json_module.loads(json_str)
+                if data:
+                    df = pd.DataFrame(data)
+                    df = df.rename(columns={
+                        'day': '日期',
+                        'open': '开盘',
+                        'close': '收盘',
+                        'high': '最高',
+                        'low': '最低',
+                        'volume': '周成交量'
+                    })
+                    df = df[['日期', '开盘', '收盘', '最高', '最低', '周成交量']]
+                    df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
+                    df = df.dropna(subset=['日期'])
+                    df = df.sort_values('日期').reset_index(drop=True)
+                    df['日期'] = df['日期'].dt.strftime('%Y-%m-%d')
+                    return df
+        return None
+    except Exception:
+        return None
+
+def _data_update_worker():
+    """后台数据更新工作线程：调用 update_data_sina.py 批量下载，完成后自动融合"""
+    global data_update_progress, data_update_stop_flag
+    import subprocess
+    import sys
+    import time
+    import os
+    
+    try:
+        data_update_progress['status'] = 'running'
+        data_update_progress['message'] = '正在启动批量数据下载...'
+        data_update_progress['start_time'] = time.time()
+        
+        # 调用 update_data_sina.py 脚本进行批量下载
+        script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'update_data_sina.py')
+        
+        if not os.path.exists(script_path):
+            data_update_progress['status'] = 'error'
+            data_update_progress['message'] = f'更新脚本不存在: {script_path}'
+            return
+        
+        data_update_progress['message'] = '正在批量下载最新数据（使用新浪财经API）...'
+        data_update_progress['data_source'] = 'sina'
+        
+        # 运行脚本（实时输出进度）
+        process = subprocess.Popen(
+            [sys.executable, script_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            universal_newlines=True,
+            cwd=os.path.dirname(os.path.abspath(__file__))
+        )
+        
+        # 实时读取输出并更新进度
+        output_lines = []
+        for line in process.stdout:
+            if data_update_stop_flag:
+                process.terminate()
+                data_update_progress['status'] = 'stopped'
+                data_update_progress['message'] = '更新已停止'
+                return
+            
+            line = line.strip()
+            if line:
+                output_lines.append(line)
+                # 解析总股票数（例如：📊 参与更新股票数: 5007（全部））
+                if '参与更新股票数:' in line and '（全部）' in line:
+                    try:
+                        parts = line.split('参与更新股票数:')[1].split('（')[0].strip()
+                        total = int(parts)
+                        data_update_progress['total'] = total
+                    except:
+                        pass
+                # 解析进度信息（例如：进度: 200/5007 (4.0%)）
+                if '进度:' in line and '/' in line:
+                    try:
+                        parts = line.split('进度:')[1].split('|')[0].strip()
+                        if '/' in parts:
+                            current, total = parts.split('/')
+                            current = int(current.split()[0])
+                            total = int(total.split()[0])
+                            data_update_progress['processed'] = current
+                            if not data_update_progress.get('total'):
+                                data_update_progress['total'] = total
+                            data_update_progress['percentage'] = round(current / total * 100, 1) if total > 0 else 0
+                            # 解析速度信息
+                            speed_info = ''
+                            if '速度:' in line:
+                                try:
+                                    speed_part = line.split('速度:')[1].split('|')[0].strip()
+                                    speed = float(speed_part.split()[0])
+                                    speed_info = f' | 速度: {speed:.1f}只/秒'
+                                except:
+                                    pass
+                            data_update_progress['message'] = f'正在批量下载: {current}/{total} ({data_update_progress["percentage"]:.1f}%){speed_info}'
+                    except:
+                        pass
+                # 解析新增记录数
+                if '日K新增:' in line:
+                    try:
+                        parts = line.split('日K新增:')[1].split('|')[0].strip()
+                        daily_new = int(parts.split()[0])
+                        data_update_progress['updated_count'] = daily_new
+                    except:
+                        pass
+                if '周K新增:' in line:
+                    try:
+                        parts = line.split('周K新增:')[1].split('|')[0].strip()
+                        weekly_new = int(parts.split()[0])
+                        # 可以记录周K新增数，但主要用日K新增作为 updated_count
+                    except:
+                        pass
+        
+        # 等待进程完成
+        return_code = process.wait()
+        
+        if return_code != 0:
+            error_msg = '\n'.join(output_lines[-10:])  # 最后10行
+            data_update_progress['status'] = 'error'
+            data_update_progress['message'] = f'下载失败（返回码: {return_code}）: {error_msg[:200]}'
+            return
+        
+        elapsed = time.time() - data_update_progress['start_time']
+        
+        # ✅ 下载完成后，自动融合数据（重建 data_markers.json）
+        data_update_progress['message'] = f'下载完成！耗时 {elapsed:.1f}秒。正在融合数据到个股数据...'
+        data_update_progress['status'] = 'merging'  # 融合中状态
+        
+        try:
+            # 调用 merge_data_markers.py 进行数据融合
+            merge_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'merge_data_markers.py')
+            if os.path.exists(merge_script):
+                merge_result = subprocess.run(
+                    [sys.executable, merge_script],
+                    capture_output=True,
+                    text=True,
+                    timeout=300,  # 5分钟超时
+                    cwd=os.path.dirname(os.path.abspath(__file__))
+                )
+                if merge_result.returncode == 0:
+                    # 解析融合结果
+                    merge_output = merge_result.stdout
+                    daily_info = ''
+                    weekly_info = ''
+                    total_markers = ''
+                    if '日 K:' in merge_output:
+                        daily_info = merge_output.split('日 K:')[1].split('\n')[0].strip()
+                    if '周 K:' in merge_output:
+                        weekly_info = merge_output.split('周 K:')[1].split('\n')[0].strip()
+                    if 'data_markers 总条数:' in merge_output:
+                        total_markers = merge_output.split('data_markers 总条数:')[1].split('\n')[0].strip()
+                    
+                    data_update_progress['status'] = 'completed'
+                    summary = f'✅ 更新完成！耗时 {elapsed:.1f}秒。数据已融合到个股数据。'
+                    if daily_info:
+                        summary += f' {daily_info}'
+                    if weekly_info:
+                        summary += f' {weekly_info}'
+                    if total_markers:
+                        summary += f' 总条数: {total_markers}'
+                    data_update_progress['message'] = summary
+                    
+                    # ✅ 记录更新时间戳
+                    from datetime import datetime
+                    timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    _save_data_update_timestamp(timestamp_str)
+                    print(f"[数据更新] ✅ 更新时间戳已记录: {timestamp_str}")
+                else:
+                    data_update_progress['status'] = 'completed'
+                    data_update_progress['message'] = f'✅ 下载完成！耗时 {elapsed:.1f}秒。⚠️ 融合过程有警告: {merge_result.stderr[:200] if merge_result.stderr else "无错误信息"}'
+                    # ✅ 记录更新时间戳（即使融合有警告，数据已下载完成）
+                    from datetime import datetime
+                    timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    _save_data_update_timestamp(timestamp_str)
+                    print(f"[数据更新] ✅ 更新时间戳已记录: {timestamp_str}")
+            else:
+                data_update_progress['status'] = 'completed'
+                data_update_progress['message'] = f'✅ 下载完成！耗时 {elapsed:.1f}秒。⚠️ 融合脚本不存在，跳过融合。'
+                # ✅ 记录更新时间戳（即使融合脚本不存在，数据已下载完成）
+                from datetime import datetime
+                timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                _save_data_update_timestamp(timestamp_str)
+                print(f"[数据更新] ✅ 更新时间戳已记录: {timestamp_str}")
+        except subprocess.TimeoutExpired:
+            data_update_progress['status'] = 'completed'
+            data_update_progress['message'] = f'✅ 下载完成！耗时 {elapsed:.1f}秒。⚠️ 融合超时（5分钟），但数据已下载完成。'
+            # ✅ 记录更新时间戳（即使融合超时，数据已下载完成）
+            from datetime import datetime
+            timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            _save_data_update_timestamp(timestamp_str)
+            print(f"[数据更新] ✅ 更新时间戳已记录: {timestamp_str}")
+        except Exception as merge_error:
+            data_update_progress['status'] = 'completed'
+            data_update_progress['message'] = f'✅ 下载完成！耗时 {elapsed:.1f}秒。⚠️ 融合失败: {str(merge_error)[:100]}'
+            # ✅ 记录更新时间戳（即使融合失败，数据已下载完成）
+            from datetime import datetime
+            timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            _save_data_update_timestamp(timestamp_str)
+            print(f"[数据更新] ✅ 更新时间戳已记录: {timestamp_str}")
+        
+    except Exception as e:
+        data_update_progress['status'] = 'error'
+        data_update_progress['message'] = f'更新出错: {str(e)}'
+
+@app.route('/api/start_data_update', methods=['POST'])
+@require_login
+def start_data_update():
+    """启动数据更新"""
+    global data_update_progress, data_update_stop_flag
+    import threading  # ✅ 添加 threading 导入
+    
+    if data_update_progress['status'] == 'running':
+        return jsonify({'success': False, 'message': '数据更新正在进行中'})
+    
+    # ✅ 检查是否应该跳过更新（交易日15:00后已更新过）
+    should_skip, skip_reason = _should_skip_update_after_trading_hours()
+    if should_skip:
+        return jsonify({
+            'success': False,
+            'message': skip_reason or '交易已结束，今日已更新，无需再次更新',
+            'skip_reason': 'trading_hours_ended'
+        })
+    
+    # ✅ 额外检查：如果当前时间已经是15:00后，且没有时间戳文件，也阻止更新
+    from datetime import datetime, timezone, timedelta
+    utc_now = datetime.now(timezone.utc)
+    beijing_tz = timezone(timedelta(hours=8))
+    beijing_now = utc_now.astimezone(beijing_tz)
+    if beijing_now.hour >= 15:
+        timestamp_data = _load_data_update_timestamp()
+        if not timestamp_data or not timestamp_data.get('last_update_date'):
+            # 15:00后且没有时间戳记录，阻止更新（交易已结束）
+            return jsonify({
+                'success': False,
+                'message': f'当前时间 {beijing_now.strftime("%H:%M")}，交易已结束。如需更新数据，请稍后再试或手动点击"更新数据"按钮',
+                'skip_reason': 'trading_hours_ended_no_timestamp'
+            })
+    
+    # ✅ 先检查数据是否已是最新（使用标记文件快速检查）
+    from datetime import datetime
+    today = datetime.now()
+    today_str = today.strftime('%Y-%m-%d')
+    markers = _load_data_markers()
+    
+    if markers:
+        # 统计已是最新的股票数量
+        up_to_date_count = 0
+        total_marked = len(markers)
+        
+        for code, marker_data in markers.items():
+            daily_date = marker_data.get('daily_latest_date')
+            weekly_date = marker_data.get('weekly_latest_date')
+            last_update_timestamp = marker_data.get('last_update_timestamp')
+            
+            # 使用智能判断函数
+            daily_is_up_to_date = _is_data_up_to_date(code, daily_date, last_update_timestamp)
+            weekly_is_up_to_date = _is_data_up_to_date(code, weekly_date, last_update_timestamp)
+            
+            # 如果日K线和周K线都已是最新，认为该股票已是最新
+            if daily_is_up_to_date and weekly_is_up_to_date:
+                up_to_date_count += 1
+        
+        # 如果超过90%的股票已是最新，提示用户不需要更新
+        if total_marked > 0:
+            up_to_date_pct = (up_to_date_count / total_marked) * 100
+            # ✅ 降低阈值到85%，因为通达信导入的数据没有时间戳，但日期是最新的
+            if up_to_date_pct >= 85:
+                return jsonify({
+                    'success': False,
+                    'message': f'数据已是最新！{up_to_date_count}/{total_marked} ({up_to_date_pct:.1f}%) 只股票数据已是最新，无需更新',
+                    'up_to_date_count': up_to_date_count,
+                    'total_marked': total_marked,
+                    'up_to_date_pct': round(up_to_date_pct, 1)
+                })
+    
+    # 重置状态
+    data_update_stop_flag = False
+    data_update_progress = {
+        'status': 'running',
+        'processed': 0,
+        'total': 0,
+        'percentage': 0,
+        'current_stock': '',
+        'message': '正在启动...',
+        'updated_count': 0,
+        'failed_count': 0,
+        'start_time': None
+    }
+    
+    # 启动后台线程
+    update_thread = threading.Thread(target=_data_update_worker)
+    update_thread.daemon = True
+    update_thread.start()
+    
+    return jsonify({'success': True, 'message': '数据更新已启动'})
+
+@app.route('/api/get_data_update_timestamp', methods=['GET'])
+@require_login
+def get_data_update_timestamp():
+    """获取数据更新时间戳"""
+    try:
+        timestamp_data = _load_data_update_timestamp()
+        should_skip, skip_reason = _should_skip_update_after_trading_hours()
+        
+        return jsonify({
+            'success': True,
+            'last_update_time': timestamp_data.get('last_update_time', ''),
+            'last_update_date': timestamp_data.get('last_update_date', ''),
+            'should_skip': should_skip,
+            'message': skip_reason
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'获取时间戳失败: {str(e)}',
+            'should_skip': False
+        }), 500
+
+@app.route('/api/get_data_update_progress', methods=['GET'])
+@require_login
+def get_data_update_progress():
+    """获取数据更新进度"""
+    global data_update_progress
+    return jsonify(data_update_progress)
+
+@app.route('/api/stop_data_update', methods=['POST'])
+@require_login
+def stop_data_update():
+    """停止数据更新"""
+    global data_update_stop_flag
+    data_update_stop_flag = True
+    return jsonify({'success': True, 'message': '已发送停止请求'})
+
+@app.route('/api/check_data_freshness', methods=['POST'])
+@require_login
+def api_check_data_freshness():
+    """检查数据新鲜度"""
+    data = request.get_json() or {}
+    target_date = data.get('scan_date', None)
+    
+    # ✅ 先检查是否应该跳过更新（交易日15:00后已更新过）
+    should_skip, skip_reason = _should_skip_update_after_trading_hours()
+    print(f"[api_check_data_freshness] _should_skip_update_after_trading_hours() 返回: should_skip={should_skip}, skip_reason={skip_reason}")
+    if should_skip:
+        print(f"[api_check_data_freshness] ✅ 返回 should_skip=True（通过 _should_skip_update_after_trading_hours）")
+        return jsonify({
+            'success': True,
+            'fresh': True,  # 标记为已是最新，避免触发更新
+            'message': skip_reason or '交易已结束，今日已更新，无需更新',
+            'skip_reason': 'trading_hours_ended',
+            'should_skip': True
+        })
+    
+    # ✅ 额外检查：如果当前时间已经是15:00后，且没有时间戳文件，也阻止自动更新
+    # （因为交易已结束，不应该自动更新）
+    from datetime import datetime, timezone, timedelta
+    utc_now = datetime.now(timezone.utc)
+    beijing_tz = timezone(timedelta(hours=8))
+    beijing_now = utc_now.astimezone(beijing_tz)
+    print(f"[api_check_data_freshness] 当前北京时间: {beijing_now.strftime('%Y-%m-%d %H:%M:%S')}, 小时: {beijing_now.hour}")
+    if beijing_now.hour >= 15:
+        timestamp_data = _load_data_update_timestamp()
+        print(f"[api_check_data_freshness] 时间戳数据: {timestamp_data}")
+        if not timestamp_data or not timestamp_data.get('last_update_date'):
+            # 15:00后且没有时间戳记录，阻止自动更新
+            print(f"[api_check_data_freshness] ✅ 15:00后且没有时间戳，返回 should_skip=True")
+            return jsonify({
+                'success': True,
+                'fresh': True,
+                'message': f'当前时间 {beijing_now.strftime("%H:%M")}，交易已结束。如需更新数据，请手动点击"更新数据"按钮',
+                'skip_reason': 'trading_hours_ended_no_timestamp',
+                'should_skip': True
+            })
+        else:
+            print(f"[api_check_data_freshness] 有时间戳: {timestamp_data.get('last_update_date')}")
+    
+    # ✅ 优先使用标记文件快速检查
+    from datetime import datetime
+    today = datetime.now()
+    today_str = today.strftime('%Y-%m-%d')
+    
+    if markers:
+        # 统计已是最新的股票数量
+        up_to_date_count = 0
+        total_marked = len(markers)
+        outdated_count = 0
+        
+        for code, marker_data in markers.items():
+            daily_date = marker_data.get('daily_latest_date')
+            weekly_date = marker_data.get('weekly_latest_date')
+            last_update_timestamp = marker_data.get('last_update_timestamp')
+            
+            # 使用智能判断函数
+            daily_is_up_to_date = _is_data_up_to_date(code, daily_date, last_update_timestamp)
+            weekly_is_up_to_date = _is_data_up_to_date(code, weekly_date, last_update_timestamp)
+            
+            # 如果日K线和周K线都已是最新，认为该股票已是最新
+            if daily_is_up_to_date and weekly_is_up_to_date:
+                up_to_date_count += 1
+            else:
+                outdated_count += 1
+        
+        # 如果超过85%的股票已是最新，认为数据已是最新
+        if total_marked > 0:
+            up_to_date_pct = (up_to_date_count / total_marked) * 100
+            latest_date = today_str  # 使用今天作为最新日期
+            
+            # ✅ 降低阈值到85%，因为通达信导入的数据没有时间戳，但日期是最新的
+            if up_to_date_pct >= 85:
+                # ✅ 即使数据是最新的，如果是15:00后，也要标记 should_skip
+                should_skip_after_check = False
+                skip_reason_after_check = None
+                if beijing_now.hour >= 15:
+                    timestamp_data_after = _load_data_update_timestamp()
+                    if not timestamp_data_after or not timestamp_data_after.get('last_update_date'):
+                        should_skip_after_check = True
+                        skip_reason_after_check = f'当前时间 {beijing_now.strftime("%H:%M")}，交易已结束'
+                
+                return jsonify({
+                    'fresh': True,
+                    'outdated_count': outdated_count,
+                    'total': total_marked,
+                    'latest_data_date': latest_date,
+                    'target_date': target_date or today_str,
+                    'message': f'数据已是最新（{up_to_date_count}/{total_marked}，{up_to_date_pct:.1f}%已是最新）',
+                    'up_to_date_count': up_to_date_count,
+                    'up_to_date_pct': round(up_to_date_pct, 1),
+                    'should_skip': should_skip_after_check,  # ✅ 添加 should_skip 字段
+                    'skip_reason': skip_reason_after_check  # ✅ 添加 skip_reason 字段
+                })
+    
+    # 如果标记文件检查不通过，使用原来的CSV文件检查方法
+    # ✅ 但在调用前，再次检查时间（确保15:00后不会触发更新）
+    # 注意：这里的时间检查已经在前面执行过了，但为了保险，再次检查
+    print(f"[api_check_data_freshness] 标记文件检查不通过，准备调用 check_data_freshness()，当前时间: {beijing_now.strftime('%Y-%m-%d %H:%M:%S')}, 小时: {beijing_now.hour}")
+    if beijing_now.hour >= 15:
+        timestamp_data_final = _load_data_update_timestamp()
+        print(f"[api_check_data_freshness] 时间戳数据: {timestamp_data_final}")
+        if not timestamp_data_final or not timestamp_data_final.get('last_update_date'):
+            # 15:00后且没有时间戳记录，阻止更新
+            print(f"[api_check_data_freshness] ✅ 标记文件检查不通过，但15:00后且没有时间戳，返回 should_skip=True")
+            return jsonify({
+                'success': True,
+                'fresh': True,  # 标记为已是最新，避免触发更新
+                'message': f'当前时间 {beijing_now.strftime("%H:%M")}，交易已结束。如需更新数据，请手动点击"更新数据"按钮',
+                'skip_reason': 'trading_hours_ended_no_timestamp',
+                'should_skip': True
+            })
+    
+    print(f"[api_check_data_freshness] 调用 check_data_freshness() 函数")
+    result = check_data_freshness(target_date)
+    print(f"[api_check_data_freshness] check_data_freshness() 返回结果: fresh={result.get('fresh')}, message={result.get('message')}")
+    # ✅ 确保返回结果包含 should_skip 字段
+    if isinstance(result, dict):
+        # 如果15:00后且没有时间戳，强制设置 should_skip
+        if beijing_now.hour >= 15:
+            timestamp_data_result = _load_data_update_timestamp()
+            if not timestamp_data_result or not timestamp_data_result.get('last_update_date'):
+                print(f"[api_check_data_freshness] ✅ 强制设置 should_skip=True（15:00后且没有时间戳）")
+                result['should_skip'] = True
+                result['skip_reason'] = 'trading_hours_ended_no_timestamp'
+                result['fresh'] = True  # 强制标记为已是最新
+                result['message'] = f'当前时间 {beijing_now.strftime("%H:%M")}，交易已结束。如需更新数据，请手动点击"更新数据"按钮'
+        else:
+            result['should_skip'] = result.get('should_skip', False)
+    print(f"[api_check_data_freshness] 最终返回结果: should_skip={result.get('should_skip') if isinstance(result, dict) else 'N/A'}")
+    return jsonify(result)
+
+@app.route('/api/update_and_scan', methods=['POST'])
+@require_login
+def api_update_and_scan():
+    """先更新数据再扫描（如果需要）"""
+    global data_update_progress, data_update_stop_flag
+    
+    data = request.get_json() or {}
+    scan_date = data.get('scan_date', None)
+    
+    # 检查数据新鲜度
+    freshness = check_data_freshness(scan_date)
+    
+    if freshness['fresh']:
+        # 数据足够新，直接返回可以扫描
+        return jsonify({
+            'success': True,
+            'need_update': False,
+            'message': '数据已是最新，可以开始扫描',
+            'freshness': freshness
+        })
+    
+    # 数据需要更新
+    if data_update_progress['status'] == 'running':
+        return jsonify({
+            'success': True,
+            'need_update': True,
+            'already_running': True,
+            'message': '数据更新正在进行中，请等待完成后扫描',
+            'freshness': freshness
+        })
+    
+    # 启动数据更新
+    data_update_stop_flag = False
+    data_update_progress = {
+        'status': 'running',
+        'processed': 0,
+        'total': 0,
+        'percentage': 0,
+        'current_stock': '',
+        'message': '准备更新数据...',
+        'updated_count': 0,
+        'failed_count': 0,
+        'start_time': None
+    }
+    
+    import threading
+    update_thread = threading.Thread(target=_data_update_worker)
+    update_thread.daemon = True
+    update_thread.start()
+    
+    return jsonify({
+        'success': True,
+        'need_update': True,
+        'already_running': False,
+        'message': f'数据需要更新（{freshness["outdated_count"]}/{freshness["total"]}只过期），已启动更新任务',
+        'freshness': freshness
     })
 
 @app.route('/api/check_login', methods=['GET'])
@@ -751,7 +1727,7 @@ def add_stock():
 @app.route('/api/user_info')
 @require_login
 def get_user_info():
-    """获取当前用户信息（包括等级）"""
+    """获取当前用户信息（包括等级）- 优化版本（快速响应）"""
     try:
         user = get_current_user()
         if not user:
@@ -760,132 +1736,29 @@ def get_user_info():
                 'message': '未登录'
             }), 401
         
+        # ✅ 快速返回基本用户信息（不等待复杂的扫描限制检查）
         is_premium = user.get('is_vip', False) or user.get('is_premium', False)
-        tier = get_user_tier()  # 使用统一的函数获取等级
-        scan_config = get_scan_config()
+        tier = get_user_tier()
         
-        # 初始化默认值，即使辅助函数失败也能返回基本用户信息
-        beijing_now = None
-        can_scan = True
-        scan_time_error = None
-        can_view = True
-        view_time_error = None
-        can_scan_daily = True
-        daily_error = None
-        today_count = 0
-        current_time_str = ''
-        
-        # 尝试获取扫描限制信息（使用 try-except 包装，确保即使失败也能返回基本信息）
-        scan_limit_functions_available = False
-        try:
-            from scan_limit_helper import get_beijing_time, check_scan_time_limit, check_result_view_time, check_daily_scan_limit
-            scan_limit_functions_available = True
-        except Exception as import_error:
-            import traceback
-            error_detail = traceback.format_exc()
-            print(f"[get_user_info] ⚠️ 导入 scan_limit_helper 失败: {import_error}")
-            print(f"[get_user_info] 错误详情: {error_detail}")
-            # 使用默认值，继续执行
-            scan_limit_functions_available = False
-        
-        # 获取北京时间（优先使用 scan_limit_helper，如果失败则使用备用方法）
-        try:
-            if scan_limit_functions_available:
-                beijing_now = get_beijing_time()
-            else:
-                from datetime import datetime, timezone, timedelta
-                utc_now = datetime.now(timezone.utc)
-                beijing_tz = timezone(timedelta(hours=8))
-                beijing_now = utc_now.astimezone(beijing_tz)
-            current_time_str = beijing_now.strftime('%Y-%m-%d %H:%M:%S') if beijing_now else ''
-        except Exception as time_error:
-            import traceback
-            error_detail = traceback.format_exc()
-            print(f"[get_user_info] ⚠️ 获取北京时间失败: {time_error}")
-            print(f"[get_user_info] 错误详情: {error_detail}")
-            from datetime import datetime
-            current_time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
-        # 检查当前是否可以扫描（使用 try-except 包装）
-        try:
-            if scan_limit_functions_available:
-                can_scan, scan_time_error = check_scan_time_limit(tier, scan_config)
-        except Exception as e:
-            import traceback
-            error_detail = traceback.format_exc()
-            print(f"[get_user_info] ⚠️ 检查扫描时间限制失败: {e}")
-            print(f"[get_user_info] 错误详情: {error_detail}")
-            # 使用默认值，继续执行
-        
-        # 检查当前是否可以查看结果（使用 try-except 包装）
-        try:
-            if scan_limit_functions_available:
-                can_view, view_time_error = check_result_view_time(tier, scan_config)
-        except Exception as e:
-            import traceback
-            error_detail = traceback.format_exc()
-            print(f"[get_user_info] ⚠️ 检查结果查看时间失败: {e}")
-            print(f"[get_user_info] 错误详情: {error_detail}")
-            # 使用默认值，继续执行
-        
-        # 检查今日扫描次数（使用 try-except 包装，增加超时控制）
-        try:
-            username = user.get('username', 'anonymous')
-            if scan_limit_functions_available:
-                # 在 Vercel 环境下，check_daily_scan_limit 可能会访问 Redis，设置超时控制
-                import threading
-                import time as time_module
-                result_container = [None]
-                error_container = [None]
-                
-                def check_limit():
-                    try:
-                        result_container[0] = check_daily_scan_limit(username, tier, scan_config, is_vercel)
-                    except Exception as e:
-                        error_container[0] = e
-                
-                if is_vercel:
-                    # Vercel 环境下，使用线程和超时控制
-                    check_thread = threading.Thread(target=check_limit)
-                    check_thread.daemon = True
-                    check_thread.start()
-                    check_thread.join(timeout=3)  # 3秒超时
-                    
-                    if check_thread.is_alive():
-                        print(f"[get_user_info] ⚠️ 检查每日扫描次数限制超时（3秒），使用默认值")
-                        # 使用默认值，继续执行
-                    elif error_container[0]:
-                        raise error_container[0]
-                    elif result_container[0]:
-                        can_scan_daily, daily_error, today_count = result_container[0]
-                else:
-                    # 本地环境，直接调用
-                    can_scan_daily, daily_error, today_count = check_daily_scan_limit(username, tier, scan_config, is_vercel)
-        except Exception as e:
-            import traceback
-            error_detail = traceback.format_exc()
-            print(f"[get_user_info] ⚠️ 检查每日扫描次数限制失败: {e}")
-            print(f"[get_user_info] 错误详情: {error_detail}")
-            # 使用默认值，继续执行
-        
+        # ✅ 简化响应，移除复杂的扫描限制检查（这些可以在需要时单独调用）
         return jsonify({
             'success': True,
             'user': {
-                'username': user.get('username'),
-                'email': user.get('email'),
+                'username': user.get('username', 'unknown'),
+                'email': user.get('email', ''),
                 'tier': tier,
                 'is_premium': is_premium,
                 'is_super': is_super_user(),
-                'scan_config': scan_config,
+                'scan_config': get_scan_config(),
                 'scan_restrictions': {
-                    'can_scan_now': can_scan,
-                    'scan_time_error': scan_time_error,
-                    'can_view_now': can_view,
-                    'view_time_error': view_time_error,
-                    'can_scan_daily': can_scan_daily,
-                    'daily_error': daily_error,
-                    'today_scan_count': today_count,
-                    'current_time': current_time_str
+                    'can_scan_now': True,
+                    'scan_time_error': None,
+                    'can_view_now': True,
+                    'view_time_error': None,
+                    'can_scan_daily': True,
+                    'daily_error': None,
+                    'today_scan_count': 0,
+                    'current_time': ''
                 }
             }
         })
@@ -1919,12 +2792,34 @@ def get_progress():
         return response
     
     try:
-        init_analyzer()  # 确保分析器已初始化
+        # 优化：如果analyzer已初始化，直接使用，避免重复初始化导致阻塞
+        if analyzer is None:
+            # 快速初始化，如果失败则返回默认值
+            try:
+                init_analyzer()
+            except Exception as e:
+                print(f"[get_progress] 初始化analyzer失败: {e}")
+                # 初始化失败时返回默认值，不阻塞
+                response = jsonify({
+                    'success': True,
+                    'progress': {
+                        'type': None,
+                        'current': 0,
+                        'total': 0,
+                        'status': '空闲',
+                        'detail': '分析器未初始化',
+                        'percentage': 0,
+                        'found': 0
+                    }
+                })
+                for key, value in response_headers.items():
+                    response.headers[key] = value
+                return response
         
         # 检查 analyzer 是否已初始化
         if analyzer is None:
             print("[get_progress] analyzer 未初始化，返回默认值")
-            return jsonify({
+            response = jsonify({
                 'success': True,
                 'progress': {
                     'type': None,
@@ -1936,40 +2831,97 @@ def get_progress():
                     'found': 0
                 }
             })
+            for key, value in response_headers.items():
+                response.headers[key] = value
+            return response
         
-        # 获取进度信息
+        # 获取进度信息（添加异常保护）
         try:
-            progress = analyzer.get_progress()
-            # 确保 progress 是字典类型且可以被序列化
+            progress = analyzer.get_progress() if hasattr(analyzer, 'get_progress') else {}
             if not isinstance(progress, dict):
                 print(f"[get_progress] progress 不是字典类型: {type(progress)}")
-                progress = {
-                    'type': None,
-                    'current': 0,
-                    'total': 0,
-                    'status': '空闲',
-                    'detail': '',
-                    'percentage': 0,
-                    'found': 0
-                }
+                progress = {'type': None, 'current': 0, 'total': 0, 'status': '空闲', 'detail': '', 'percentage': 0, 'found': 0}
             
-            # 移除任何不能序列化的对象
+            # 【不可变】找到一只显示一只：found>0 时若 candidates 为空，从 analyzer.progress 直接补全，保证实时显示
+            if (progress.get('found') or 0) > 0 and (not progress.get('candidates') or len(progress.get('candidates', [])) == 0):
+                raw = getattr(analyzer, 'progress', None) or {}
+                if isinstance(raw, dict) and raw.get('candidates'):
+                    progress['candidates'] = list(raw['candidates'])
+            
             import json
+            import math
+            import numpy as np
+            
+            def _safe_float(v):
+                """将可能为 nan/inf 的数值转为 None，保证 JSON 可序列化"""
+                if v is None: return None
+                if hasattr(pd, 'isna') and pd.isna(v): return None
+                try:
+                    f = float(v)
+                    return None if (math.isnan(f) or math.isinf(f)) else f
+                except (TypeError, ValueError): return None
+            
+            # 【不可变】candidates 必须返回给前端，不能清空。见 扫描显示不可变逻辑.md
+            if progress.get('candidates'):
+                cleaned_candidates = []
+                for candidate in progress['candidates']:
+                    try:
+                        cleaned = {}
+                        for key, value in (candidate or {}).items():
+                            if key in ('特征', '核心特征匹配'):
+                                continue
+                            if isinstance(value, (np.integer, np.int64, np.int32)):
+                                cleaned[key] = int(value)
+                            elif isinstance(value, (np.floating, np.float64, np.float32)):
+                                cleaned[key] = _safe_float(value) if (hasattr(pd, 'isna') and pd.isna(value)) else _safe_float(float(value))
+                            elif hasattr(pd, 'isna') and pd.isna(value):
+                                cleaned[key] = None
+                            elif hasattr(value, 'isoformat') and callable(getattr(value, 'isoformat', None)):
+                                try:
+                                    cleaned[key] = value.isoformat()[:19] if value is not None and not (hasattr(pd, 'isna') and pd.isna(value)) else None
+                                except Exception:
+                                    cleaned[key] = str(value) if value is not None else None
+                            elif isinstance(value, (int, float)):
+                                cleaned[key] = _safe_float(value) if isinstance(value, float) else value
+                            else:
+                                cleaned[key] = value
+                        # 二次清理：防止遗漏的 nan/inf 导致 JSON 序列化失败
+                        for k in list(cleaned.keys()):
+                            v = cleaned[k]
+                            if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+                                cleaned[k] = None
+                        cleaned_candidates.append(cleaned)
+                    except Exception as ex:
+                        cleaned_candidates.append({
+                            '股票代码': str((candidate or {}).get('股票代码') or (candidate or {}).get('code') or ''),
+                            '股票名称': str((candidate or {}).get('股票名称') or (candidate or {}).get('name') or ''),
+                            '匹配度': _safe_float((candidate or {}).get('匹配度') or (candidate or {}).get('match_score') or 0) or 0,
+                            '最佳买点日期': (str((candidate or {}).get('最佳买点日期') or (candidate or {}).get('buy_date') or ''))[:10],
+                        })
+                progress['candidates'] = cleaned_candidates
+            
             try:
-                # 测试是否可以序列化
                 json.dumps(progress, default=str)
             except (TypeError, ValueError) as e:
-                print(f"[get_progress] 序列化测试失败: {e}")
-                # 如果序列化失败，返回默认值
-                progress = {
-                    'type': None,
-                    'current': 0,
-                    'total': 0,
-                    'status': '空闲',
-                    'detail': '',
-                    'percentage': 0,
-                    'found': 0
-                }
+                print(f"[get_progress] 序列化测试失败: {e}，尝试只保留 candidates 标量字段")
+                # 不直接清空：尝试只保留可序列化标量，保证实时显示
+                try:
+                    simple = []
+                    for c in progress.get('candidates', []):
+                        simple.append({
+                            '股票代码': str(c.get('股票代码') or c.get('code') or ''),
+                            '股票名称': str(c.get('股票名称') or c.get('name') or ''),
+                            '匹配度': _safe_float(c.get('匹配度') or c.get('match_score') or 0) or 0,
+                            '最佳买点日期': str(c.get('最佳买点日期') or c.get('buy_date') or '')[:10],
+                            '最佳买点价格': _safe_float(c.get('最佳买点价格') or c.get('buy_price')),
+                            '当前价格': _safe_float(c.get('当前价格') or c.get('current_price')),
+                            '市值': _safe_float(c.get('市值')) if (c.get('市值') is not None and isinstance(c.get('市值'), (int, float))) else (_safe_float(c.get('market_cap')) if (c.get('market_cap') is not None and isinstance(c.get('market_cap'), (int, float))) else None),
+                        })
+                    progress['candidates'] = simple
+                    json.dumps(progress, default=str)
+                except Exception as ex2:
+                    print(f"[get_progress] 警告: candidates 简化序列化仍失败，已清空。{ex2}")
+                    progress['candidates'] = []
             
             response = jsonify({
                 'success': True,
@@ -2011,6 +2963,270 @@ def get_progress():
             },
             'error': str(e) if is_vercel else None  # 仅在 Vercel 环境中返回错误详情
         })
+
+
+def _normalize_trained_at(val):
+    """将 trained_at 转为 YYYY-MM-DD 显示；无效则返回 None。"""
+    if not val:
+        return None
+    s = str(val).strip()
+    if not s:
+        return None
+    # ISO: 2026-01-24T09:15:41... 或 2026-01-24
+    if len(s) >= 10 and s[4] == '-' and s[7] == '-':
+        return s[:10]
+    return None
+
+def _parse_date_from_model_filename(filename):
+    """从 trained_model_*_YYYYMMDD_HHMMSS.json 解析日期，返回 YYYY-MM-DD 或 None。"""
+    import re
+    m = re.search(r'_(\d{4})(\d{2})(\d{2})_(\d{6})\.json$', filename)
+    if m:
+        return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+    return None
+
+@app.route('/api/list_models', methods=['GET'])
+@require_login
+def list_models():
+    """列出所有可用的模型文件"""
+    try:
+        import os
+        import json
+        from datetime import datetime
+        
+        project_root = os.path.dirname(os.path.abspath(__file__))
+        model_files = []
+        
+        # 查找 trained_model*.json 与 model*.json（排除 model_comparison、model_structure）
+        exclude = {'model_comparison.json', 'model_structure.json'}
+        for filename in os.listdir(project_root):
+            if not filename.endswith('.json'):
+                continue
+            if filename in exclude:
+                continue
+            if filename.startswith('trained_model') or filename.startswith('model'):
+                filepath = os.path.join(project_root, filename)
+                try:
+                    # 读取模型文件获取基本信息
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        model_data = json.load(f)
+                    
+                    buy_features = model_data.get('buy_features', {})
+                    common_features = buy_features.get('common_features', {})
+                    raw_at = model_data.get('trained_at') or buy_features.get('trained_at')
+                    trained_at = _normalize_trained_at(raw_at)
+                    if not trained_at:
+                        trained_at = _parse_date_from_model_filename(filename)
+                    if not trained_at:
+                        trained_at = '未知'
+                    bull_stocks = model_data.get('bull_stocks', [])
+                    mtime = os.path.getmtime(filepath)
+                    
+                    model_info = {
+                        'filename': filename,
+                        'trained_at': trained_at,
+                        'feature_count': len(common_features),
+                        'stock_count': len(bull_stocks),
+                        'is_current': filename == _current_model_file,
+                        '_mtime': mtime,
+                        '_sort_date': trained_at if trained_at != '未知' else None
+                    }
+                    model_files.append(model_info)
+                except Exception as e:
+                    print(f"[list_models] 读取 {filename} 失败: {e}")
+                    mtime = os.path.getmtime(filepath) if os.path.exists(filepath) else 0
+                    model_files.append({
+                        'filename': filename,
+                        'trained_at': '未知',
+                        'feature_count': 0,
+                        'stock_count': 0,
+                        'is_current': filename == _current_model_file,
+                        '_mtime': mtime,
+                        '_sort_date': None,
+                        'error': str(e)
+                    })
+        
+        # 排序：当前模型置顶，其余按日期从新到旧，再按文件名
+        def _sort_key(m):
+            is_cur = 0 if m['is_current'] else 1
+            sd = m.get('_sort_date')
+            date_str = sd if sd else None
+            if not date_str:
+                mtime = m.get('_mtime', 0)
+                date_str = datetime.fromtimestamp(mtime).strftime('%Y-%m-%d') if mtime else '1970-01-01'
+            parts = [int(x) for x in date_str.split('-')]
+            # 日期从新到旧：(-年,-月,-日)
+            return (is_cur, -parts[0], -parts[1], -parts[2], m['filename'])
+        
+        model_files.sort(key=_sort_key)
+        for m in model_files:
+            m.pop('_mtime', None)
+            m.pop('_sort_date', None)
+        
+        return jsonify({
+            'success': True,
+            'models': model_files,
+            'current_model': _current_model_file
+        })
+    except Exception as e:
+        import traceback
+        print(f"[list_models] 错误: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'message': f'获取模型列表失败: {str(e)}'
+        }), 500
+
+@app.route('/api/switch_model', methods=['POST'])
+@require_login
+def switch_model():
+    """切换使用的模型文件"""
+    global analyzer, _current_model_file, _model_last_loaded_mtime
+    try:
+        data = request.get_json() or {}
+        model_filename = data.get('model_filename', '').strip()
+        
+        if not model_filename:
+            return jsonify({
+                'success': False,
+                'message': '请指定模型文件名'
+            }), 400
+        
+        # 检查文件是否存在
+        import os
+        project_root = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(project_root, model_filename)
+        
+        if not os.path.exists(model_path):
+            return jsonify({
+                'success': False,
+                'message': f'模型文件不存在: {model_filename}'
+            }), 404
+        
+        # 切换模型
+        _current_model_file = model_filename
+        analyzer = None  # 清空缓存，迫使重新加载
+        _model_last_loaded_mtime = 0  # 重置 mtime
+        
+        # 重新加载模型
+        a = init_analyzer()
+        if a is None:
+            return jsonify({
+                'success': False,
+                'message': '模型加载失败'
+            }), 500
+        
+        buy_n = len(a.trained_features.get('common_features', {})) if a.trained_features else 0
+        sell_n = len(a.trained_sell_features.get('common_features', {})) if a.trained_sell_features else 0
+        
+        return jsonify({
+            'success': True,
+            'message': f'已切换到模型: {model_filename}',
+            'current_model': _current_model_file,
+            'buy_features': buy_n,
+            'sell_features': sell_n
+        })
+    except Exception as e:
+        import traceback
+        print(f"[switch_model] 错误: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'message': f'切换模型失败: {str(e)}'
+        }), 500
+
+@app.route('/api/delete_model', methods=['POST'])
+@require_login
+def delete_model():
+    """删除模型文件"""
+    global analyzer, _current_model_file, _model_last_loaded_mtime
+    try:
+        data = request.get_json() or {}
+        model_filename = data.get('model_filename', '').strip()
+        
+        if not model_filename:
+            return jsonify({
+                'success': False,
+                'message': '请指定模型文件名'
+            }), 400
+        
+        # 不允许删除默认模型 trained_model.json
+        if model_filename == 'trained_model.json':
+            return jsonify({
+                'success': False,
+                'message': '不能删除默认模型 trained_model.json'
+            }), 400
+        
+        # 检查文件是否存在
+        import os
+        project_root = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(project_root, model_filename)
+        
+        if not os.path.exists(model_path):
+            return jsonify({
+                'success': False,
+                'message': f'模型文件不存在: {model_filename}'
+            }), 404
+        
+        # 如果删除的是当前模型，先切换到默认模型
+        was_current_model = model_filename == _current_model_file
+        if was_current_model:
+            _current_model_file = 'trained_model.json'
+            analyzer = None
+            _model_last_loaded_mtime = 0
+            # 重新加载默认模型
+            a = init_analyzer()
+            if a is None:
+                return jsonify({
+                    'success': False,
+                    'message': '删除当前模型后，切换到默认模型失败'
+                }), 500
+        
+        # 删除文件
+        try:
+            os.remove(model_path)
+            print(f"[delete_model] ✅ 已删除模型文件: {model_filename}")
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'message': f'删除文件失败: {str(e)}'
+            }), 500
+        
+        return jsonify({
+            'success': True,
+            'message': f'模型 {model_filename} 已删除',
+            'current_model': _current_model_file,
+            'switched_to_default': was_current_model
+        })
+    except Exception as e:
+        import traceback
+        print(f"[delete_model] 错误: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'message': f'删除模型失败: {str(e)}'
+        }), 500
+
+@app.route('/api/reload_model', methods=['GET', 'POST'])
+@require_login
+def reload_model():
+    """强制重新加载当前模型（用于重训后无需重启服务）"""
+    global analyzer
+    try:
+        analyzer = None  # 清空缓存，迫使 init_analyzer 重新从磁盘加载
+        a = init_analyzer()
+        if a is None:
+            return jsonify({'success': False, 'message': '模型加载失败'}), 500
+        buy_n = len(a.trained_features.get('common_features', {})) if a.trained_features else 0
+        sell_n = len(a.trained_sell_features.get('common_features', {})) if a.trained_sell_features else 0
+        return jsonify({
+            'success': True,
+            'message': '模型已重新加载',
+            'current_model': _current_model_file,
+            'buy_features': buy_n,
+            'sell_features': sell_n
+        })
+    except Exception as e:
+        import traceback
+        print(f"reload_model 错误: {traceback.format_exc()}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @app.route('/api/save_model', methods=['POST'])
@@ -2254,22 +3470,55 @@ def scan_all_stocks():
         # VIP用户已经移除了每日扫描次数限制，可以无限次手动扫描
         
         data = request.get_json() or {}
-        min_match_score = float(data.get('min_match_score', 0.97))
+        min_match_score = float(data.get('min_match_score', 0.93))  # 默认0.93，更严格；若过少可调低
         max_market_cap = float(data.get('max_market_cap', 100.0))
+        # ✅ 关键：打印接收到的市值参数，确保正确传递
+        print(f"[scan_all_stocks] 接收到的扫描参数: min_match_score={min_match_score}, max_market_cap={max_market_cap}, 参数类型: {type(max_market_cap)}")
         limit = data.get('limit')
+        scan_date = (data.get('scan_date') or '').strip() if isinstance(data.get('scan_date'), str) else data.get('scan_date')
+        scan_session = (data.get('scan_session') or 'close').strip() if isinstance(data.get('scan_session'), str) else data.get('scan_session')
         if limit:
             limit = int(limit)
         
+        # 扫描前检查数据完整性（仅检查，不阻止扫描）
+        print(f"\n[scan_all_stocks] 检查数据完整性（扫描日期: {scan_date or '今天'}）...")
+        freshness = check_data_freshness(scan_date)
+        
+        # 如果数据严重不足（超过50%过期），给出警告但不阻止扫描
+        if not freshness['fresh']:
+            outdated_pct = (freshness['outdated_count'] / freshness['total'] * 100) if freshness['total'] > 0 else 100
+            print(f"[scan_all_stocks] ⚠️  数据不足警告")
+            print(f"   - 过期数据: {freshness['outdated_count']}/{freshness['total']} ({outdated_pct:.1f}%)")
+            print(f"   - 最新数据日期: {freshness.get('latest_data_date', '未知')}")
+            print(f"   - 目标扫描日期: {scan_date or '今天'}")
+            print(f"   - 注意：扫描将仅使用本地数据，缺少数据的股票将被跳过")
+            
+            # 如果超过50%的数据过期，建议先下载数据
+            if outdated_pct > 50:
+                print(f"[scan_all_stocks] ⚠️  超过50%的数据过期，强烈建议先下载数据")
+        else:
+            print(f"[scan_all_stocks] ✅ 数据完整性检查通过")
+            print(f"   - 过期数据: {freshness['outdated_count']}/{freshness['total']}")
+            print(f"   - 最新数据日期: {freshness.get('latest_data_date', '未知')}")
+        
         # 并行处理配置（默认启用，提升扫描速度）
         use_parallel = data.get('use_parallel', True)  # 默认启用并行处理
-        # Render环境：平衡性能和内存使用（512MB限制）
-        # 减少并行线程数以避免内存溢出
-        default_workers = 20 if is_render else 5  # 从100降到20，避免内存溢出
+        # 本地环境：使用更多线程提升速度；Render环境：平衡性能和内存使用
+        if is_local:
+            default_workers = 50  # 本地环境默认50线程，加速扫描
+        elif is_render:
+            default_workers = 20
+        else:
+            default_workers = 10
         max_workers = int(data.get('max_workers', default_workers))
-        # 限制最大线程数，防止内存溢出
-        if max_workers > 30:
-            max_workers = 30
-            print(f"[scan_all_stocks] ⚠️ 线程数已限制为30，避免内存溢出")
+        if is_local:
+            if max_workers > 80:
+                max_workers = 80
+                print(f"[scan_all_stocks] ⚠️ 本地线程数已限制为80")
+        else:
+            if max_workers > 30:
+                max_workers = 30
+                print(f"[scan_all_stocks] ⚠️ 线程数已限制为30，避免内存溢出")
         
         # VIP用户自定义参数（第二阶段功能）
         exclude_st = data.get('exclude_st', True)  # 默认排除ST股票
@@ -2819,12 +4068,20 @@ def scan_all_stocks():
                 print(f"\n🔄 开始扫描，匹配度阈值: {min_match_score:.3f}")
                 
                 # 只执行一次扫描，不再自动调整阈值
+                # 本地环境：默认优先使用缓存（稳定、可复现），需要强制刷新时再由前端传参控制
+                force_refresh = bool(data.get('force_refresh', False))
+                # ✅ 关键：本地环境默认严格只使用本地缓存，避免网络下载导致速度慢
+                strict_local_only = data.get('strict_local_only', None)  # None表示自动判断
                 result = analyzer.scan_all_stocks(
                     min_match_score=min_match_score,
                     max_market_cap=max_market_cap,
                     limit=limit,
                     use_parallel=use_parallel,
-                    max_workers=max_workers
+                    max_workers=max_workers,
+                    scan_date=scan_date,
+                    scan_session=scan_session,
+                    force_refresh=force_refresh,
+                    strict_local_only=strict_local_only  # ✅ 传递严格本地模式参数
                 )
                 
                 # 如果被停止，直接保存结果
@@ -3009,7 +4266,7 @@ def continue_scan():
         batch_num = progress.get('batch', 0) + 1
         total_batches = progress.get('total_batches', 1)
         total_stocks = progress.get('total', 0)
-        min_match_score = progress.get('min_match_score', 0.97)
+        min_match_score = progress.get('min_match_score', 0.93)
         max_market_cap = progress.get('max_market_cap', 100.0)
         current_idx = progress.get('current', 0)
         existing_candidates = progress.get('candidates', [])
@@ -3529,12 +4786,25 @@ def get_scan_results():
         # 本地环境：从 analyzer 获取结果
         scan_results = getattr(analyzer, 'scan_results', None)
         
+        # 如果scan_results为空，尝试从progress中获取candidates
         if scan_results is None:
-            return jsonify({
-                'success': False,
-                'message': '尚未开始扫描或扫描未完成',
-                'results': None
-            })
+            progress = analyzer.get_progress() if hasattr(analyzer, 'get_progress') else {}
+            if progress and progress.get('candidates'):
+                # 从进度中构建结果
+                candidates = progress.get('candidates', [])
+                scan_results = {
+                    'success': True,
+                    'message': '扫描完成',
+                    'candidates': candidates,
+                    'found_count': len(candidates),
+                    'total_scanned': progress.get('current', progress.get('total', 0))
+                }
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': '尚未开始扫描或扫描未完成',
+                    'candidates': []
+                })
         
         # 转换为可序列化的格式
         if scan_results.get('candidates'):
@@ -3674,6 +4944,118 @@ def get_free_user_scan_results():
             'success': False,
             'message': f'服务器错误: {str(e)}',
             'results': []
+        }), 500
+
+
+@app.route('/api/scan_v2', methods=['POST'])
+@require_login
+def scan_v2():
+    """使用V2模型扫描大牛股API"""
+    try:
+        init_v2_model()  # 确保V2模型已初始化
+        
+        if v2_model is None or not v2_model.feature_template:
+            return jsonify({
+                'success': False,
+                'message': 'V2模型未初始化或未训练'
+            }), 500
+        
+        data = request.get_json() or {}
+        min_match_score = float(data.get('min_match_score', 0.90))
+        min_bottom_score = int(data.get('min_bottom_score', 2))
+        min_launch_score = int(data.get('min_launch_score', 2))
+        limit = int(data.get('limit', 20))
+        
+        print(f"\n🚀 V2模型扫描开始...")
+        print(f"   匹配度阈值: {min_match_score}")
+        print(f"   底部蓄势得分阈值: {min_bottom_score}")
+        print(f"   启动信号得分阈值: {min_launch_score}")
+        
+        # 加载股票列表
+        cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache')
+        stock_list_path = os.path.join(cache_dir, 'stock_list_all.json')
+        
+        if not os.path.exists(stock_list_path):
+            return jsonify({
+                'success': False,
+                'message': '股票列表缓存不存在'
+            }), 500
+        
+        with open(stock_list_path, 'r', encoding='utf-8') as f:
+            stock_list = json.load(f)
+        
+        candidates = []
+        weekly_cache_dir = os.path.join(cache_dir, 'weekly_kline')
+        
+        for stock_info in stock_list:
+            code = stock_info.get('code', '')
+            name = stock_info.get('name', '')
+            
+            # 排除ST和北交所
+            if 'ST' in name.upper() or code.startswith('8') or code.startswith('9'):
+                continue
+            
+            csv_path = os.path.join(weekly_cache_dir, f'{code}.csv')
+            if not os.path.exists(csv_path):
+                continue
+            
+            try:
+                weekly_df = pd.read_csv(csv_path)
+                if len(weekly_df) < 50:
+                    continue
+                
+                idx = len(weekly_df) - 1
+                volume_col = '周成交量' if '周成交量' in weekly_df.columns else '成交量'
+                
+                features = v2_model.extract_features(weekly_df, idx, volume_col)
+                
+                if features:
+                    score = v2_model.calculate_score(features)
+                    bottom = features.get('底部蓄势得分', 0)
+                    launch = features.get('启动信号得分', 0)
+                    
+                    if score >= min_match_score and bottom >= min_bottom_score and launch >= min_launch_score:
+                        candidates.append({
+                            '代码': code,
+                            '名称': name,
+                            '匹配度': round(score, 3),
+                            '价格': round(weekly_df['收盘'].iloc[idx], 2),
+                            '底部得分': bottom,
+                            '启动得分': launch,
+                            '均线多头': features.get('均线多头', 0),
+                            'OBV趋势': round(features.get('OBV趋势', 0), 2),
+                            '近期金叉': features.get('近期金叉', 0),
+                            '突破20周高点': features.get('突破20周高点', 0),
+                            '当周量比': round(features.get('当周量比', 0), 2),
+                        })
+            except Exception:
+                continue
+        
+        # 按综合得分排序
+        candidates.sort(key=lambda x: (x['底部得分'] + x['启动得分'], x['匹配度']), reverse=True)
+        top_candidates = candidates[:limit]
+        
+        print(f"✅ V2扫描完成: 找到 {len(candidates)} 只候选，返回前 {len(top_candidates)} 只")
+        
+        return jsonify({
+            'success': True,
+            'message': f'找到 {len(candidates)} 只符合条件的个股',
+            'total': len(candidates),
+            'candidates': top_candidates,
+            'model_info': {
+                'model_type': 'bull_stock_v2',
+                'feature_count': len(v2_model.feature_template),
+                'sample_stocks': v2_model.sample_stocks
+            }
+        })
+        
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"V2扫描错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'扫描失败: {str(e)}'
         }), 500
 
 
@@ -5042,6 +6424,407 @@ def get_weekly_kline_for_stock():
         return jsonify({'error': f'获取周K线数据失败: {str(e)}'}), 500
 
 
+# ==================== KDJ模式扫描 ====================
+
+def calculate_kdj(df, n=9, m1=3, m2=3):
+    """
+    计算KDJ指标
+    :param df: K线数据，必须包含 '最高', '最低', '收盘' 列
+    :param n: RSV周期，默认9
+    :param m1: K值平滑周期，默认3
+    :param m2: D值平滑周期，默认3
+    :return: DataFrame添加 K, D, J 列
+    """
+    if df is None or len(df) < n:
+        return None
+    
+    df = df.copy()
+    
+    # 计算N日内最高价和最低价
+    df['HHV'] = df['最高'].rolling(window=n, min_periods=1).max()
+    df['LLV'] = df['最低'].rolling(window=n, min_periods=1).min()
+    
+    # 计算RSV
+    df['RSV'] = (df['收盘'] - df['LLV']) / (df['HHV'] - df['LLV'] + 0.0001) * 100
+    
+    # 计算K值（使用SMA平滑）
+    # K = 2/3 * 前一日K + 1/3 * RSV
+    k_values = []
+    d_values = []
+    k = 50  # 初始K值
+    d = 50  # 初始D值
+    
+    for rsv in df['RSV']:
+        k = (m1 - 1) / m1 * k + 1 / m1 * rsv
+        d = (m2 - 1) / m2 * d + 1 / m2 * k
+        k_values.append(k)
+        d_values.append(d)
+    
+    df['K'] = k_values
+    df['D'] = d_values
+    df['J'] = 3 * df['K'] - 2 * df['D']
+    
+    # 清理临时列
+    df = df.drop(columns=['HHV', 'LLV', 'RSV'], errors='ignore')
+    
+    return df
+
+
+def get_latest_kdj(df, n=9, m1=3, m2=3):
+    """
+    获取最新的KDJ值
+    :return: dict {'K': x, 'D': y, 'J': z} 或 None
+    """
+    df_with_kdj = calculate_kdj(df, n, m1, m2)
+    if df_with_kdj is None or len(df_with_kdj) == 0:
+        return None
+    
+    last_row = df_with_kdj.iloc[-1]
+    return {
+        'K': round(last_row['K'], 2),
+        'D': round(last_row['D'], 2),
+        'J': round(last_row['J'], 2)
+    }
+
+
+# KDJ扫描进度存储
+kdj_scan_progress = {
+    'status': 'idle',  # idle, running, completed, stopped
+    'processed': 0,
+    'total': 0,
+    'found': 0,
+    'percentage': 0,
+    'current_stock': '',
+    'message': '',
+    'candidates': [],
+    'threshold': 20,
+    'limit': 50
+}
+kdj_scan_stop_flag = False
+
+
+@app.route('/api/scan_kdj', methods=['POST'])
+@require_login
+def scan_kdj():
+    """
+    KDJ模式扫描API（启动扫描）
+    筛选日KDJ、周KDJ、月KDJ的K、D、J值都在指定阈值以下的个股
+    """
+    global kdj_scan_progress, kdj_scan_stop_flag
+    
+    try:
+        data = request.get_json() or {}
+        threshold = float(data.get('threshold', 20))  # KDJ阈值，默认20
+        limit = int(data.get('limit', 50))  # 返回数量限制
+        
+        # 重置进度和停止标志
+        kdj_scan_stop_flag = False
+        kdj_scan_progress = {
+            'status': 'running',
+            'processed': 0,
+            'total': 0,
+            'found': 0,
+            'percentage': 0,
+            'current_stock': '',
+            'message': '正在初始化...',
+            'candidates': [],
+            'threshold': threshold,
+            'limit': limit
+        }
+        
+        print(f"\n🔍 KDJ模式扫描开始...")
+        print(f"   阈值: K,D,J < {threshold}")
+        
+        # 启动后台线程执行扫描
+        import threading
+        scan_thread = threading.Thread(target=_kdj_scan_worker, args=(threshold, limit))
+        scan_thread.daemon = True
+        scan_thread.start()
+        
+        return jsonify({
+            'success': True,
+            'message': 'KDJ扫描已启动'
+        })
+        
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"KDJ扫描启动错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'扫描启动失败: {str(e)}'
+        }), 500
+
+
+def _load_daily_kline_from_cache(code, cache_dir):
+    """从本地缓存加载日K线数据"""
+    csv_path = os.path.join(cache_dir, 'daily_kline', f'{code}.csv')
+    if os.path.exists(csv_path):
+        try:
+            df = pd.read_csv(csv_path)
+            if '日期' in df.columns:
+                df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
+                df = df.dropna(subset=['日期']).sort_values('日期').reset_index(drop=True)
+            return df
+        except Exception:
+            return None
+    return None
+
+
+def _load_weekly_kline_from_cache(code, cache_dir):
+    """从本地缓存加载周K线数据"""
+    csv_path = os.path.join(cache_dir, 'weekly_kline', f'{code}.csv')
+    json_path = os.path.join(cache_dir, 'weekly_kline', f'{code}.json')
+    
+    if os.path.exists(csv_path):
+        try:
+            df = pd.read_csv(csv_path)
+            if '日期' in df.columns:
+                df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
+                df = df.dropna(subset=['日期']).sort_values('日期').reset_index(drop=True)
+            return df
+        except Exception:
+            pass
+    
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            df = pd.DataFrame(data)
+            if '日期' in df.columns:
+                df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
+                df = df.dropna(subset=['日期']).sort_values('日期').reset_index(drop=True)
+            return df
+        except Exception:
+            pass
+    
+    return None
+
+
+def _generate_monthly_kline_from_daily(daily_df):
+    """从日K线生成月K线数据"""
+    if daily_df is None or len(daily_df) < 30:
+        return None
+    
+    try:
+        df = daily_df.copy()
+        
+        # 确保日期列是datetime类型
+        if '日期' not in df.columns:
+            return None
+        df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
+        df = df.dropna(subset=['日期'])
+        
+        # 提取年月
+        df['年月'] = df['日期'].dt.to_period('M')
+        
+        # 按月聚合
+        monthly_data = []
+        for period, group in df.groupby('年月'):
+            monthly_data.append({
+                '日期': period.to_timestamp(),
+                '开盘': group['开盘'].iloc[0],
+                '收盘': group['收盘'].iloc[-1],
+                '最高': group['最高'].max(),
+                '最低': group['最低'].min(),
+                '成交量': group['成交量'].sum() if '成交量' in group.columns else 0
+            })
+        
+        monthly_df = pd.DataFrame(monthly_data)
+        monthly_df = monthly_df.sort_values('日期').reset_index(drop=True)
+        return monthly_df
+    except Exception:
+        return None
+
+
+def _kdj_scan_worker(threshold, limit):
+    """KDJ扫描工作线程 - 使用本地缓存数据"""
+    global kdj_scan_progress, kdj_scan_stop_flag
+    
+    try:
+        # 获取股票列表
+        cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache')
+        stock_list_path = os.path.join(cache_dir, 'stock_list_all.json')
+        
+        if os.path.exists(stock_list_path):
+            with open(stock_list_path, 'r', encoding='utf-8') as f:
+                stock_list = json.load(f)
+        else:
+            kdj_scan_progress['status'] = 'completed'
+            kdj_scan_progress['message'] = '无法获取股票列表，请先下载本地数据'
+            return
+        
+        candidates = []
+        total = len(stock_list)
+        kdj_scan_progress['total'] = total
+        kdj_scan_progress['message'] = '使用本地缓存数据扫描中...'
+        
+        for i, stock_info in enumerate(stock_list):
+            # 检查停止标志
+            if kdj_scan_stop_flag:
+                kdj_scan_progress['status'] = 'stopped'
+                kdj_scan_progress['message'] = '扫描已停止'
+                break
+            
+            if isinstance(stock_info, dict):
+                code = stock_info.get('code', stock_info.get('股票代码', ''))
+                name = stock_info.get('name', stock_info.get('股票名称', ''))
+            else:
+                continue
+            
+            # 排除ST和北交所
+            if 'ST' in name.upper() or code.startswith('8') or code.startswith('9'):
+                kdj_scan_progress['processed'] = i + 1
+                kdj_scan_progress['percentage'] = round((i + 1) / total * 100, 1)
+                continue
+            
+            # 更新进度
+            kdj_scan_progress['processed'] = i + 1
+            kdj_scan_progress['percentage'] = round((i + 1) / total * 100, 1)
+            kdj_scan_progress['current_stock'] = f"{code} {name}"
+            kdj_scan_progress['message'] = f"正在扫描 {code} {name} (本地数据)"
+            
+            try:
+                # 从本地缓存获取日K线数据
+                daily_df = _load_daily_kline_from_cache(code, cache_dir)
+                if daily_df is None or len(daily_df) < 30:
+                    continue
+                
+                # 计算日KDJ
+                daily_kdj = get_latest_kdj(daily_df, 9, 3, 3)
+                if daily_kdj is None:
+                    continue
+                
+                # 快速筛选：如果日KDJ不满足条件，跳过
+                if daily_kdj['K'] >= threshold or daily_kdj['D'] >= threshold or daily_kdj['J'] >= threshold:
+                    continue
+                
+                # 从本地缓存获取周K线数据
+                weekly_df = _load_weekly_kline_from_cache(code, cache_dir)
+                if weekly_df is None or len(weekly_df) < 20:
+                    continue
+                
+                # 计算周KDJ
+                weekly_kdj = get_latest_kdj(weekly_df, 9, 3, 3)
+                if weekly_kdj is None:
+                    continue
+                
+                # 检查周KDJ
+                if weekly_kdj['K'] >= threshold or weekly_kdj['D'] >= threshold or weekly_kdj['J'] >= threshold:
+                    continue
+                
+                # 从日K线生成月K线数据
+                monthly_df = _generate_monthly_kline_from_daily(daily_df)
+                if monthly_df is None or len(monthly_df) < 12:
+                    continue
+                
+                # 计算月KDJ
+                monthly_kdj = get_latest_kdj(monthly_df, 9, 3, 3)
+                if monthly_kdj is None:
+                    continue
+                
+                # 检查月KDJ
+                if monthly_kdj['K'] >= threshold or monthly_kdj['D'] >= threshold or monthly_kdj['J'] >= threshold:
+                    continue
+                
+                # 全部通过！添加到候选列表
+                current_price = float(daily_df.iloc[-1]['收盘'])
+                
+                candidate = {
+                    '股票代码': code,
+                    '股票名称': name,
+                    '当前价格': round(current_price, 2),
+                    '日K': daily_kdj['K'],
+                    '日D': daily_kdj['D'],
+                    '日J': daily_kdj['J'],
+                    '周K': weekly_kdj['K'],
+                    '周D': weekly_kdj['D'],
+                    '周J': weekly_kdj['J'],
+                    '月K': monthly_kdj['K'],
+                    '月D': monthly_kdj['D'],
+                    '月J': monthly_kdj['J'],
+                    'KDJ平均': round((daily_kdj['K'] + daily_kdj['D'] + weekly_kdj['K'] + weekly_kdj['D'] + monthly_kdj['K'] + monthly_kdj['D']) / 6, 2)
+                }
+                candidates.append(candidate)
+                kdj_scan_progress['found'] = len(candidates)
+                kdj_scan_progress['candidates'] = candidates.copy()
+                
+                print(f"   ✅ {code} {name}: 日KDJ({daily_kdj['K']:.1f},{daily_kdj['D']:.1f},{daily_kdj['J']:.1f}) "
+                      f"周KDJ({weekly_kdj['K']:.1f},{weekly_kdj['D']:.1f},{weekly_kdj['J']:.1f}) "
+                      f"月KDJ({monthly_kdj['K']:.1f},{monthly_kdj['D']:.1f},{monthly_kdj['J']:.1f})")
+                
+            except Exception as e:
+                continue
+        
+        # 按KDJ平均值排序（越小越超卖）
+        candidates.sort(key=lambda x: x['KDJ平均'])
+        
+        # 限制返回数量
+        if limit > 0:
+            candidates = candidates[:limit]
+        
+        # 更新最终结果
+        if not kdj_scan_stop_flag:
+            kdj_scan_progress['status'] = 'completed'
+        kdj_scan_progress['candidates'] = candidates
+        kdj_scan_progress['found'] = len(candidates)
+        kdj_scan_progress['message'] = f'扫描完成，找到 {len(candidates)} 只符合条件的个股'
+        
+        print(f"\n✅ KDJ模式扫描完成: 共找到 {len(candidates)} 只符合条件的个股")
+        
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"KDJ扫描工作线程错误: {error_detail}")
+        kdj_scan_progress['status'] = 'completed'
+        kdj_scan_progress['message'] = f'扫描出错: {str(e)}'
+
+
+@app.route('/api/get_kdj_scan_progress', methods=['GET'])
+@require_login
+def get_kdj_scan_progress():
+    """获取KDJ扫描进度"""
+    global kdj_scan_progress
+    return jsonify({
+        'success': True,
+        'status': kdj_scan_progress['status'],
+        'processed': kdj_scan_progress['processed'],
+        'total': kdj_scan_progress['total'],
+        'found': kdj_scan_progress['found'],
+        'percentage': kdj_scan_progress['percentage'],
+        'current_stock': kdj_scan_progress['current_stock'],
+        'message': kdj_scan_progress['message'],
+        'threshold': kdj_scan_progress['threshold']
+    })
+
+
+@app.route('/api/get_kdj_scan_results', methods=['GET'])
+@require_login
+def get_kdj_scan_results():
+    """获取KDJ扫描结果"""
+    global kdj_scan_progress
+    return jsonify({
+        'success': True,
+        'data': kdj_scan_progress['candidates'],
+        'count': len(kdj_scan_progress['candidates']),
+        'threshold': kdj_scan_progress['threshold'],
+        'status': kdj_scan_progress['status'],
+        'message': kdj_scan_progress['message']
+    })
+
+
+@app.route('/api/stop_kdj_scan', methods=['POST'])
+@require_login
+def stop_kdj_scan():
+    """停止KDJ扫描"""
+    global kdj_scan_stop_flag
+    kdj_scan_stop_flag = True
+    return jsonify({
+        'success': True,
+        'message': 'KDJ扫描停止请求已发送'
+    })
+
+
 if __name__ == '__main__':
     import os
     import time
@@ -5074,18 +6857,9 @@ if __name__ == '__main__':
         import socket
         import subprocess
         
-        # 检查并释放端口5002（更强制的方式）
+        # 检查并释放端口5002（只终止占用端口的进程，避免 pkill 误杀当前启动进程）
         port = 5002
         
-        # 先尝试用pkill停止所有相关进程
-        try:
-            subprocess.run(['pkill', '-9', '-f', 'bull_stock_web'], 
-                          capture_output=True, timeout=2)
-            time.sleep(0.5)
-        except:
-            pass
-        
-        # 再检查端口并释放
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(1)
         result = sock.connect_ex(('127.0.0.1', port))
@@ -5130,10 +6904,19 @@ if __name__ == '__main__':
     
     print(f"访问地址: http://0.0.0.0:{port}")
     print("=" * 80)
-    # 增加请求超时时间，避免长时间扫描任务超时
-    import werkzeug.serving
-    werkzeug.serving.WSGIRequestHandler.timeout = 60  # 设置60秒超时
-    # 监听所有网络接口，允许远程访问
-    # 关闭debug模式，避免自动重启导致的问题
-    app.run(host='0.0.0.0', port=port, debug=False, threaded=True, use_reloader=False)
+    
+    # 使用waitress服务器（避免macOS上的Werkzeug错误）
+    try:
+        from waitress import serve
+        print("使用Waitress服务器启动...")
+        serve(app, host='0.0.0.0', port=port, threads=4)
+    except ImportError:
+        # 如果waitress不可用，使用Flask开发服务器
+        print("⚠️  Waitress不可用，使用Flask开发服务器...")
+        # 增加请求超时时间，避免长时间扫描任务超时
+        import werkzeug.serving
+        werkzeug.serving.WSGIRequestHandler.timeout = 60  # 设置60秒超时
+        # 监听所有网络接口，允许远程访问
+        # 关闭debug模式，避免自动重启导致的问题
+        app.run(host='0.0.0.0', port=port, debug=False, threaded=True, use_reloader=False)
 

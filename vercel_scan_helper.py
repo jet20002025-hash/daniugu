@@ -216,6 +216,59 @@ def process_scan_batch_vercel(
                     
                     if total_match >= min_match_score:
                         found_buy_point = True
+                        
+                        # 获取买点日期（用于均线检查）
+                        buy_date = weekly_df.iloc[i]['日期']
+                        if isinstance(buy_date, pd.Timestamp):
+                            buy_date_str = buy_date.strftime('%Y-%m-%d')
+                            limit_date = buy_date_str
+                        else:
+                            buy_date_str = str(buy_date)
+                            limit_date = buy_date_str
+                        
+                        # 检查120日和250日均线方向（如果都向下，直接排除）
+                        try:
+                            limit_date_ymd = pd.to_datetime(limit_date).strftime('%Y%m%d')
+                            
+                            daily_df = analyzer.fetcher.get_daily_kline_range(
+                                stock_code, 
+                                start_date='20220101',
+                                end_date=limit_date_ymd,
+                                use_cache=True,
+                                local_only=True
+                            )
+                            
+                            if daily_df is not None and len(daily_df) >= 250:
+                                daily_df['日期'] = pd.to_datetime(daily_df['日期'], errors='coerce')
+                                daily_df = daily_df.dropna(subset=['日期']).sort_values('日期').reset_index(drop=True)
+                                
+                                limit_dt = pd.to_datetime(limit_date)
+                                daily_before = daily_df[daily_df['日期'] <= limit_dt]
+                                if len(daily_before) >= 250:
+                                    scan_idx = len(daily_before) - 1
+                                    
+                                    ma120_current = daily_before['收盘'].iloc[scan_idx-119:scan_idx+1].mean()
+                                    ma250_current = daily_before['收盘'].iloc[scan_idx-249:scan_idx+1].mean()
+                                    
+                                    if scan_idx >= 20:
+                                        ma120_20d_ago = daily_before['收盘'].iloc[scan_idx-139:scan_idx-119].mean()
+                                        ma250_20d_ago = daily_before['收盘'].iloc[scan_idx-269:scan_idx-249].mean()
+                                        
+                                        ma120_slope = (ma120_current - ma120_20d_ago) / ma120_20d_ago if ma120_20d_ago > 0 else 0
+                                        ma250_slope = (ma250_current - ma250_20d_ago) / ma250_20d_ago if ma250_20d_ago > 0 else 0
+                                        
+                                        if ma120_slope < 0 and ma250_slope < 0:
+                                            if is_target_stock:
+                                                print(f"[vercel_scan_helper] ❌ 煜邦电力：MA120和MA250都向下，已排除 (MA120斜率: {ma120_slope*100:.2f}%, MA250斜率: {ma250_slope*100:.2f}%, 买点日期: {limit_date})")
+                                            else:
+                                                print(f"[均线过滤-Vercel] {stock_code} {stock_name} MA120和MA250都向下，已排除 (MA120斜率: {ma120_slope*100:.2f}%, MA250斜率: {ma250_slope*100:.2f}%, 买点日期: {limit_date})")
+                                            continue
+                        except Exception as e:
+                            # 均线检查失败不影响扫描，继续处理
+                            if is_target_stock:
+                                print(f"[vercel_scan_helper] ⚠️ 煜邦电力：均线方向检查异常: {str(e)[:50]}")
+                            pass
+                        
                         # 匹配度符合条件，检查市值（如果市值获取失败，则跳过市值检查）
                         market_cap = None
                         market_cap_valid = False
@@ -261,12 +314,7 @@ def process_scan_batch_vercel(
                             pass
                         
                         # 市值检查通过（或市值获取失败，跳过检查），记录该股票
-                        buy_date = weekly_df.iloc[i]['日期']
-                        if isinstance(buy_date, pd.Timestamp):
-                            buy_date_str = buy_date.strftime('%Y-%m-%d')
-                        else:
-                            buy_date_str = str(buy_date)
-                        
+                        # buy_date 已在均线检查时获取
                         buy_price = float(weekly_df.iloc[i]['收盘'])
                         
                         # 计算后续表现
@@ -347,12 +395,16 @@ def process_scan_batch_vercel(
             processed_count += 1
             
             # 更新进度（每处理5只股票更新一次，避免频繁写Redis）
+            # 【不可变】找到一只显示一只：progress['candidates'] 供前端轮询，过程与最后一致。见 扫描显示不可变逻辑.md
             if processed_count % 5 == 0 or processed_count == batch_size:
                 # 计算整体进度
                 overall_current = start_idx + processed_count
                 percentage = (overall_current / total_stocks) * 100 if total_stocks > 0 else 0
-                
+                # 按匹配度取 top50，兼容 匹配度/match_score
+                top50 = sorted(candidates, key=lambda x: float(x.get('匹配度') or x.get('match_score') or 0), reverse=True)[:50]
+                existing = scan_progress_store.get_scan_progress(scan_id) or {}
                 progress = {
+                    **existing,
                     'type': 'scan',
                     'scan_id': scan_id,
                     'current': overall_current,
@@ -365,7 +417,7 @@ def process_scan_batch_vercel(
                     'total_batches': total_batches,
                     'current_stock': stock_code,
                     'current_stock_name': stock_name,
-                    'candidates': candidates[-10:],  # 只保存最近10只，避免数据过大
+                    'candidates': top50,
                     'last_update_time': time.time()
                 }
                 scan_progress_store.save_scan_progress(scan_id, progress)
@@ -379,12 +431,15 @@ def process_scan_batch_vercel(
     batch_duration = batch_end_time - batch_start_time
     
     overall_current = start_idx + batch_size
-    percentage = (overall_current / total_stocks) * 100 if total_stocks > 0 else 100.0 if overall_current >= total_stocks else percentage
+    percentage = (overall_current / total_stocks) * 100 if total_stocks > 0 else (100.0 if overall_current >= total_stocks else 0)
     
     # 判断是否完成所有批次
     is_complete = (batch_num >= total_batches)
-    
+    # 按匹配度取 top50，供前端实时显示
+    top50 = sorted(candidates, key=lambda x: float(x.get('匹配度') or x.get('match_score') or 0), reverse=True)[:50]
+    existing = scan_progress_store.get_scan_progress(scan_id) or {}
     progress = {
+        **existing,
         'type': 'scan',
         'scan_id': scan_id,
         'current': overall_current,
@@ -395,7 +450,7 @@ def process_scan_batch_vercel(
         'found': len(candidates),
         'batch': batch_num,
         'total_batches': total_batches,
-        'candidates': candidates[-50:],  # 保存最近50只候选股票
+        'candidates': top50,
         'last_update_time': time.time(),
         'batch_duration': round(batch_duration, 2)
     }

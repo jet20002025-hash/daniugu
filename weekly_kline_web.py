@@ -568,8 +568,17 @@ if __name__ == '__main__':
     print("=" * 80)
     print("周线K线图Web应用")
     print("=" * 80)
-    print("访问地址: http://localhost:5001")
+    # macOS + Werkzeug reloader/debugger 组合容易触发 selectors.kevent 的 TypeError
+    # 这里默认使用 waitress（更稳），并允许通过环境变量 WEEKLY_KLINE_PORT 配置端口
+    import os
+    port = int(os.environ.get("WEEKLY_KLINE_PORT", "5001"))
+    print(f"访问地址: http://localhost:{port}")
     print("所有K线数据和分析都基于周线")
     print("=" * 80)
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    try:
+        from waitress import serve
+        serve(app, host="0.0.0.0", port=port, threads=8)
+    except ImportError:
+        # 兜底：关闭 reloader/debug，避免 kevent 问题
+        app.run(host="0.0.0.0", port=port, debug=False, threaded=True, use_reloader=False)
 

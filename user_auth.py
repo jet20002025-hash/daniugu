@@ -15,6 +15,11 @@ from flask import session, request, jsonify
 USERS_FILE = 'users.json'
 INVITE_CODES_FILE = 'invite_codes.json'
 
+# ✅ 添加用户数据缓存（提升性能）
+_users_cache = None
+_users_cache_time = None
+_users_cache_ttl = 5  # 缓存5秒（平衡性能和实时性）
+
 # 初始化用户数据文件
 def init_data_files():
     """初始化数据文件"""
@@ -134,17 +139,39 @@ def hash_password(password):
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
 def load_users():
-    """加载用户数据"""
+    """加载用户数据（带缓存优化）"""
+    global _users_cache, _users_cache_time
+    
+    # ✅ 检查缓存是否有效
+    if _users_cache is not None and _users_cache_time is not None:
+        import time
+        if time.time() - _users_cache_time < _users_cache_ttl:
+            return _users_cache.copy()  # 返回缓存的副本
+    
+    # ✅ 缓存失效或不存在，重新加载
     try:
         with open(USERS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            _users_cache = json.load(f)
+            import time
+            _users_cache_time = time.time()
+            return _users_cache.copy()
     except:
+        _users_cache = {}
+        import time
+        _users_cache_time = time.time()
         return {}
 
 def save_users(users):
-    """保存用户数据"""
+    """保存用户数据（同时更新缓存）"""
+    global _users_cache, _users_cache_time
+    
     with open(USERS_FILE, 'w', encoding='utf-8') as f:
         json.dump(users, f, ensure_ascii=False, indent=2)
+    
+    # ✅ 更新缓存
+    _users_cache = users.copy()
+    import time
+    _users_cache_time = time.time()
 
 def load_invite_codes():
     """加载邀请码数据"""

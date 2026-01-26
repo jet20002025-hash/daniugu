@@ -1,0 +1,20 @@
+# 项目规则
+
+## 修改完成后自动重启服务器
+
+**修改完成後，一律自動重啟服務器。**
+
+當你修改了以下任一類型的文件並完成修改後，必須執行重啟命令：
+- `bull_stock_web.py`、`bull_stock_analyzer.py`、`app.py`
+- `templates/*.html`
+- `data_fetcher.py`、`technical_analysis.py`、`user_auth.py`、`stock_screener.py`
+- `api/*.py`、`vercel_scan_helper.py`、`scan_progress_store.py`
+- `trained_model.json`（模型變更）
+- 以及其他會影響 Web 服務行為的後端/前端文件
+
+**重啟命令：**
+```bash
+pkill -f 'python.*bull_stock_web' 2>/dev/null; pkill -f 'waitress' 2>/dev/null; sleep 2; cd /Users/zwj/股票分析 && python bull_stock_web.py >> bull_stock_web.log 2>&1 &
+```
+
+或等價的「先停止再啟動」序列。執行後可檢查 `lsof -i :5002` 或 `tail bull_stock_web.log` 確認服務已啟動。

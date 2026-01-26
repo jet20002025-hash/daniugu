@@ -370,29 +370,10 @@
         }
     </style>
     <script>
-        // 页面加载前立即检查登录状态（在HTML渲染之前）
-        (async function() {
-            try {
-                const response = await fetch('/api/check_login', {
-                    method: 'GET',
-                    cache: 'no-store',
-                    credentials: 'same-origin'
-                });
-                const result = await response.json();
-                
-                if (!result.success || !result.logged_in) {
-                    // 未登录，立即跳转到登录页面（不渲染当前页面）
-                    console.log('[页面加载前检查] 用户未登录，立即跳转到登录页面');
-                    window.location.replace('/login');
-                    return;
-                }
-                console.log('[页面加载前检查] 用户已登录，继续加载页面');
-            } catch (error) {
-                console.error('[页面加载前检查] 检查登录状态失败:', error);
-                // 出错时也跳转到登录页面
-                window.location.replace('/login');
-            }
-        })();
+        // ✅ 移除页面加载前的登录检查（后端已有检查，避免阻塞前端渲染）
+        // 后端 / 路由已经有 @require_login 装饰器，未登录会自动跳转
+        // 这样可以避免前端阻塞，提升页面加载速度
+        console.log('[页面加载] 跳过前端登录检查，依赖后端检查');
     </script>
 </head>
 <body>
@@ -412,25 +393,6 @@
         <div class="content">
             <!-- 消息提示 -->
             <div id="message" class="message"></div>
-            
-            <!-- 个股检索功能 -->
-            <div class="add-form" style="margin-bottom: 20px;">
-                <h2 style="margin-bottom: 20px; color: #333;">🔍 个股检索</h2>
-                <div class="form-row">
-                    <div class="form-group" style="flex: 1;">
-                        <label for="searchKeyword">输入股票代码或名称</label>
-                        <input type="text" id="searchKeyword" placeholder="例如：000001 或 平安银行" style="width: 100%;">
-                    </div>
-                    <div class="form-group" style="flex: 0 0 auto; margin-top: 28px;">
-                        <button class="btn btn-primary" onclick="searchStock()" style="margin-left: 10px;">搜索</button>
-                    </div>
-                </div>
-                <div id="searchResults" style="margin-top: 15px; display: none;">
-                    <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; max-height: 300px; overflow-y: auto;">
-                        <div id="searchResultsList"></div>
-                    </div>
-                </div>
-            </div>
             
             <!-- 添加表单 -->
             <div class="add-form">
@@ -463,8 +425,18 @@
                             <div id="localScanParamsContent" style="display: block;">
                                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 10px;">
                                     <div class="form-group" style="margin-bottom: 0;">
+                                        <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">选择模型</label>
+                                        <div style="display: flex; gap: 5px; align-items: flex-start;">
+                                            <select id="modelSelector" style="flex: 1; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;" onchange="switchModel()">
+                                                <option value="">加载中...</option>
+                                            </select>
+                                            <button id="deleteModelBtn" onclick="deleteModel()" style="padding: 8px 12px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap;" title="删除选中的模型">🗑️</button>
+                                        </div>
+                                        <small style="color: #999; font-size: 11px;">选择要使用的特征模型</small>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
                                         <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">匹配度阈值</label>
-                                        <input type="number" id="localMinMatchScore" placeholder="0.93" value="0.93" min="0.8" max="1.0" step="0.01" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                                        <input type="number" id="localMinMatchScore" placeholder="0.93" value="0.93" min="0.6" max="1.0" step="0.01" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
                                         <small style="color: #999; font-size: 11px;">范围：0.8-1.0</small>
                                     </div>
                                     <div class="form-group" style="margin-bottom: 0;">
@@ -477,11 +449,32 @@
                                         <input type="number" id="localScanLimit" placeholder="留空表示全部" min="1" step="1" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
                                         <small style="color: #999; font-size: 11px;">建议先测试100只</small>
                                     </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">指定扫描日期（可选）</label>
+                                        <input type="date" id="localScanDate" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                                        <small style="color: #999; font-size: 11px;">留空=使用最新数据</small>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">时间段（标签）</label>
+                                        <select id="localScanSession" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                                            <option value="close" selected>收盘（默认）</option>
+                                            <option value="noon">午盘</option>
+                                        </select>
+                                        <small style="color: #999; font-size: 11px;">本地周线模型不区分分时，此处用于记录/区分任务</small>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom: 0;">
+                                        <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">强制刷新（可选）</label>
+                                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px;">
+                                            <input type="checkbox" id="localForceRefresh" style="cursor: pointer;">
+                                            <span>跳过缓存，重新拉取数据（不稳定时建议关闭）</span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         <button class="btn btn-primary" onclick="addStock()">添加股票</button>
                         <button class="btn btn-secondary" onclick="clearStocks()">清空所有</button>
+                        <button class="btn btn-primary" onclick="startAutoDataUpdate()" style="background: #3498db;">📥 更新数据</button>
                         <button class="btn btn-primary" onclick="analyzeAllStocks()" style="background: #27ae60;">分析所有股票</button>
                         <button class="btn btn-primary" onclick="trainFeatures()" style="background: #e67e22;">训练特征模型</button>
                         <button class="btn btn-primary" onclick="scanAllStocks()" style="background: #e74c3c;" id="scanAllStocksBtn">🔍 扫描全市场</button>
@@ -502,8 +495,8 @@
                                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 10px;">
                                         <div class="form-group" style="margin-bottom: 0;">
                                             <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">匹配度阈值</label>
-                                            <input type="number" id="minMatchScore" placeholder="0.93" value="0.93" min="0.8" max="1.0" step="0.01" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
-                                            <small style="color: #999; font-size: 11px;">范围：0.8-1.0</small>
+                                            <input type="number" id="minMatchScore" placeholder="0.93" value="0.93" min="0.6" max="1.0" step="0.01" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                                            <small style="color: #999; font-size: 11px;">范围：0.6-1.0（建议0.93，更严格）</small>
                                         </div>
                                         <div class="form-group" style="margin-bottom: 0;">
                                             <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">最大市值（亿元）</label>
@@ -534,6 +527,7 @@
                                 </div>
                             </div>
                             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                <button class="btn btn-primary" onclick="startAutoDataUpdate()" style="background: #3498db;">📥 更新数据</button>
                                 <button class="btn btn-primary" onclick="scanAllStocks()" style="background: #e74c3c;" id="scanAllStocksBtnWeb">🔍 扫描全市场（VIP无限次）</button>
                                 <button class="btn btn-primary" onclick="stopScan()" style="background: #95a5a6;" id="stopScanBtnWeb" disabled>🛑 停止扫描</button>
                             <button class="btn btn-primary" onclick="viewVipScanHistory()" style="background: #9b59b6; font-size: 13px; padding: 8px 15px;">
@@ -548,6 +542,7 @@
                         <!-- 免费用户：只显示查看结果按钮 -->
                         <div id="freeUserButtons" style="display: none;">
                             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                <button class="btn btn-primary" onclick="startAutoDataUpdate()" style="background: #3498db;">📥 更新数据</button>
                                 <button class="btn btn-primary" onclick="viewScanResults()" style="background: #667eea;">📊 查看扫描结果</button>
                                 <button class="btn btn-primary" onclick="showVipUpgradeInfo()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); font-weight: bold;">💎 升级为VIP客户</button>
                             </div>
@@ -564,8 +559,18 @@
                                 <div id="superScanParamsContent" style="display: block;">
                                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 10px;">
                                         <div class="form-group" style="margin-bottom: 0;">
+                                            <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">选择模型</label>
+                                            <div style="display: flex; gap: 5px; align-items: flex-start;">
+                                                <select id="superModelSelector" style="flex: 1; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px; background: #fff;" onchange="switchModelSuper()">
+                                                    <option value="">加载中...</option>
+                                                </select>
+                                                <button id="superDeleteModelBtn" onclick="deleteModelSuper()" style="padding: 8px 12px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap;" title="删除选中的模型">🗑️</button>
+                                            </div>
+                                            <small style="color: #999; font-size: 11px;">选择要使用的特征模型</small>
+                                        </div>
+                                        <div class="form-group" style="margin-bottom: 0;">
                                             <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">匹配度阈值</label>
-                                            <input type="number" id="superMinMatchScore" placeholder="0.93" value="0.93" min="0.8" max="1.0" step="0.01" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                                            <input type="number" id="superMinMatchScore" placeholder="0.93" value="0.93" min="0.6" max="1.0" step="0.01" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
                                             <small style="color: #999; font-size: 11px;">范围：0.8-1.0</small>
                                         </div>
                                         <div class="form-group" style="margin-bottom: 0;">
@@ -583,6 +588,7 @@
                             </div>
                             <button class="btn btn-primary" onclick="addStock()">添加股票</button>
                             <button class="btn btn-secondary" onclick="clearStocks()">清空所有</button>
+                            <button class="btn btn-primary" onclick="startAutoDataUpdate()" style="background: #3498db;">📥 更新数据</button>
                             <button class="btn btn-primary" onclick="analyzeAllStocks()" style="background: #27ae60;">分析所有股票</button>
                             <button class="btn btn-primary" onclick="trainFeatures()" style="background: #e67e22;">训练特征模型</button>
                             <button class="btn btn-primary" onclick="scanAllStocks()" style="background: #e74c3c;" id="scanAllStocksBtnSuper">🔍 扫描全市场</button>
@@ -607,6 +613,29 @@
                 
                 <!-- 反转个股扫描结果区域 -->
                 <div id="reversalResults" style="margin-top: 20px; display: none;"></div>
+                
+                <!-- KDJ模式筛选条件（仅本地版本显示） -->
+                <div id="kdjModeSection" style="margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #e74c3c; display: none;">
+                    <h3 style="margin: 0 0 15px 0; color: #333; font-size: 16px;">📊 KDJ模式（日/周/月KDJ超卖筛选）</h3>
+                    <p style="margin: 0 0 15px 0; color: #666; font-size: 13px;">筛选日KDJ、周KDJ、月KDJ的K、D、J值都在指定阈值以下的个股（KDJ参数: 9,3,3）</p>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="display: block; margin-bottom: 5px; color: #555; font-size: 13px; font-weight: 500;">KDJ阈值（K/D/J都要小于此值）</label>
+                            <input type="number" id="kdjThreshold" placeholder="例如: 20" value="20" min="0" max="100" step="1" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="display: block; margin-bottom: 5px; color: #555; font-size: 13px; font-weight: 500;">返回数量限制</label>
+                            <input type="number" id="kdjLimit" placeholder="例如: 50" value="50" min="1" max="200" step="1" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px;">
+                        </div>
+                    </div>
+                    <div class="btn-group" style="margin-top: 10px; display: flex; gap: 10px;">
+                        <button class="btn btn-primary" onclick="scanKdjStocks()" style="background: #e74c3c; font-size: 15px; padding: 12px 24px;" id="scanKdjBtn">🔍 开始KDJ扫描</button>
+                        <button class="btn btn-secondary" onclick="stopKdjScan()" style="background: #95a5a6; font-size: 15px; padding: 12px 24px;" id="stopKdjBtn" disabled>🛑 停止扫描</button>
+                    </div>
+                </div>
+
+                <!-- KDJ模式扫描结果区域 -->
+                <div id="kdjResults" style="margin-top: 20px; display: none;"></div>
                 
                 <!-- 周K线图模态框 -->
                 <div id="weeklyKlineModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; overflow: auto;">
@@ -633,6 +662,18 @@
                 <!-- 找买点功能 -->
                 <div style="margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
                     <h3 style="margin-bottom: 15px; color: #333;">🔍 找买点功能</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">匹配度阈值</label>
+                            <input type="number" id="buyPointMatchThreshold" placeholder="0.95" value="0.95" min="0.6" max="1.0" step="0.01" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                            <small style="color: #999; font-size: 11px;">范围：0.6-1.0，默认0.95</small>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">搜索年数</label>
+                            <input type="number" id="buyPointSearchYears" placeholder="5" value="5" min="1" max="10" step="1" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                            <small style="color: #999; font-size: 11px;">范围：1-10年，默认5年</small>
+                        </div>
+                    </div>
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <input type="text" id="findBuyPointCode" placeholder="输入股票代码" style="flex: 1; padding: 10px; border: 2px solid #e0e0e0; border-radius: 6px;">
                         <button class="btn btn-primary" onclick="findBuyPoints()" style="background: #9b59b6;">查找买点</button>
@@ -666,117 +707,6 @@
                 messageEl.classList.remove('show');
             }, 3000);
         }
-        
-        // 个股检索功能
-        async function searchStock() {
-            const keyword = document.getElementById('searchKeyword').value.trim();
-            const resultsDiv = document.getElementById('searchResults');
-            const resultsList = document.getElementById('searchResultsList');
-            
-            if (!keyword) {
-                showMessage('请输入股票代码或名称', 'error');
-                return;
-            }
-            
-            try {
-                // 显示加载状态
-                resultsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">正在搜索...</div>';
-                resultsDiv.style.display = 'block';
-                
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒超时
-                
-                const response = await fetch('/api/search_stock', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        keyword: keyword
-                    }),
-                    signal: controller.signal
-                });
-                
-                clearTimeout(timeoutId);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP错误: ${response.status}`);
-                }
-                
-                const result = await response.json();
-                
-                if (!result.success) {
-                    throw new Error(result.message || '搜索失败');
-                }
-                
-                // 显示搜索结果
-                if (result.results && result.results.length > 0) {
-                    let html = `<div style="margin-bottom: 10px; font-weight: bold; color: #333;">找到 ${result.count} 个结果：</div>`;
-                    html += '<div style="display: grid; gap: 10px;">';
-                    
-                    result.results.forEach((stock, index) => {
-                        html += `
-                            <div style="padding: 12px; background: white; border: 1px solid #e0e0e0; border-radius: 6px; cursor: pointer; transition: all 0.3s;" 
-                                 onmouseover="this.style.background='#f0f7ff'; this.style.borderColor='#667eea';" 
-                                 onmouseout="this.style.background='white'; this.style.borderColor='#e0e0e0';"
-                                 onclick="selectStockFromSearch('${stock.code}', '${stock.name}')">
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <div>
-                                        <span style="font-weight: bold; color: #667eea; font-size: 16px;">${stock.code}</span>
-                                        <span style="margin-left: 10px; color: #333;">${stock.name}</span>
-                                    </div>
-                                    <span style="color: #999; font-size: 12px;">点击选择</span>
-                                </div>
-                            </div>
-                        `;
-                    });
-                    
-                    html += '</div>';
-                    resultsList.innerHTML = html;
-                } else {
-                    resultsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">未找到匹配的股票</div>';
-                }
-                
-            } catch (error) {
-                if (error.name === 'AbortError') {
-                    resultsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #e74c3c;">搜索超时，请重试</div>';
-                } else {
-                    console.error('搜索股票失败:', error);
-                    resultsList.innerHTML = `<div style="text-align: center; padding: 20px; color: #e74c3c;">搜索失败: ${error.message}</div>`;
-                }
-            }
-        }
-        
-        // 从搜索结果中选择股票
-        function selectStockFromSearch(code, name) {
-            // 填充到添加股票的表单
-            document.getElementById('stockCode').value = code;
-            document.getElementById('stockName').value = name;
-            
-            // 隐藏搜索结果
-            document.getElementById('searchResults').style.display = 'none';
-            
-            // 清空搜索框
-            document.getElementById('searchKeyword').value = '';
-            
-            // 提示用户
-            showMessage(`已选择: ${code} ${name}，可以点击"添加股票"按钮添加`, 'success');
-            
-            // 自动滚动到添加股票表单
-            document.querySelector('.add-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-        
-        // 添加回车键搜索
-        document.addEventListener('DOMContentLoaded', function() {
-            const searchInput = document.getElementById('searchKeyword');
-            if (searchInput) {
-                searchInput.addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') {
-                        searchStock();
-                    }
-                });
-            }
-        });
         
         // 添加股票
         async function addStock() {
@@ -906,12 +836,12 @@
         // 检查匹配度状态并更新UI
         async function checkMatchScoreStatus() {
             try {
-                // 添加超时控制（5秒）
+                // ✅ 添加超时控制（2秒，快速失败）
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => {
-                    console.warn('[checkMatchScoreStatus] 请求超时（5秒），中断请求');
+                    console.warn('[checkMatchScoreStatus] 请求超时（2秒），中断请求');
                     controller.abort();
-                }, 5000);
+                }, 2000); // ✅ 减少到2秒
                 
                 let response;
                 try {
@@ -1001,13 +931,13 @@
         }
         
         async function loadStocks(retryCount = 0) {
-            const maxRetries = 3;
+            const maxRetries = 1; // ✅ 减少重试次数
             try {
                 console.log('[loadStocks] 开始获取股票列表... (尝试 ' + (retryCount + 1) + '/' + (maxRetries + 1) + ')');
                 
-                // 添加超时控制
+                // ✅ 添加超时控制（3秒）
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+                const timeoutId = setTimeout(() => controller.abort(), 3000); // ✅ 减少到3秒超时
                 
                 const response = await fetch('/api/get_stocks', {
                     signal: controller.signal,
@@ -1049,11 +979,8 @@
                 const stockCount = result.count !== undefined ? result.count : (result.stocks ? result.stocks.length : 0);
                 const stocks = result.stocks || [];
                 
-                // console.log('[loadStocks] 股票数量:', stockCount, '股票列表长度:', stocks.length, '股票列表:', stocks); // 已隐藏：避免控制台输出过多日志
-                
                 // 更新计数
                 countEl.textContent = stockCount;
-                // console.log('[loadStocks] 已更新计数显示为:', stockCount); // 已隐藏：避免控制台输出过多日志
                 
                 if (stockCount === 0 || stocks.length === 0) {
                     container.innerHTML = `
@@ -1065,15 +992,12 @@
                     `;
                     console.log('[loadStocks] 显示空状态');
                 } else {
-                    // console.log('[loadStocks] 开始渲染股票列表，共', stocks.length, '只'); // 已隐藏：避免控制台输出过多日志
                     container.innerHTML = stocks.map(stock => {
                         // 使用方括号访问中文字段名，确保兼容性
                         const code = stock['代码'] || stock.代码 || '';
                         const name = stock['名称'] || stock.名称 || '';
                         const addTime = stock['添加时间'] || stock.添加时间 || '';
                         const dataCount = stock['数据条数'] || stock.数据条数 || 0;
-                        
-                        // console.log('[loadStocks] 渲染股票:', code, name); // 已隐藏：避免控制台输出过多日志
                         
                         return `
                             <div class="stock-item" id="stock-${code}">
@@ -1096,17 +1020,16 @@
                             </div>
                         `;
                     }).join('');
-                    // console.log('[loadStocks] 股票列表渲染完成'); // 已隐藏：避免控制台输出过多日志
                 }
             } catch (error) {
                 console.error('[loadStocks] 异常:', error);
                 
-                // 如果是网络错误且还有重试次数，自动重试
+                // ✅ 如果是网络错误且还有重试次数，自动重试（减少延迟）
                 if ((error.name === 'TypeError' || error.name === 'Failed to fetch' || error.message.includes('fetch')) && retryCount < maxRetries) {
-                    console.log('[loadStocks] 网络错误，' + (2000 * (retryCount + 1)) + 'ms后重试...');
+                    console.log('[loadStocks] 网络错误，1秒后重试...');
                     setTimeout(() => {
                         loadStocks(retryCount + 1);
-                    }, 2000 * (retryCount + 1)); // 递增延迟：2秒、4秒、6秒
+                    }, 1000); // ✅ 减少到1秒
                     return;
                 }
                 
@@ -1241,7 +1164,8 @@
         let progressInterval = null;
         
         function startProgressPolling() {
-            console.log('[startProgressPolling] 开始进度轮询');
+            console.log('[实时显示] startProgressPolling 开始, currentScanId=' + (window.currentScanId || 'null'));
+            // 不在此处设 _scanJustCleared=false，避免在拿到新 scan_id 前用旧 progress 覆盖清空结果；见 scanAllStocks 内 result.success / 继续扫描 / 后台已启动 等分支
             if (progressInterval) {
                 clearInterval(progressInterval);
                 console.log('[startProgressPolling] 清除旧的进度轮询');
@@ -1249,39 +1173,412 @@
             
             progressInterval = setInterval(async () => {
                 try {
-                    const response = await fetch('/api/get_progress', {
+                    const scanId = window.currentScanId || '';
+                    const url = '/api/get_progress' + (scanId ? '?scan_id=' + encodeURIComponent(scanId) : '');
+                    const response = await fetch(url, {
                         cache: 'no-store',
+                        credentials: 'same-origin',
                         headers: {
                             'Cache-Control': 'no-cache',
                             'Pragma': 'no-cache'
                         }
                     });
+                    if (response.status === 401) {
+                        clearInterval(progressInterval);
+                        progressInterval = null;
+                        showMessage('登录已过期或服务已重启，请重新登录后重试', 'error');
+                        if (typeof isScanning !== 'undefined') isScanning = false;
+                        return;
+                    }
                     const result = await response.json();
                     
                     if (result.success && result.progress) {
                         const progress = result.progress;
+                        if (window._scanJustCleared) return;  // 刚清空，忽略旧轮询回调，避免覆盖
+                        
+                        // ✅ 仅当后端明确是“扫描任务”时，才允许写入 buyPointsResult（避免覆盖“找买点”等其他功能的展示）
+                        const isScanProgress = (progress.type === 'scan' || progress.type === 'scan_all_stocks');
+                        // 【实时显示-日志】轮询 get_progress 返回
+                        const cLen = (progress.candidates && progress.candidates.length) || 0;
+                        const cIsArr = Array.isArray(progress.candidates);
+                        console.log('[实时显示] get_progress: found=' + (progress.found ?? 'undefined') + ', candidates=' + (cIsArr ? cLen + '只' : '非数组(' + (typeof progress.candidates) + ')') + ', status=' + (progress.status || ''));
+                        
                         let detailText = progress.detail || '';
                         if (progress.found !== undefined) {
                             detailText += ` | 已找到: ${progress.found} 只`;
                         }
+                        
+                        // 如果有数据警告，显示警告信息
+                        if (progress.data_warning) {
+                            detailText += `\n${progress.data_warning}`;
+                            // 显示警告消息
+                            showMessage(progress.data_warning, 'warning');
+                        }
+                        
                         updateProgress(progress.percentage, progress.status, detailText);
+
+                        // ✅ 扫描过程中：实时把新找到的候选渲染出来（找到一只显示一只）
+                        try {
+                            // 只要有 candidates 就显示，不严格检查 type
+                            if (isScanProgress && Array.isArray(progress.candidates) && progress.candidates.length > 0) {
+                                console.log('[实时显示] 进度轮询→ 有candidates，调用 updateLiveScanResults');
+                                updateLiveScanResults(progress);
+                            } else if (isScanProgress && progress.found > 0) {
+                                console.log('[实时显示] 进度轮询→ found>0 但 candidates 为空，仍调用 updateLiveScanResults');
+                                // 即使candidates为空，也显示进度信息
+                                updateLiveScanResults(progress);
+                            } else if (isScanProgress && (progress.status === '进行中' || progress.status === 'running')) {
+                                console.log('[实时显示] 进度轮询→ 进行中且无candidates，仅更新进度文案');
+                                // 扫描进行中但还没有找到股票，显示进度提示
+                                const container = document.getElementById('buyPointsResult');
+                                if (container) {
+                                    const current = progress.current || 0;
+                                    const total = progress.total || 0;
+                                    const percentage = progress.percentage || 0;
+                                    // ✅ 监控：显示当前处理的股票
+                                    const currentStock = progress.current_stock || '';
+                                    const currentStockName = progress.current_stock_name || '';
+                                    const currentStockInfo = currentStock ? `<p style="color: #667eea; font-size: 13px; font-weight: bold; margin-top: 8px;">📍 当前处理: ${currentStock} ${currentStockName}</p>` : '';
+                                    
+                                    container.innerHTML = `<div style="text-align: center; padding: 20px; color: #666; background: white; border-radius: 6px; margin-top: 15px;">
+                                        <span style="font-size: 24px;">🔍</span>
+                                        <p style="margin-top: 10px;">正在扫描全市场，找到符合条件的股票将实时显示在这里...</p>
+                                        <p style="color: #999; font-size: 12px; margin-top: 5px;">已扫描: ${current}/${total} (${percentage.toFixed(1)}%)</p>
+                                        <p style="color: #999; font-size: 12px;">当前状态: ${progress.detail || progress.status || '扫描中'}</p>
+                                        ${currentStockInfo}
+                                        ${progress.data_warning ? `<p style="color: #e74c3c; font-size: 12px; margin-top: 5px; font-weight: bold;">${progress.data_warning}</p>` : ''}
+                                    </div>`;
+                                }
+                            }
+                        } catch (e) {
+                            console.error('[实时显示] 进度轮询-实时展示候选失败:', e);
+                        }
                         
                         // 如果完成或失败，停止轮询
                         if (progress.status === '完成' || progress.status === '失败' || progress.status === '空闲') {
+                            // ✅ 空闲：表示当前没有扫描任务；不要覆盖 buyPointsResult（否则会出现“0/0 扫描完成”的假象）
+                            if (progress.status === '空闲') {
+                                clearInterval(progressInterval);
+                                progressInterval = null;
+                                if (typeof isScanning !== 'undefined') isScanning = false;
+                                return;
+                            }
+                            
+                            // ✅ 关键：在停止轮询前，最后一次更新显示结果（仅限扫描任务）
+                            if (isScanProgress && progress.status === '完成') {
+                                // 确保显示最终结果（即使candidates为空，也要从缓存中获取）
+                                updateLiveScanResults(progress);
+                                
+                                // ✅ 如果扫描完成但结果还没显示，尝试从后端获取
+                                const foundCount = progress.found || 0;
+                                const cachedCount = window._liveScanCandidateMap ? Object.keys(window._liveScanCandidateMap).length : 0;
+                                
+                                if (foundCount > 0 && cachedCount === 0) {
+                                    // 扫描完成，找到了股票，但缓存为空，从后端获取
+                                    console.log('[扫描完成] 发现结果未同步，从后端获取最终结果...');
+                                    fetch('/api/get_scan_results')
+                                        .then(response => response.json())
+                                        .then(resultsResult => {
+                                            if (resultsResult.success && resultsResult.candidates && resultsResult.candidates.length > 0) {
+                                                // 将结果同步到缓存并显示
+                                                if (!window._liveScanCandidateMap) window._liveScanCandidateMap = {};
+                                                for (const c of resultsResult.candidates) {
+                                                    const code = c.股票代码 || c.code || '';
+                                                    const date = c.最佳买点日期 || c.buy_date || '';
+                                                    if (!code) continue;
+                                                    const key = `${code}__${date}`;
+                                                    window._liveScanCandidateMap[key] = c;
+                                                }
+                                                // 更新显示
+                                                updateLiveScanResults({
+                                                    ...progress,
+                                                    candidates: resultsResult.candidates
+                                                });
+                                            }
+                                        })
+                                        .catch(error => {
+                                            console.error('[扫描完成] 获取最终结果失败:', error);
+                                        });
+                                }
+                            }
+                            
                             clearInterval(progressInterval);
                             progressInterval = null;
                             
                             if (progress.status === '完成') {
+                                // ✅ 关键：扫描完成后重置 isScanning 标志，允许重新扫描
+                                isScanning = false;
+                                console.log('[startProgressPolling] 扫描完成，重置 isScanning = false');
+                                
+                                // ✅ 如果扫描完成，保存scan_id（用于下次比较）
+                                if (progress.scan_id) {
+                                    const lastParams = getLastScanParams();
+                                    if (lastParams) {
+                                        lastParams.scan_id = progress.scan_id;
+                                        saveLastScanParams(lastParams);
+                                        console.log('[startProgressPolling] ✅ 扫描完成，已保存scan_id:', progress.scan_id);
+                                    }
+                                }
+                                
+                                // 【不可变】过程与最后一致：不调用 displayScanResults，不覆盖 updateLiveScanResults 的实时结果。见 扫描显示不可变逻辑.md
                                 setTimeout(() => {
                                     hideProgress();
-                                }, 2000);
+                                    // 显示完成消息，但不覆盖已显示的结果
+                                    const foundCount = progress.found || (progress.candidates ? progress.candidates.length : 0) || (window._liveScanCandidateMap ? Object.keys(window._liveScanCandidateMap).length : 0);
+                                    const totalScanned = progress.current || progress.total || 0;
+                                    if (foundCount > 0) {
+                                        showMessage(`扫描完成！共扫描 ${totalScanned} 只股票，找到 ${foundCount} 只符合条件的股票`, 'success');
+                                    } else {
+                                        showMessage(`扫描完成！共扫描 ${totalScanned} 只股票，未找到符合条件的股票`, 'warning');
+                                    }
+                                }, 1000);  // 1秒后隐藏进度条
+                            } else if (progress.status === '失败' || progress.status === '空闲') {
+                                // ✅ 关键：扫描失败或空闲时也重置 isScanning 标志
+                                isScanning = false;
+                                console.log(`[startProgressPolling] 扫描${progress.status}，重置 isScanning = false`);
                             }
                         }
+                    } else {
+                        console.log('[实时显示] get_progress: success=' + (result.success) + ', 有progress=' + !!(result.progress));
                     }
                 } catch (error) {
-                    console.error('获取进度失败:', error);
+                    console.error('[实时显示] 获取进度失败:', error);
                 }
             }, 500); // 每500ms轮询一次
+        }
+
+        // ========== 【不可变逻辑，严禁修改】 ==========
+        // 1. 找到一只，显示一只：本函数负责把 progress.candidates 合并进 _liveScanCandidateMap 并立即渲染
+        // 2. 过程与最后一致：最终结果必须从 _liveScanCandidateMap 渲染，禁止用 get_scan_results/displayScanResults 覆盖
+        // 详见：扫描显示不可变逻辑.md
+        // ============================================
+        function updateLiveScanResults(progress) {
+            try {
+            if (window._scanJustCleared) return;  // 刚清空，不写入旧数据
+            const candidates = progress.candidates || [];
+            const isArray = Array.isArray(candidates);
+            console.log('[实时显示] updateLiveScanResults 入参: found=' + (progress.found ?? 'undefined') + ', candidates=' + (isArray ? candidates.length + '只' : '非数组') + ', status=' + (progress.status || ''));
+            
+            // 如果没有candidates数组，但found > 0，至少显示进度信息
+            if (!isArray && progress.found === 0) {
+                console.log('[实时显示] updateLiveScanResults 提前 return: !isArray 且 found===0');
+                return;
+            }
+
+            if (!window._liveScanCandidateMap) window._liveScanCandidateMap = {};
+
+            // 合并去重：key=股票代码+买点日期
+            let mergedIn = 0;
+            if (isArray) {
+                for (const c of candidates) {
+                    const code = c.股票代码 || c.code || '';
+                    const date = c.最佳买点日期 || c.buy_date || '';
+                    if (!code) continue;
+                    const key = `${code}__${date}`;
+                    window._liveScanCandidateMap[key] = c;
+                    mergedIn++;
+                }
+            }
+            if (isArray && candidates.length > 0) {
+                console.log('[实时显示] 合并进 Map: 本次 ' + mergedIn + ' 只，Map 共 ' + Object.keys(window._liveScanCandidateMap).length + ' 只');
+                if (mergedIn === 0) console.warn('[实时显示] 本批 ' + candidates.length + ' 条均无有效 股票代码，首条 keys:', Object.keys(candidates[0] || {}));
+            }
+
+            let merged = Object.values(window._liveScanCandidateMap);
+            merged.sort((a, b) => (b.匹配度 || b.match_score || 0) - (a.匹配度 || a.match_score || 0));
+            // 前端最多展示 30 只，按匹配度从高到低；超过 30 只时，匹配度最低的会被更高的替换出展示列表
+            let top = merged.slice(0, 30);
+            console.log('[实时显示] 合并后 merged=' + merged.length + ', top=' + top.length);
+
+            const container = document.getElementById('buyPointsResult');
+            if (!container) {
+                console.error('[实时显示] buyPointsResult 容器不存在');
+                return;
+            }
+            
+            // ✅ 关键：如果扫描已完成但merged为空，且progress.found > 0，说明结果在progress.candidates中但没同步到缓存
+            // 这种情况下，如果progress.candidates有数据，直接使用它
+            if (merged.length === 0 && (progress.status === '完成' || progress.status === 'completed') && progress.found > 0) {
+                console.log('[实时显示] 分支: 完成+found>0 且 merged=0');
+                // 扫描完成但缓存为空，尝试从progress.candidates获取
+                if (Array.isArray(progress.candidates) && progress.candidates.length > 0) {
+                    console.log('[实时显示] 从 progress.candidates 恢复，共 ' + progress.candidates.length + ' 只');
+                    // 将progress.candidates添加到缓存
+                    for (const c of progress.candidates) {
+                        const code = c.股票代码 || c.code || '';
+                        const date = c.最佳买点日期 || c.buy_date || '';
+                        if (!code) continue;
+                        const key = `${code}__${date}`;
+                        window._liveScanCandidateMap[key] = c;
+                    }
+                    // 重新合并
+                    merged = Object.values(window._liveScanCandidateMap);
+                    merged.sort((a, b) => (b.匹配度 || b.match_score || 0) - (a.匹配度 || a.match_score || 0));
+                    top = merged.slice(0, 30);
+                } else {
+                    console.log('[实时显示] 完成+found>0 且 progress.candidates 为空，显示「正在加载结果」');
+                    // ✅ 如果progress.candidates也为空，但found > 0，说明数据还没同步过来
+                    // 这种情况下，显示"正在加载结果..."而不是"正在扫描..."
+                    const current = progress.current || 0;
+                    const total = progress.total || 0;
+                    const foundCount = progress.found || 0;
+                    container.innerHTML = `<div style="text-align: center; padding: 20px; color: #666; background: white; border-radius: 6px; margin-top: 15px;">
+                        <span style="font-size: 24px;">⏳</span>
+                        <p style="margin-top: 10px;">扫描已完成，正在加载结果...</p>
+                        <p style="color: #999; font-size: 12px; margin-top: 5px;">已扫描: ${current}/${total} (100.0%)</p>
+                        <p style="color: #667eea; font-size: 14px; margin-top: 10px; font-weight: bold;">找到 ${foundCount} 只符合条件的股票</p>
+                    </div>`;
+                    return;
+                }
+            }
+            
+            // 如果还没有找到任何股票，显示进度提示
+            if (merged.length === 0) {
+                console.log('[实时显示] 分支: merged=0，显示进度提示或补救');
+                const current = progress.current || 0;
+                const total = progress.total || 0;
+                const percentage = progress.percentage || 0;
+                // ✅ 监控：显示当前处理的股票
+                const currentStock = progress.current_stock || '';
+                const currentStockName = progress.current_stock_name || '';
+                const currentStockInfo = currentStock ? `<p style="color: #667eea; font-size: 13px; font-weight: bold; margin-top: 8px;">📍 当前处理: ${currentStock} ${currentStockName}</p>` : '';
+                
+                // ✅ 如果扫描已完成但没找到股票，显示完成提示
+                const isCompleted = (progress.status === '完成' || progress.status === 'completed');
+                const foundCount = progress.found || 0;
+                
+                // ✅ 进行中但 found>0 且列表为空：可能是 get_progress 的 candidates 未同步，用 get_scan_results 补救以实时显示
+                if (!isCompleted && foundCount > 0) {
+                    const now = Date.now();
+                    window._lastGetScanResultsForLive = window._lastGetScanResultsForLive || 0;
+                    if (now - window._lastGetScanResultsForLive > 2000) {
+                        window._lastGetScanResultsForLive = now;
+                        const scanId = window.currentScanId || '';
+                        console.log('[实时显示] 补救: 请求 get_scan_results' + (scanId ? '?scan_id=' + scanId : ''));
+                        fetch('/api/get_scan_results' + (scanId ? '?scan_id=' + encodeURIComponent(scanId) : ''), { cache: 'no-store' })
+                            .then(r => r.json())
+                            .then(res => {
+                                console.log('[实时显示] get_scan_results 返回: success=' + res.success + ', candidates=' + (res.candidates ? res.candidates.length : 0));
+                                if (res.success && res.candidates && res.candidates.length > 0) {
+                                    if (!window._liveScanCandidateMap) window._liveScanCandidateMap = {};
+                                    for (const c of res.candidates) {
+                                        const code = c.股票代码 || c.code || '';
+                                        const date = c.最佳买点日期 || c.buy_date || '';
+                                        if (!code) continue;
+                                        const key = `${code}__${date}`;
+                                        window._liveScanCandidateMap[key] = c;
+                                    }
+                                    updateLiveScanResults({ ...progress, candidates: res.candidates });
+                                } else {
+                                    console.log('[实时显示] get_scan_results 无可用 candidates');
+                                }
+                            })
+                            .catch(err => { console.error('[实时显示] get_scan_results 请求失败:', err); });
+                    }
+                }
+                
+                // ✅ 关键修复：如果扫描完成且found > 0，不应该显示"正在扫描..."
+                if (isCompleted && foundCount > 0) {
+                    // ✅ 关键：扫描完成但缓存为空，尝试从后端获取
+                    console.log('[updateLiveScanResults] 扫描完成但缓存为空，foundCount=' + foundCount + '，尝试从后端获取...');
+                    fetch('/api/get_scan_results', { cache: 'no-store' })
+                        .then(response => response.json())
+                        .then(resultsResult => {
+                                console.log('[实时显示] 扫描完成- get_scan_results: success=' + resultsResult.success + ', candidates=' + (resultsResult.candidates ? resultsResult.candidates.length : 0));
+                                if (resultsResult.success && resultsResult.candidates && resultsResult.candidates.length > 0) {
+                                    // 将结果同步到缓存并显示
+                                    if (!window._liveScanCandidateMap) window._liveScanCandidateMap = {};
+                                    for (const c of resultsResult.candidates) {
+                                        const code = c.股票代码 || c.code || '';
+                                        const date = c.最佳买点日期 || c.buy_date || '';
+                                        if (!code) continue;
+                                        const key = `${code}__${date}`;
+                                        window._liveScanCandidateMap[key] = c;
+                                    }
+                                    // 重新调用 updateLiveScanResults 显示结果
+                                    updateLiveScanResults({
+                                        ...progress,
+                                        candidates: resultsResult.candidates
+                                    });
+                                } else {
+                                    // 后端也没有结果，显示加载提示
+                                    console.log('[实时显示] 扫描完成- get_scan_results 无可用数据，显示加载提示');
+                                container.innerHTML = `<div style="text-align: center; padding: 20px; color: #666; background: white; border-radius: 6px; margin-top: 15px;">
+                                    <span style="font-size: 24px;">⏳</span>
+                                    <p style="margin-top: 10px;">扫描已完成，正在加载结果...</p>
+                                    <p style="color: #999; font-size: 12px; margin-top: 5px;">已扫描: ${current}/${total} (100.0%)</p>
+                                    <p style="color: #667eea; font-size: 14px; margin-top: 10px; font-weight: bold;">找到 ${foundCount} 只符合条件的股票</p>
+                                </div>`;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('[实时显示] 扫描完成- get_scan_results 失败:', error);
+                            // 即使获取失败，也显示找到的数量
+                            container.innerHTML = `<div style="text-align: center; padding: 20px; color: #666; background: white; border-radius: 6px; margin-top: 15px;">
+                                <span style="font-size: 24px;">⏳</span>
+                                <p style="margin-top: 10px;">扫描已完成，正在加载结果...</p>
+                                <p style="color: #999; font-size: 12px; margin-top: 5px;">已扫描: ${current}/${total} (100.0%)</p>
+                                <p style="color: #667eea; font-size: 14px; margin-top: 10px; font-weight: bold;">找到 ${foundCount} 只符合条件的股票</p>
+                            </div>`;
+                        });
+                    return;
+                }
+                
+                const completedMsg = isCompleted ? '<p style="color: #e74c3c; font-size: 14px; margin-top: 10px; font-weight: bold;">❌ 扫描完成，未找到符合条件的股票</p>' : '';
+                
+                container.innerHTML = `<div style="text-align: center; padding: 20px; color: #666; background: white; border-radius: 6px; margin-top: 15px;">
+                    <span style="font-size: 24px;">🔍</span>
+                    <p style="margin-top: 10px;">${isCompleted ? '扫描已完成' : '正在扫描全市场，找到符合条件的股票将实时显示在这里...'}</p>
+                    <p style="color: #999; font-size: 12px; margin-top: 5px;">已扫描: ${current}/${total} (${percentage.toFixed(1)}%)</p>
+                    <p style="color: #999; font-size: 12px;">当前状态: ${progress.detail || progress.status || '扫描中'}</p>
+                    ${currentStockInfo}
+                    ${completedMsg}
+                </div>`;
+                return;
+            }
+
+            // 渲染表格（与最终结果格式兼容）
+            // 【不可变】扫描到一只、实时显示一只；此处只从 _liveScanCandidateMap 渲染，保证过程与最后一致
+            console.log('[实时显示] 分支: 渲染表格 merged=' + merged.length + ', top=' + top.length);
+            let html = '<div style="margin-top: 15px; padding: 15px; background: white; border-radius: 6px;">';
+            // 如果扫描已完成，显示"扫描完成"，否则显示"扫描中"
+            const statusText = (progress.status === '完成' || progress.status === 'completed') ? '✅ 扫描完成' : '⏱️ 扫描中实时结果';
+            html += `<h4>${statusText}：已找到 ${merged.length} 只（展示前 ${top.length} 只）</h4>`;
+            // ✅ 监控：显示当前处理的股票
+            const currentStock = progress.current_stock || '';
+            const currentStockName = progress.current_stock_name || '';
+            const currentStockInfo = currentStock ? ` | 📍 当前: ${currentStock} ${currentStockName}` : '';
+            html += `<p style="color: #666; font-size: 12px;">已扫描: ${progress.current || 0}/${progress.total || 0} | 当前状态: ${progress.status || ''}${currentStockInfo}</p>`;
+            html += '<table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px;">';
+            html += '<tr style="background: #f0f0f0;"><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">排名</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">股票代码</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">股票名称</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">匹配度</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">最佳买点日期</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">最佳买点价格</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">当前价格</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">市值(亿)</th></tr>';
+
+            top.forEach((candidate, index) => {
+                const matchScore = candidate.匹配度 || candidate.match_score || 0;
+                const matchColor = matchScore >= 0.8 ? '#27ae60' : matchScore >= 0.7 ? '#f39c12' : '#e74c3c';
+                const stockCode = candidate.股票代码 || candidate.code || '';
+                const stockName = candidate.股票名称 || candidate.name || '';
+                const buyDate = candidate.最佳买点日期 || candidate.buy_date || '';
+                const buyPrice = candidate.最佳买点价格 || candidate.buy_price || 0;
+                const currentPrice = candidate.当前价格 || candidate.current_price || 0;
+                const marketCap = candidate.市值 || candidate.market_cap || '';
+
+                html += `<tr>
+                    <td style="padding: 8px; border: 1px solid #ddd;">${index + 1}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; color: #667eea;">${stockCode}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">${stockName}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; color: ${matchColor}; font-weight: bold;">${Number(matchScore).toFixed(3)}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">${buyDate}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold; color: #e74c3c;">${Number(buyPrice).toFixed(2)}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">${currentPrice ? Number(currentPrice).toFixed(2) : ''}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">${marketCap === null || marketCap === undefined ? '' : marketCap}</td>
+                </tr>`;
+            });
+
+            html += '</table></div>';
+            container.innerHTML = html;
+            } catch (e) {
+                console.error('[实时显示] updateLiveScanResults 异常:', e);
+            }
         }
         
         function stopProgressPolling() {
@@ -1428,7 +1725,34 @@
                 return;
             }
             
-            showMessage('正在查找买点，请稍候...', 'success');
+            // ✅ 获取匹配度阈值和搜索年数
+            const matchThresholdInput = document.getElementById('buyPointMatchThreshold');
+            const searchYearsInput = document.getElementById('buyPointSearchYears');
+            const matchThreshold = matchThresholdInput ? parseFloat(matchThresholdInput.value) || 0.95 : 0.95;
+            const searchYears = searchYearsInput ? parseInt(searchYearsInput.value) || 5 : 5;
+            
+            // 验证阈值范围
+            if (matchThreshold < 0.6 || matchThreshold > 1.0) {
+                showMessage('匹配度阈值必须在0.6-1.0之间', 'error');
+                return;
+            }
+            
+            // 验证搜索年数范围
+            if (searchYears < 1 || searchYears > 10) {
+                showMessage('搜索年数必须在1-10年之间', 'error');
+                return;
+            }
+            
+            // ✅ 关键：停止进度轮询（避免"扫描全市场"的进度覆盖"找买点"的结果）
+            stopProgressPolling();
+            
+            // 清除之前的结果
+            const resultDiv = document.getElementById('buyPointsResult');
+            if (resultDiv) {
+                resultDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;"><span style="font-size: 24px;">🔍</span><br>正在查找买点，请稍候...</div>';
+            }
+            
+            showMessage(`正在查找买点（匹配度阈值: ${matchThreshold}, 搜索年数: ${searchYears}年），请稍候...`, 'success');
             
             try {
                 const response = await fetch('/api/find_buy_points', {
@@ -1439,8 +1763,8 @@
                     body: JSON.stringify({
                         code: code,
                         tolerance: 0.3,
-                        search_years: 5,  // 搜索5年历史数据
-                        match_threshold: 0.95  // 匹配度阈值0.95
+                        search_years: searchYears,  // ✅ 使用用户设置的搜索年数
+                        match_threshold: matchThreshold  // ✅ 使用用户设置的匹配度阈值
                     })
                 });
                 
@@ -1474,10 +1798,10 @@
                             </div>`;
                         }
                         
-                        // 筛选匹配度 > 0.9 的买点（严格大于0.9）
+                        // ✅ 使用用户设置的匹配度阈值进行筛选（而不是硬编码的0.9）
                         const filteredBuyPoints = result.buy_points.filter(bp => {
                             const matchScore = bp.匹配度 || bp['匹配度'] || 0;
-                            return matchScore > 0.9;
+                            return matchScore > matchThreshold;  // ✅ 使用用户输入的匹配度阈值
                         });
                         
                         // 获取股票代码和名称（优先使用输入的代码，确保一致性）
@@ -1492,9 +1816,9 @@
                         
                         let html = '<div style="margin-top: 15px; padding: 15px; background: white; border-radius: 6px;">';
                         html += statsHtml;
-                        html += `<h4>${displayName} - 找到 ${filteredBuyPoints.length} 个历史买点（匹配度>0.9）：</h4>`;
+                        html += `<h4>${displayName} - 找到 ${filteredBuyPoints.length} 个历史买点（匹配度>${matchThreshold}）：</h4>`;
                         if (result.buy_points.length > filteredBuyPoints.length) {
-                            html += `<p style="color: #999; font-size: 12px; margin-top: 5px;">已过滤 ${result.buy_points.length - filteredBuyPoints.length} 个匹配度≤0.9的买点</p>`;
+                            html += `<p style="color: #999; font-size: 12px; margin-top: 5px;">已过滤 ${result.buy_points.length - filteredBuyPoints.length} 个匹配度≤${matchThreshold}的买点</p>`;
                         }
                         html += '<div style="overflow-x: auto;"><table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">';
                         html += '<tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;"><th style="padding: 10px; border: 1px solid #ddd; text-align: left;">日期</th><th style="padding: 10px; border: 1px solid #ddd; text-align: left;">价格</th><th style="padding: 10px; border: 1px solid #ddd; text-align: left;">匹配度</th><th style="padding: 10px; border: 1px solid #ddd; text-align: left;">4周涨幅</th><th style="padding: 10px; border: 1px solid #ddd; text-align: left;">10周涨幅</th><th style="padding: 10px; border: 1px solid #ddd; text-align: left;">10周最大涨幅</th><th style="padding: 10px; border: 1px solid #ddd; text-align: left;">20周涨幅</th><th style="padding: 10px; border: 1px solid #ddd; text-align: left;">最佳买点</th><th style="padding: 10px; border: 1px solid #ddd; text-align: left;">最佳卖点价格</th><th style="padding: 10px; border: 1px solid #ddd; text-align: left;">止损价格</th></tr>';
@@ -1573,9 +1897,9 @@
                         if (filteredBuyPoints.length === 0) {
                             html = '<div style="margin-top: 15px; padding: 15px; background: white; border-radius: 6px;">';
                             html += statsHtml;
-                            html += `<h4>${displayName} - 未找到匹配度>0.9的买点</h4>`;
+                            html += `<h4>${displayName} - 未找到匹配度>${matchThreshold}的买点</h4>`;
                             if (result.buy_points.length > 0) {
-                                html += `<div style="margin-top: 10px; padding: 10px; background: #fff3cd; border-radius: 6px; color: #856404; font-size: 12px;">提示：共有 ${result.buy_points.length} 个买点，但匹配度均≤0.9</div>`;
+                                html += `<div style="margin-top: 10px; padding: 10px; background: #fff3cd; border-radius: 6px; color: #856404; font-size: 12px;">提示：共有 ${result.buy_points.length} 个买点，但匹配度均≤${matchThreshold}</div>`;
                             }
                             html += '</div>';
                         }
@@ -1714,6 +2038,52 @@
         
         // 扫描全市场
         let isScanning = false; // 防止重复点击
+        
+        // ✅ 保存上一次的扫描条件
+        function getLastScanParams() {
+            try {
+                const saved = localStorage.getItem('last_scan_params');
+                return saved ? JSON.parse(saved) : null;
+            } catch (e) {
+                return null;
+            }
+        }
+        
+        function saveLastScanParams(params) {
+            try {
+                localStorage.setItem('last_scan_params', JSON.stringify(params));
+                localStorage.setItem('last_scan_result_scan_id', params.scan_id || '');
+            } catch (e) {
+                console.warn('[scanAllStocks] 保存扫描条件失败:', e);
+            }
+        }
+        
+        function compareScanParams(params1, params2) {
+            // 比较所有关键参数
+            const keys = ['min_match_score', 'max_market_cap', 'limit', 'scan_date', 'scan_session', 
+                         'exclude_st', 'exclude_suspended', 'industry_filter', 'custom_stock_pool'];
+            
+            for (const key of keys) {
+                const val1 = params1[key];
+                const val2 = params2[key];
+                
+                // 处理null/undefined/空字符串的等价性
+                const normalize = (v) => {
+                    if (v === null || v === undefined || v === '') return null;
+                    if (typeof v === 'string') return v.trim();
+                    if (typeof v === 'number') return v;
+                    return v;
+                };
+                
+                if (normalize(val1) !== normalize(val2)) {
+                    console.log(`[scanAllStocks] 参数不同: ${key} = ${val1} vs ${val2}`);
+                    return false;
+                }
+            }
+            
+            return true;
+        }
+        
         async function scanAllStocks() {
             console.log('[scanAllStocks] 开始执行扫描函数');
             
@@ -1724,9 +2094,129 @@
                 return;
             }
             
+            // ✅ 收集当前扫描条件（在所有参数收集完成后）
+            // 注意：参数收集逻辑在后面，这里先定义变量
+            
             isScanning = true;
             
-            // 立即显示初始化提示
+            // 点击扫描全市场：立即清空显示内容，再按新条件显示新内容（逻辑不可延后）
+            stopProgressPolling();
+            window._scanJustCleared = true;
+            window.currentScanId = null;
+            window.currentScanResults = null;
+            window._liveScanCandidateMap = {};
+            const _resultContainer = document.getElementById('buyPointsResult');
+            if (_resultContainer) {
+                _resultContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: #666; background: white; border-radius: 6px; margin-top: 15px;"><span style="font-size: 24px;">🔍</span><br><p style="margin-top: 10px;">正在扫描全市场，找到符合条件的股票将实时显示在这里...</p><p style="color: #999; font-size: 12px; margin-top: 5px;">请稍候...</p></div>';
+            }
+            
+            // ✅ 先收集所有扫描参数（在清除结果之前）
+            let currentParams = {};
+            
+            // ✅ 先声明所有变量，避免 "Cannot access before initialization" 错误
+            let minMatch, maxCap, scanLimit, excludeST, excludeSuspended, industryFilter, customStockPool;
+            let scanDate = null;
+            let scanSession = 'close';
+            
+            // 根据用户类型收集参数
+            const localVersionButtonsPanel = document.getElementById('localVersionButtons');
+            const superUserButtonsPanel = document.getElementById('superUserButtons');
+            const vipUserButtonsPanel = document.getElementById('vipUserButtons');
+            
+            if (isLocalEnvironment() && localVersionButtonsPanel && localVersionButtonsPanel.offsetParent !== null) {
+                // 本地版本参数
+                const localMinMatchScoreInput = document.getElementById('localMinMatchScore');
+                const localMaxMarketCapInput = document.getElementById('localMaxMarketCap');
+                const localScanLimitInput = document.getElementById('localScanLimit');
+                const localScanDateInput = document.getElementById('localScanDate');
+                const localScanSessionInput = document.getElementById('localScanSession');
+                
+                if (localMinMatchScoreInput) {
+                    minMatch = parseFloat(localMinMatchScoreInput.value) || 0.93;
+                    maxCap = parseFloat(localMaxMarketCapInput?.value) || 100;
+                    scanLimit = localScanLimitInput?.value ? parseInt(localScanLimitInput.value) : null;
+                    scanDate = (localScanDateInput?.value || '').trim() || null;
+                    scanSession = (localScanSessionInput?.value || 'close').trim();
+                    excludeST = true;
+                    excludeSuspended = true;
+                    industryFilter = '';
+                    customStockPool = '';
+                    
+                    currentParams = {
+                        min_match_score: minMatch,
+                        max_market_cap: maxCap,
+                        limit: scanLimit,
+                        scan_date: scanDate,
+                        scan_session: scanSession,
+                        exclude_st: excludeST,
+                        exclude_suspended: excludeSuspended,
+                        industry_filter: industryFilter,
+                        custom_stock_pool: customStockPool
+                    };
+                }
+            } else if (superUserButtonsPanel && superUserButtonsPanel.offsetParent !== null) {
+                // 超级用户参数
+                const superMinMatchScoreInput = document.getElementById('superMinMatchScore');
+                const superMaxMarketCapInput = document.getElementById('superMaxMarketCap');
+                
+                if (superMinMatchScoreInput) {
+                    minMatch = parseFloat(superMinMatchScoreInput.value) || 0.93;
+                    maxCap = parseFloat(superMaxMarketCapInput?.value) || 100;
+                    scanLimit = null;
+                    scanDate = null;
+                    scanSession = 'close';
+                    excludeST = true;
+                    excludeSuspended = true;
+                    industryFilter = '';
+                    customStockPool = '';
+                    
+                    currentParams = {
+                        min_match_score: minMatch,
+                        max_market_cap: maxCap,
+                        limit: scanLimit,
+                        scan_date: scanDate,
+                        scan_session: scanSession,
+                        exclude_st: excludeST,
+                        exclude_suspended: excludeSuspended,
+                        industry_filter: industryFilter,
+                        custom_stock_pool: customStockPool
+                    };
+                }
+            } else if (vipUserButtonsPanel && vipUserButtonsPanel.offsetParent !== null) {
+                // VIP用户参数
+                const minMatchScoreInput = document.getElementById('minMatchScore');
+                const maxMarketCapInput = document.getElementById('maxMarketCap');
+                const excludeSTInput = document.getElementById('excludeST');
+                const excludeSuspendedInput = document.getElementById('excludeSuspended');
+                const industryFilterInput = document.getElementById('industryFilter');
+                const customStockPoolInput = document.getElementById('customStockPool');
+                
+                if (minMatchScoreInput) {
+                    minMatch = parseFloat(minMatchScoreInput.value) || 0.93;
+                    maxCap = parseFloat(maxMarketCapInput?.value) || 100;
+                    excludeST = excludeSTInput?.checked !== false;
+                    excludeSuspended = excludeSuspendedInput?.checked !== false;
+                    industryFilter = (industryFilterInput?.value || '').trim();
+                    customStockPool = (customStockPoolInput?.value || '').trim();
+                    scanLimit = null;
+                    scanDate = null;
+                    scanSession = 'close';
+                    
+                    currentParams = {
+                        min_match_score: minMatch,
+                        max_market_cap: maxCap,
+                        limit: scanLimit,
+                        scan_date: scanDate,
+                        scan_session: scanSession,
+                        exclude_st: excludeST,
+                        exclude_suspended: excludeSuspended,
+                        industry_filter: industryFilter,
+                        custom_stock_pool: customStockPool
+                    };
+                }
+            }
+            
+            // 立即显示初始化提示（清空已在函数开头完成）
             showProgress();
             updateProgress(0, '初始化中', '正在初始化扫描任务，请稍候...');
             showMessage('正在初始化扫描任务，请稍候...', 'info');
@@ -1819,23 +2309,53 @@
                 // 继续执行，不阻止扫描
             }
             
+            // ✅ 提前读取“本地扫描日期/时间段”，用于判断是否需要继续旧扫描（避免参数变更却继续旧任务）
+            const normalizeDate = (d) => {
+                if (!d) return null;
+                try { return String(d).trim().replaceAll('/', '-'); } catch (e) { return String(d).trim(); }
+            };
+            const desiredScanDate = normalizeDate(document.getElementById('localScanDate')?.value || null);
+            const desiredScanSession = (document.getElementById('localScanSession')?.value || 'close').trim();
+
             // 检查是否有未完成的扫描
             try {
                 updateProgress(0, '检查状态', '正在检查是否有未完成的扫描...');
                 console.log('[scanAllStocks] 检查当前进度状态...');
-                const progressResponse = await fetch('/api/get_progress', {
-                    cache: 'no-store',
-                    headers: {
-                        'Cache-Control': 'no-cache',
-                        'Pragma': 'no-cache'
+                // 添加超时保护，避免长时间等待
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超时
+                let progressResponse;
+                try {
+                    progressResponse = await fetch('/api/get_progress', {
+                        cache: 'no-store',
+                        credentials: 'same-origin',
+                        headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeoutId);
+                } catch (error) {
+                    clearTimeout(timeoutId);
+                    if (error.name === 'AbortError') {
+                        console.warn('[scanAllStocks] 获取进度超时，跳过检查，直接开始扫描');
+                        // 超时后直接继续，不阻塞扫描
+                        progressResponse = { ok: false, status: 408 };
+                    } else {
+                        throw error;
                     }
-                });
-                
+                }
+                if (progressResponse.status === 401) {
+                    showMessage('登录已过期，请重新登录后重试', 'error');
+                    isScanning = false;
+                    hideProgress();
+                    return;
+                }
                 if (!progressResponse.ok) {
                     console.warn('[scanAllStocks] 获取进度失败:', progressResponse.status);
+                    // 如果获取进度失败（包括超时），直接继续扫描，不阻塞
+                    progressResult = { success: true, progress: { status: '空闲' } };
+                } else {
+                    progressResult = await progressResponse.json();
                 }
-                
-                const progressResult = await progressResponse.json();
                 console.log('[scanAllStocks] 当前进度状态:', progressResult);
                 
                 // 检查是否有正在进行的扫描（状态为"进行中"），如果有则询问是否继续
@@ -1844,9 +2364,22 @@
                     if (existingProgress.scan_id && existingProgress.total_batches > 1) {
                         const currentBatch = existingProgress.batch || 0;
                         const totalBatches = existingProgress.total_batches;
-                        if (confirm(`检测到未完成的扫描（已处理 ${currentBatch}/${totalBatches} 批），是否继续？\n点击"确定"继续，点击"取消"重新开始`)) {
+                        // 如果用户设置了 scan_date / scan_session，且与当前任务不同：不要“继续”，应当重新开始
+                        const existingDate = normalizeDate(existingProgress.scan_date || null);
+                        const existingSession = (existingProgress.scan_session || 'close').trim();
+                        const paramsChanged = (desiredScanDate || desiredScanSession) && (existingDate !== desiredScanDate || existingSession !== desiredScanSession);
+                        if (paramsChanged) {
+                            if (!confirm(`检测到未完成的扫描（已处理 ${currentBatch}/${totalBatches} 批），但你已修改扫描参数（日期/时间段）。\n\n点击“确定”：停止旧扫描并重新开始\n点击“取消”：保持旧扫描（不使用新参数）`)) {
+                                isScanning = false;
+                                return;
+                            }
+                            // 停止旧扫描，继续走下面“重新开始扫描”的流程
+                            try { await stopScan(); } catch (e) { console.warn('[scanAllStocks] 停止旧扫描失败（忽略）:', e); }
+                        } else if (confirm(`检测到未完成的扫描（已处理 ${currentBatch}/${totalBatches} 批），是否继续？\n点击"确定"继续，点击"取消"重新开始`)) {
                             // 继续扫描
                             showMessage('继续扫描...', 'success');
+                            window._scanJustCleared = false;  // 允许轮询写入本轮的继续结果
+                            if (existingProgress.scan_id) window.currentScanId = existingProgress.scan_id;  // 让轮询带 scan_id
                             showProgress();
                             updateProgress(
                                 existingProgress.percentage || 0,
@@ -1963,7 +2496,7 @@
             }
             
             // 检查是VIP用户、本地版本还是超级用户（优先检查本地版本）
-            let minMatch, maxCap, scanLimit, excludeST, excludeSuspended, industryFilter, customStockPool;
+            // ✅ 注意：变量已在函数开始处声明（第2062行），这里不再重复声明
             
             // 先检查环境，本地环境优先使用本地参数面板
             const isLocal = isLocalEnvironment();
@@ -1978,24 +2511,41 @@
                 const localMinMatchScoreInput = document.getElementById('localMinMatchScore');
                 const localMaxMarketCapInput = document.getElementById('localMaxMarketCap');
                 const localScanLimitInput = document.getElementById('localScanLimit');
+                const localScanDateInput = document.getElementById('localScanDate');
+                const localScanSessionInput = document.getElementById('localScanSession');
                 
                 if (localMinMatchScoreInput) {
                     minMatch = parseFloat(localMinMatchScoreInput.value) || 0.93;
                     maxCap = parseFloat(localMaxMarketCapInput?.value) || 100;
                     scanLimit = localScanLimitInput?.value ? parseInt(localScanLimitInput.value) : null;
+                    scanDate = (localScanDateInput?.value || '').trim() || null;
+                    scanSession = (localScanSessionInput?.value || 'close').trim();
                     excludeST = true;
                     excludeSuspended = true;
                     industryFilter = '';
                     customStockPool = '';
                     
-                    console.log('[scanAllStocks] 本地版本参数:', { minMatch, maxCap, scanLimit });
+                    // ✅ 保存当前参数
+                    currentParams = {
+                        min_match_score: minMatch,
+                        max_market_cap: maxCap,
+                        limit: scanLimit,
+                        scan_date: scanDate,
+                        scan_session: scanSession,
+                        exclude_st: excludeST,
+                        exclude_suspended: excludeSuspended,
+                        industry_filter: industryFilter,
+                        custom_stock_pool: customStockPool
+                    };
                     
-                    if (!confirm(`确定要开始扫描吗？\n\n扫描参数：\n- 匹配度阈值：${minMatch}\n- 最大市值：${maxCap}亿元\n${scanLimit ? `- 扫描数量限制：${scanLimit}只\n` : ''}\n这可能需要较长时间。`)) {
+                    console.log('[scanAllStocks] 本地版本参数:', { minMatch, maxCap, scanLimit, scanDate, scanSession });
+                    
+                    if (!confirm(`确定要开始扫描吗？\n\n扫描参数：\n- 匹配度阈值：${minMatch}\n- 最大市值：${maxCap}亿元\n${scanLimit ? `- 扫描数量限制：${scanLimit}只\n` : ''}${scanDate ? `- 指定扫描日期：${scanDate}\n` : ''}- 时间段：${scanSession === 'noon' ? '午盘' : '收盘'}\n这可能需要较长时间。`)) {
                         isScanning = false; // 重置标志
                         return;
                     }
                 }
-            } else if (superParamsPanel && superParamsPanel.offsetParent !== null) {
+            } else if (superUserButtonsPanel && superUserButtonsPanel.offsetParent !== null) {
                 // 超级用户：检查元素是否可见（使用 offsetParent，更可靠）
                 const superMinMatchScoreInput = document.getElementById('superMinMatchScore');
                 const superMaxMarketCapInput = document.getElementById('superMaxMarketCap');
@@ -2017,7 +2567,7 @@
                         return;
                     }
                 }
-            } else if (vipParamsPanel && vipParamsPanel.offsetParent !== null) {
+            } else if (vipUserButtonsPanel && vipUserButtonsPanel.offsetParent !== null) {
                 // VIP用户：检查元素是否可见（使用 offsetParent，更可靠）
                 const minMatchScoreInput = document.getElementById('minMatchScore');
                 const maxMarketCapInput = document.getElementById('maxMarketCap');
@@ -2035,7 +2585,21 @@
                     customStockPool = (customStockPoolInput?.value || '').trim();
                     scanLimit = null; // VIP用户支持全市场扫描，不使用limit
                     
-                    console.log('[scanAllStocks] VIP用户参数:', { minMatch, maxCap, excludeST, excludeSuspended, industryFilter, customStockPool });
+                    // ✅ 关键：确保 maxCap 是数字类型，并打印详细日志
+                    if (isNaN(maxCap) || maxCap <= 0) {
+                        console.warn('[scanAllStocks] ⚠️ maxCap 无效，使用默认值 100');
+                        maxCap = 100;
+                    }
+                    console.log('[scanAllStocks] VIP用户参数:', { 
+                        minMatch, 
+                        maxCap, 
+                        maxCapType: typeof maxCap,
+                        maxMarketCapInputValue: maxMarketCapInput?.value,
+                        excludeST, 
+                        excludeSuspended, 
+                        industryFilter, 
+                        customStockPool 
+                    });
                     
                     if (!confirm(`确定要开始扫描吗？\n\n扫描参数：\n- 匹配度阈值：${minMatch}\n- 最大市值：${maxCap}亿元\n- 排除ST股票：${excludeST ? '是' : '否'}\n- 排除停牌股票：${excludeSuspended ? '是' : '否'}\n${industryFilter ? `- 行业筛选：${industryFilter}\n` : ''}${customStockPool ? `- 自定义股票池：${customStockPool}\n` : ''}\n这可能需要较长时间（约5000只股票）。`)) {
                         isScanning = false; // 重置标志
@@ -2044,6 +2608,7 @@
                 }
             } else {
                 // 兜底方案：使用默认值（如果输入框不可见）
+                // 与后端默认一致；若结果过多可调高(0.95+)，过少可调低(0.90)
                 minMatch = 0.93;
                 maxCap = 100;
                 scanLimit = null;
@@ -2051,6 +2616,21 @@
                 excludeSuspended = true;
                 industryFilter = '';
                 customStockPool = '';
+                scanDate = null;
+                scanSession = 'close';
+                
+                // ✅ 保存当前参数
+                currentParams = {
+                    min_match_score: minMatch,
+                    max_market_cap: maxCap,
+                    limit: scanLimit,
+                    scan_date: scanDate,
+                    scan_session: scanSession,
+                    exclude_st: excludeST,
+                    exclude_suspended: excludeSuspended,
+                    industry_filter: industryFilter,
+                    custom_stock_pool: customStockPool
+                };
                 
                 console.warn('[scanAllStocks] 无法确定参数来源，使用默认值:', { minMatch, maxCap });
                 
@@ -2060,7 +2640,81 @@
                 }
             }
             
-            console.log('开始扫描，参数:', { minMatch, maxCap, scanLimit });
+            // ✅ 比较当前参数和上一次参数（在所有参数收集完成后）
+            const lastParams = getLastScanParams();
+            
+            if (lastParams && compareScanParams(currentParams, lastParams)) {
+                console.log('[scanAllStocks] ✅ 扫描条件与上一次完全相同，检查是否有缓存结果...');
+                
+                // 获取上一次的scan_id
+                const lastScanId = localStorage.getItem('last_scan_result_scan_id');
+                
+                if (lastScanId) {
+                    // 尝试获取缓存的结果
+                    try {
+                        updateProgress(0, '检查缓存', '正在检查是否有缓存结果...');
+                        const cachedResultResponse = await fetch(`/api/get_scan_results?scan_id=${lastScanId}`, {
+                            cache: 'no-store',
+                            headers: { 'Cache-Control': 'no-cache' }
+                        });
+                        
+                        if (cachedResultResponse.ok) {
+                            const cachedResult = await cachedResultResponse.json();
+                            
+                            if (cachedResult.success && cachedResult.candidates && cachedResult.candidates.length > 0) {
+                                console.log(`[scanAllStocks] ✅ 找到缓存结果，共 ${cachedResult.candidates.length} 只股票`);
+                                showMessage(`✅ 使用缓存结果（共 ${cachedResult.candidates.length} 只股票，条件与上次相同）`, 'success');
+                                
+                                // 直接显示缓存结果
+                                await displayScanResults(cachedResult);
+                                isScanning = false;
+                                stopProgressPolling();
+                                hideProgress();
+                                return; // 直接返回，不重新扫描
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[scanAllStocks] 获取缓存结果失败，继续重新扫描:', e);
+                    }
+                }
+                
+                // 如果没有缓存结果，继续重新扫描
+                console.log('[scanAllStocks] 未找到缓存结果，继续重新扫描...');
+            } else {
+                if (lastParams) {
+                    console.log('[scanAllStocks] ⚠️ 扫描条件已改变，必须重新扫描');
+                    console.log('[scanAllStocks] 条件变化详情:', {
+                        last: lastParams,
+                        current: currentParams
+                    });
+                } else {
+                    console.log('[scanAllStocks] 首次扫描或没有上次记录，开始新扫描');
+                }
+            }
+            
+            console.log('开始扫描，参数:', { minMatch, maxCap, scanLimit, scanDate, scanSession });
+
+            // ✅ 关键：每次“重新扫描全市场”时，先清空上一次找到的结果
+            // 避免用户在新一轮扫描尚未返回进度前，仍看到旧的候选列表
+            stopProgressPolling();  // 再次停止旧轮询（防御：若前面有分支未经过 2268 的 stop）
+            window.currentScanId = null;
+            window.currentScanResults = null;
+            window._liveScanCandidateMap = {};  // 清空实时候选缓存，仅展示本轮新内容
+            try {
+                const resultContainer = document.getElementById('buyPointsResult');
+                if (resultContainer) {
+                    // 显示初始提示，而不是"已清空上一次扫描结果"（避免用户误解）
+                    resultContainer.innerHTML = `
+                        <div style="margin-top: 15px; padding: 20px; background: white; border-radius: 6px; text-align: center; color: #666;">
+                            <span style="font-size: 24px;">🔍</span>
+                            <p style="margin-top: 10px;">正在扫描全市场，找到符合条件的股票将实时显示在这里...</p>
+                            <p style="color: #999; font-size: 12px; margin-top: 5px;">请稍候...</p>
+                        </div>
+                    `;
+                }
+            } catch (e) {
+                console.warn('[scanAllStocks] 清空旧结果失败（忽略）:', e);
+            }
             
             // 启用停止按钮
             const stopBtn = document.getElementById('stopScanBtn');
@@ -2113,6 +2767,11 @@
                 updateProgress(0, '准备中', '正在准备扫描任务...');
             }
             
+            // 本地环境直接使用本地数据扫描（数据更新只在登录时进行一次）
+            if (isLocalEnvironment()) {
+                console.log('[scanAllStocks] 本地环境，直接使用本地数据扫描');
+            }
+            
             // 显示启动扫描的提示
             updateProgress(0, '启动中', '正在启动扫描任务，请稍候...');
             showMessage('正在启动扫描任务，这可能需要一些时间，请耐心等待...', 'info');
@@ -2149,8 +2808,12 @@
                         },
                         body: JSON.stringify({
                             min_match_score: minMatch,
-                            max_market_cap: maxCap,
+                            max_market_cap: maxCap,  // ✅ 确保传递市值参数
                             limit: scanLimit,
+                            // 本地版新增：指定扫描日期/时间段（时间段仅作为标签）
+                            scan_date: scanDate,
+                            scan_session: scanSession,
+                            force_refresh: !!document.getElementById('localForceRefresh')?.checked,
                             exclude_st: excludeST,
                             exclude_suspended: excludeSuspended,
                             industry_filter: industryFilter,
@@ -2177,16 +2840,22 @@
                         try {
                             const checkResponse = await fetch('/api/get_progress', {
                                 cache: 'no-store',
-                                headers: {
-                                    'Cache-Control': 'no-cache'
-                                }
+                                credentials: 'same-origin',
+                                headers: { 'Cache-Control': 'no-cache' }
                             });
                             const checkResult = await checkResponse.json();
-                            
+                            if (checkResponse.status === 401) {
+                                showMessage('登录已过期，请重新登录后重试', 'error');
+                                return;
+                            }
                             if (checkResult.success && checkResult.progress && checkResult.progress.status !== '空闲') {
                                 // 扫描已经在进行中
                                 console.log('[scanAllStocks] ✅ 扫描已在后台启动！', checkResult.progress);
                                 showMessage('扫描已在后台启动！请继续等待进度更新...', 'success');
+                                window._scanJustCleared = false;  // 允许轮询写入本轮的进度
+                                if (checkResult.progress.scan_id) {
+                                    window.currentScanId = checkResult.progress.scan_id;  // 让轮询带 scan_id 拉取正确进度
+                                }
                                 
                                 // 如果返回了scan_id，尝试继续处理后续批次
                                 if (checkResult.progress.scan_id && checkResult.progress.total_batches > 1) {
@@ -2212,7 +2881,7 @@
                                 // 继续等待几秒，以防扫描刚刚启动但还未更新进度
                                 setTimeout(() => {
                                     // 再次检查进度
-                                    fetch('/api/get_progress', { cache: 'no-store' })
+                                    fetch('/api/get_progress', { cache: 'no-store', credentials: 'same-origin' })
                                         .then(r => r.json())
                                         .then(result => {
                                             if (result.success && result.progress && result.progress.status !== '空闲') {
@@ -2269,9 +2938,68 @@
                         console.warn('[scanAllStocks] 错误响应不是 JSON 格式');
                     }
                     
-                    // 如果是 400 错误（缓存不存在），显示详细的错误消息
-                    if (response.status === 400 && errorResult && errorResult.message) {
-                        const errorMsg = errorResult.message;
+                    // 如果是 400 错误，检查是否是数据不足错误
+                    if (response.status === 400 && errorResult) {
+                        // 检查是否是数据不足错误
+                        if (errorResult.error_code === 'DATA_INSUFFICIENT' || errorResult.need_download) {
+                            const freshness = errorResult.freshness || {};
+                            const outdatedCount = freshness.outdated_count || 0;
+                            const totalCount = freshness.total || 0;
+                            const latestDate = freshness.latest_data_date || '未知';
+                            const targetDate = freshness.target_date || '今天';
+                            const outdatedPct = totalCount > 0 ? (outdatedCount/totalCount*100).toFixed(1) : 0;
+                            
+                            const errorMsg = `数据不足，无法进行扫描！\n\n` +
+                                `过期数据: ${outdatedCount}/${totalCount} (${outdatedPct}%)\n` +
+                                `最新数据日期: ${latestDate}\n` +
+                                `目标扫描日期: ${targetDate}\n\n` +
+                                `请先下载数据后再进行扫描。`;
+                            
+                            showMessage(errorMsg, 'error');
+                            
+                            // 在本地环境中，显示下载数据的按钮提示
+                            if (isLocalEnvironment()) {
+                                setTimeout(() => {
+                                    // ✅ 先检查时间，如果是15:00后，不提示更新
+                                    fetch('/api/get_data_update_timestamp')
+                                        .then(res => res.json())
+                                        .then(result => {
+                                            if (result.success && result.should_skip) {
+                                                console.log(`[scanAllStocks] ${result.message || '交易已结束，跳过数据更新提示'}`);
+                                                return; // 跳过提示
+                                            }
+                                            // 如果允许更新，再提示用户
+                                            if (confirm('检测到数据不足。是否现在启动数据下载？\n\n（您也可以稍后在"数据管理"中手动下载）')) {
+                                                // 自动启动数据下载
+                                                if (typeof startAutoDataUpdate === 'function') {
+                                                    startAutoDataUpdate();
+                                                }
+                                            }
+                                        })
+                                        .catch(err => {
+                                            console.error('[scanAllStocks] 检查时间戳失败:', err);
+                                            // 检查失败时，仍然提示（保守策略）
+                                            if (confirm('检测到数据不足。是否现在启动数据下载？\n\n（您也可以稍后在"数据管理"中手动下载）')) {
+                                                if (typeof startAutoDataUpdate === 'function') {
+                                                    startAutoDataUpdate();
+                                                }
+                                            }
+                                        });
+                                }, 500);
+                            }
+                            
+                            // 停止进度轮询和隐藏进度条
+                            stopProgressPolling();
+                            hideProgress();
+                            if (stopBtn) {
+                                stopBtn.disabled = true;
+                            }
+                            isScanning = false; // 重置标志
+                            return; // 直接返回
+                        }
+                        
+                        // 其他 400 错误（如缓存不存在）
+                        const errorMsg = errorResult.message || '请求错误';
                         console.error('[scanAllStocks] 缓存不存在错误:', {
                             cache_exists: errorResult.cache_exists,
                             is_in_trading_time: errorResult.is_in_trading_time,
@@ -2376,10 +3104,18 @@
                 
                 if (result.success) {
                     console.log('[scanAllStocks] 扫描启动成功，处理响应...');
+                    window._scanJustCleared = false;  // 新扫描已启动，允许轮询写入结果（此前一直忽略旧 progress）
                     // 检查是否是 Vercel 分批扫描模式
                     const scanId = result.scan_id;
                     const hasMore = result.has_more;
                     const totalBatches = result.total_batches;
+                    
+                    // ✅ 保存当前扫描条件和scan_id（用于下次比较）
+                    if (scanId && Object.keys(currentParams).length > 0) {
+                        currentParams.scan_id = scanId;
+                        saveLastScanParams(currentParams);
+                        console.log('[scanAllStocks] ✅ 已保存扫描条件和scan_id:', { scan_id: scanId, params: currentParams });
+                    }
                     
                     if (scanId && hasMore !== undefined) {
                         // Vercel 分批扫描模式
@@ -2408,14 +3144,30 @@
                             try {
                                 const progressResponse = await fetch('/api/get_progress', {
                                     cache: 'no-store',
-                                    headers: {
-                                        'Cache-Control': 'no-cache'
-                                    }
+                                    credentials: 'same-origin',
+                                    headers: { 'Cache-Control': 'no-cache' }
                                 });
+                                if (progressResponse.status === 401) {
+                                    clearInterval(scanCheckInterval);
+                                    scanCheckInterval = null;
+                                    stopProgressPolling();
+                                    showMessage('登录已过期或服务已重启，请重新登录后重试', 'error');
+                                    if (typeof isScanning !== 'undefined') isScanning = false;
+                                    if (stopBtn) stopBtn.disabled = true;
+                                    return;
+                                }
                                 const progressResult = await progressResponse.json();
                                 
                                 if (progressResult.success && progressResult.progress) {
                                     const progress = progressResult.progress;
+                                    try { updateLiveScanResults(progress); } catch (e) { console.warn('[scanCheckInterval] updateLiveScanResults:', e); }
+                                    
+                                    // ✅ 如果扫描完成，保存scan_id（用于下次比较）
+                                    if (progress.status === '完成' && progress.scan_id && Object.keys(currentParams).length > 0) {
+                                        currentParams.scan_id = progress.scan_id;
+                                        saveLastScanParams(currentParams);
+                                        console.log('[scanAllStocks] ✅ 扫描完成，已保存扫描条件和scan_id');
+                                    }
                                     
                                     // 检查进度是否长时间未更新（可能卡住了）
                                     if (progress.last_update_time) {
@@ -2466,34 +3218,25 @@
                                         clearInterval(scanCheckInterval);
                                         scanCheckInterval = null;
                                         stopProgressPolling();
-                                        
-                                        // 禁用停止按钮
-                                        if (stopBtn) {
-                                            stopBtn.disabled = true;
-                                        }
-                                        
-                                        // 重置扫描标志
-                                        if (typeof isScanning !== 'undefined') {
-                                            isScanning = false;
-                                        }
-                                        
-                                        // 获取扫描结果
-                                        const resultsResponse = await fetch('/api/get_scan_results');
-                                        const resultsResult = await resultsResponse.json();
-                                        
-                                        // 无论是否找到股票，都显示结果
-                                        if (resultsResult.success) {
-                                            await displayScanResults(resultsResult);
-                                            const foundCount = resultsResult.found_count || 0;
-                                            const totalScanned = resultsResult.total_scanned || 0;
-                                            if (foundCount > 0) {
-                                                showMessage(`扫描完成！共扫描 ${totalScanned} 只股票，共有 ${foundCount} 只股票符合条件`, 'success');
-                                            } else {
-                                                showMessage(`扫描完成！共扫描 ${totalScanned} 只股票，共有 0 只股票符合条件`, 'warning');
-                                            }
+                                        if (stopBtn) stopBtn.disabled = true;
+                                        if (typeof isScanning !== 'undefined') isScanning = false;
+                                        // 【不可变】过程与最后一致：有实时缓存时只从 _liveScanCandidateMap 渲染，不覆盖
+                                        const cached = window._liveScanCandidateMap ? Object.keys(window._liveScanCandidateMap).length : 0;
+                                        if (cached > 0) {
+                                            updateLiveScanResults(progress);
+                                            const totalScanned = progress.current || progress.total || 0;
+                                            showMessage(`扫描完成！共扫描 ${totalScanned} 只股票，找到 ${cached} 只符合条件的股票`, 'success');
                                         } else {
-                                            const totalScanned = resultsResult.total_scanned || 0;
-                                            showMessage(`扫描完成！共扫描 ${totalScanned} 只股票，共有 0 只股票符合条件。${resultsResult.message || ''}`, 'warning');
+                                            const resultsResponse = await fetch('/api/get_scan_results', { cache: 'no-store', credentials: 'same-origin' });
+                                            const resultsResult = await resultsResponse.json();
+                                            if (resultsResult.success) {
+                                                await displayScanResults(resultsResult);
+                                                const foundCount = resultsResult.found_count || 0;
+                                                const totalScanned = resultsResult.total_scanned || 0;
+                                                showMessage(foundCount > 0 ? `扫描完成！共扫描 ${totalScanned} 只股票，共有 ${foundCount} 只股票符合条件` : `扫描完成！共扫描 ${totalScanned} 只股票，共有 0 只股票符合条件`, foundCount > 0 ? 'success' : 'warning');
+                                            } else {
+                                                showMessage(`扫描完成！共扫描 ${resultsResult.total_scanned || 0} 只股票，共有 0 只股票符合条件。${resultsResult.message || ''}`, 'warning');
+                                            }
                                         }
                                     } else if (progress.status === '失败' || progress.status === '已停止') {
                                         clearInterval(scanCheckInterval);
@@ -2511,29 +3254,28 @@
                                         }
                                         
                                         if (progress.status === '已停止') {
-                                            showMessage('扫描已停止', 'warning');
-                                            // 如果已停止，立即获取已扫描的结果
-                                            try {
-                                                const resultsResponse = await fetch('/api/get_scan_results');
-                                                const resultsResult = await resultsResponse.json();
-                                                console.log('停止后的扫描结果:', resultsResult);
-                                                
-                                                if (resultsResult.success) {
-                                                    await displayScanResults(resultsResult);
-                                                    const foundCount = resultsResult.found_count || resultsResult.candidates?.length || 0;
-                                                    const totalScanned = resultsResult.total_scanned || 0;
-                                                    if (foundCount > 0) {
-                                                        showMessage(`扫描已停止，共扫描 ${totalScanned} 只股票，共有 ${foundCount} 只股票符合条件`, 'success');
+                                            // 【不可变】过程与最后一致：有实时缓存时只从 _liveScanCandidateMap 渲染，不覆盖
+                                            const cached = window._liveScanCandidateMap ? Object.keys(window._liveScanCandidateMap).length : 0;
+                                            if (cached > 0) {
+                                                updateLiveScanResults(progress);
+                                                const totalScanned = progress.current || progress.total || 0;
+                                                showMessage(`扫描已停止，共扫描 ${totalScanned} 只股票，共有 ${cached} 只股票符合条件`, 'success');
+                                            } else {
+                                                try {
+                                                    const resultsResponse = await fetch('/api/get_scan_results', { cache: 'no-store', credentials: 'same-origin' });
+                                                    const resultsResult = await resultsResponse.json();
+                                                    if (resultsResult.success) {
+                                                        await displayScanResults(resultsResult);
+                                                        const foundCount = resultsResult.found_count || resultsResult.candidates?.length || 0;
+                                                        const totalScanned = resultsResult.total_scanned || 0;
+                                                        showMessage(foundCount > 0 ? `扫描已停止，共扫描 ${totalScanned} 只股票，共有 ${foundCount} 只股票符合条件` : `扫描已停止，共扫描 ${totalScanned} 只股票，共有 0 只股票符合条件`, foundCount > 0 ? 'success' : 'warning');
                                                     } else {
-                                                        showMessage(`扫描已停止，共扫描 ${totalScanned} 只股票，共有 0 只股票符合条件`, 'warning');
+                                                        showMessage(`扫描已停止，共扫描 ${resultsResult.total_scanned || 0} 只股票，共有 0 只股票符合条件。${resultsResult.message || ''}`, 'warning');
                                                     }
-                                                } else {
-                                                    const totalScanned = resultsResult.total_scanned || 0;
-                                                    showMessage(`扫描已停止，共扫描 ${totalScanned} 只股票，共有 0 只股票符合条件。${resultsResult.message || ''}`, 'warning');
+                                                } catch (error) {
+                                                    console.error('获取停止后的扫描结果失败:', error);
+                                                    showMessage('扫描已停止，但获取结果时出错: ' + error.message, 'warning');
                                                 }
-                                            } catch (error) {
-                                                console.error('获取停止后的扫描结果失败:', error);
-                                                showMessage('扫描已停止，但获取结果时出错: ' + error.message, 'warning');
                                             }
                                         } else {
                                             showMessage(progress.detail || '扫描失败', 'error');
@@ -2827,6 +3569,247 @@
                     showMessage('搜索启动失败: ' + error.message, 'error');
                 }
             }
+        }
+        
+        // ==================== KDJ模式扫描 ====================
+        
+        // KDJ模式扫描
+        let kdjScanInterval = null;
+        
+        async function scanKdjStocks() {
+            console.log('scanKdjStocks 函数被调用');
+            
+            // 获取筛选条件
+            const thresholdInput = document.getElementById('kdjThreshold');
+            const limitInput = document.getElementById('kdjLimit');
+            const threshold = thresholdInput ? parseFloat(thresholdInput.value) : 20;
+            const limit = limitInput ? parseInt(limitInput.value) : 50;
+            
+            if (isNaN(threshold) || threshold < 0 || threshold > 100) {
+                showMessage('请输入有效的KDJ阈值（0-100）', 'error');
+                return;
+            }
+            
+            console.log('开始KDJ模式扫描...', { threshold, limit });
+            showMessage(`开始KDJ模式扫描（阈值 < ${threshold}），请稍候...`, 'success');
+            
+            // 显示进度条
+            showProgress();
+            updateProgress(0, '初始化', '准备开始KDJ扫描...');
+            
+            // 禁用扫描按钮，启用停止按钮
+            const scanBtn = document.getElementById('scanKdjBtn');
+            const stopBtn = document.getElementById('stopKdjBtn');
+            if (scanBtn) {
+                scanBtn.disabled = true;
+                scanBtn.textContent = '⏳ 扫描中...';
+            }
+            if (stopBtn) {
+                stopBtn.disabled = false;
+            }
+            
+            try {
+                console.log('发送请求到 /api/scan_kdj');
+                const response = await fetch('/api/scan_kdj', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        threshold: threshold,
+                        limit: limit
+                    })
+                });
+                
+                const result = await response.json();
+                console.log('KDJ扫描启动结果:', result);
+                
+                if (result.success) {
+                    // 开始轮询进度
+                    startKdjProgressPolling();
+                } else {
+                    showMessage(result.message || 'KDJ扫描启动失败', 'error');
+                    resetKdjScanButtons();
+                    hideProgress();
+                }
+            } catch (error) {
+                console.error('KDJ扫描启动出错:', error);
+                showMessage('KDJ扫描启动出错: ' + error.message, 'error');
+                resetKdjScanButtons();
+                hideProgress();
+            }
+        }
+        
+        // 启动KDJ进度轮询
+        function startKdjProgressPolling() {
+            if (kdjScanInterval) {
+                clearInterval(kdjScanInterval);
+            }
+            
+            kdjScanInterval = setInterval(async () => {
+                try {
+                    const response = await fetch('/api/get_kdj_scan_progress');
+                    const progress = await response.json();
+                    
+                    if (progress.success) {
+                        // 更新进度条
+                        updateProgress(
+                            progress.percentage || 0,
+                            progress.status === 'running' ? '扫描中' : progress.status,
+                            `${progress.message || ''} (已扫描: ${progress.processed}/${progress.total}, 找到: ${progress.found} 只)`
+                        );
+                        
+                        // 检查是否完成
+                        if (progress.status === 'completed' || progress.status === 'stopped') {
+                            clearInterval(kdjScanInterval);
+                            kdjScanInterval = null;
+                            
+                            // 获取最终结果
+                            const resultsResponse = await fetch('/api/get_kdj_scan_results');
+                            const results = await resultsResponse.json();
+                            
+                            if (results.success) {
+                                displayKdjResults(results);
+                                showMessage(results.message || `找到 ${results.count} 只符合条件的个股`, 'success');
+                            }
+                            
+                            resetKdjScanButtons();
+                            hideProgress();
+                        }
+                    }
+                } catch (error) {
+                    console.error('获取KDJ进度出错:', error);
+                }
+            }, 1000);  // 每秒更新一次
+        }
+        
+        // 停止KDJ扫描
+        async function stopKdjScan() {
+            try {
+                const response = await fetch('/api/stop_kdj_scan', { method: 'POST' });
+                const result = await response.json();
+                console.log('停止KDJ扫描结果:', result);
+                showMessage('正在停止KDJ扫描...', 'warning');
+            } catch (error) {
+                console.error('停止KDJ扫描出错:', error);
+            }
+        }
+        
+        // 重置KDJ扫描按钮状态
+        function resetKdjScanButtons() {
+            const scanBtn = document.getElementById('scanKdjBtn');
+            const stopBtn = document.getElementById('stopKdjBtn');
+            if (scanBtn) {
+                scanBtn.disabled = false;
+                scanBtn.textContent = '🔍 开始KDJ扫描';
+            }
+            if (stopBtn) {
+                stopBtn.disabled = true;
+            }
+        }
+        
+        // 显示KDJ扫描结果
+        function displayKdjResults(result) {
+            const container = document.getElementById('kdjResults');
+            container.style.display = 'block';
+            
+            if (!result.data || result.data.length === 0) {
+                container.innerHTML = '<div style="margin-top: 15px; padding: 15px; background: white; border-radius: 6px; color: #999;">未找到符合条件的个股（日/周/月KDJ都在阈值以下）</div>';
+                return;
+            }
+            
+            let html = '<div style="margin-top: 20px; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">';
+            html += `<h3 style="margin-bottom: 15px; color: #333;">📊 KDJ模式扫描结果（找到 ${result.count} 只）</h3>`;
+            
+            // 显示筛选条件
+            html += '<div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #e74c3c;">';
+            html += '<h4 style="margin: 0 0 10px 0; color: #333; font-size: 14px;">📋 筛选条件：</h4>';
+            html += '<ul style="margin: 0; padding-left: 20px; color: #555; font-size: 13px; line-height: 1.8;">';
+            html += '<li>✅ KDJ参数: 9, 3, 3</li>';
+            html += `<li>✅ 日KDJ: K < ${result.threshold}, D < ${result.threshold}, J < ${result.threshold}</li>`;
+            html += `<li>✅ 周KDJ: K < ${result.threshold}, D < ${result.threshold}, J < ${result.threshold}</li>`;
+            html += `<li>✅ 月KDJ: K < ${result.threshold}, D < ${result.threshold}, J < ${result.threshold}</li>`;
+            html += '</ul>';
+            html += '<p style="margin: 10px 0 0 0; color: #888; font-size: 12px;">💡 提示: KDJ值越低表示越超卖，可能存在反弹机会</p>';
+            html += '</div>';
+            
+            // 创建表格
+            html += '<div style="overflow-x: auto;">';
+            html += '<table style="width: 100%; border-collapse: collapse; margin-top: 10px; min-width: 1200px;">';
+            html += '<thead><tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">';
+            html += '<th style="padding: 10px; text-align: left; border: 1px solid #dee2e6;">排名</th>';
+            html += '<th style="padding: 10px; text-align: left; border: 1px solid #dee2e6;">股票代码</th>';
+            html += '<th style="padding: 10px; text-align: left; border: 1px solid #dee2e6;">股票名称</th>';
+            html += '<th style="padding: 10px; text-align: left; border: 1px solid #dee2e6;">当前价格</th>';
+            html += '<th style="padding: 10px; text-align: center; border: 1px solid #dee2e6;" colspan="3">日KDJ</th>';
+            html += '<th style="padding: 10px; text-align: center; border: 1px solid #dee2e6;" colspan="3">周KDJ</th>';
+            html += '<th style="padding: 10px; text-align: center; border: 1px solid #dee2e6;" colspan="3">月KDJ</th>';
+            html += '<th style="padding: 10px; text-align: left; border: 1px solid #dee2e6;">KDJ平均</th>';
+            html += '<th style="padding: 10px; text-align: left; border: 1px solid #dee2e6;">操作</th>';
+            html += '</tr>';
+            html += '<tr style="background: #f0f0f0;">';
+            html += '<th style="padding: 5px; border: 1px solid #dee2e6;"></th>';
+            html += '<th style="padding: 5px; border: 1px solid #dee2e6;"></th>';
+            html += '<th style="padding: 5px; border: 1px solid #dee2e6;"></th>';
+            html += '<th style="padding: 5px; border: 1px solid #dee2e6;"></th>';
+            html += '<th style="padding: 5px; text-align: center; border: 1px solid #dee2e6; font-size: 12px; color: #666;">K</th>';
+            html += '<th style="padding: 5px; text-align: center; border: 1px solid #dee2e6; font-size: 12px; color: #666;">D</th>';
+            html += '<th style="padding: 5px; text-align: center; border: 1px solid #dee2e6; font-size: 12px; color: #666;">J</th>';
+            html += '<th style="padding: 5px; text-align: center; border: 1px solid #dee2e6; font-size: 12px; color: #666;">K</th>';
+            html += '<th style="padding: 5px; text-align: center; border: 1px solid #dee2e6; font-size: 12px; color: #666;">D</th>';
+            html += '<th style="padding: 5px; text-align: center; border: 1px solid #dee2e6; font-size: 12px; color: #666;">J</th>';
+            html += '<th style="padding: 5px; text-align: center; border: 1px solid #dee2e6; font-size: 12px; color: #666;">K</th>';
+            html += '<th style="padding: 5px; text-align: center; border: 1px solid #dee2e6; font-size: 12px; color: #666;">D</th>';
+            html += '<th style="padding: 5px; text-align: center; border: 1px solid #dee2e6; font-size: 12px; color: #666;">J</th>';
+            html += '<th style="padding: 5px; border: 1px solid #dee2e6;"></th>';
+            html += '<th style="padding: 5px; border: 1px solid #dee2e6;"></th>';
+            html += '</tr></thead><tbody>';
+            
+            result.data.forEach((stock, index) => {
+                // 根据J值决定颜色（J值越低越超卖）
+                const getColor = (val) => {
+                    if (val < 0) return '#c0392b';  // 深红色（极度超卖）
+                    if (val < 10) return '#e74c3c'; // 红色（强超卖）
+                    return '#e67e22';  // 橙色（超卖）
+                };
+                
+                html += '<tr style="border-bottom: 1px solid #dee2e6;">';
+                html += `<td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; font-weight: bold; color: #9b59b6;">${index + 1}</td>`;
+                html += `<td style="padding: 10px; border: 1px solid #dee2e6;"><a href="#" onclick="showWeeklyKline('${stock['股票代码']}', '${stock['股票名称']}'); return false;" style="color: #3498db; text-decoration: none;">${stock['股票代码']}</a></td>`;
+                html += `<td style="padding: 10px; border: 1px solid #dee2e6;">${stock['股票名称']}</td>`;
+                html += `<td style="padding: 10px; border: 1px solid #dee2e6;">${stock['当前价格']} 元</td>`;
+                
+                // 日KDJ
+                html += `<td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; color: ${getColor(stock['日K'])};">${stock['日K']}</td>`;
+                html += `<td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; color: ${getColor(stock['日D'])};">${stock['日D']}</td>`;
+                html += `<td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; color: ${getColor(stock['日J'])};">${stock['日J']}</td>`;
+                
+                // 周KDJ
+                html += `<td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; color: ${getColor(stock['周K'])};">${stock['周K']}</td>`;
+                html += `<td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; color: ${getColor(stock['周D'])};">${stock['周D']}</td>`;
+                html += `<td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; color: ${getColor(stock['周J'])};">${stock['周J']}</td>`;
+                
+                // 月KDJ
+                html += `<td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; color: ${getColor(stock['月K'])};">${stock['月K']}</td>`;
+                html += `<td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; color: ${getColor(stock['月D'])};">${stock['月D']}</td>`;
+                html += `<td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; color: ${getColor(stock['月J'])};">${stock['月J']}</td>`;
+                
+                // KDJ平均
+                html += `<td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; font-weight: bold; color: ${getColor(stock['KDJ平均'])};">${stock['KDJ平均']}</td>`;
+                
+                // 操作
+                html += `<td style="padding: 10px; border: 1px solid #dee2e6;">`;
+                html += `<button class="btn btn-sm" onclick="showWeeklyKline('${stock['股票代码']}', '${stock['股票名称']}')" style="background: #9b59b6; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;">周K线</button>`;
+                html += `<button class="btn btn-sm" onclick="findBuyPoints('${stock['股票代码']}')" style="background: #3498db; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;">找买点</button>`;
+                html += `</td>`;
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table>';
+            html += '</div>';
+            html += '</div>';
+            
+            container.innerHTML = html;
         }
         
         // 显示反转个股扫描结果
@@ -3175,10 +4158,46 @@
         async function displayScanResults(result) {
             const container = document.getElementById('buyPointsResult');
             
+            // ✅ 如果显示结果时，保存scan_id（从result或全局变量获取）
+            const scanId = result.scan_id || window.currentScanId;
+            if (scanId) {
+                const lastParams = getLastScanParams();
+                if (lastParams) {
+                    lastParams.scan_id = scanId;
+                    saveLastScanParams(lastParams);
+                    console.log('[displayScanResults] ✅ 已保存scan_id:', scanId);
+                }
+            }
+            
             // 获取扫描总数和找到的数量
             const totalScanned = result.total_scanned || 0;
             const foundCount = result.found_count || 0;
-            const candidates = result.candidates || [];
+            let candidates = result.candidates || [];
+            
+            // ✅ 关键修复：如果 candidates 为空，但 foundCount > 0，检查实时缓存
+            if ((!candidates || candidates.length === 0) && foundCount > 0) {
+                console.log('[displayScanResults] candidates为空但foundCount>0，检查实时缓存...');
+                if (window._liveScanCandidateMap && Object.keys(window._liveScanCandidateMap).length > 0) {
+                    candidates = Object.values(window._liveScanCandidateMap);
+                    candidates.sort((a, b) => (b.匹配度 || b.match_score || 0) - (a.匹配度 || a.match_score || 0));
+                    console.log(`[displayScanResults] ✅ 从实时缓存恢复 ${candidates.length} 只股票`);
+                } else {
+                    // 如果缓存也为空，尝试从后端获取
+                    console.log('[displayScanResults] 实时缓存也为空，尝试从后端获取...');
+                    try {
+                        const response = await fetch('/api/get_scan_results', { cache: 'no-store' });
+                        if (response.ok) {
+                            const backendResult = await response.json();
+                            if (backendResult.success && backendResult.candidates && backendResult.candidates.length > 0) {
+                                candidates = backendResult.candidates;
+                                console.log(`[displayScanResults] ✅ 从后端获取 ${candidates.length} 只股票`);
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[displayScanResults] 从后端获取失败:', e);
+                    }
+                }
+            }
             
             // 即使没找到股票，也显示结果提示
             if (!candidates || candidates.length === 0) {
@@ -3196,6 +4215,10 @@
                 container.innerHTML = noResultHtml;
                 return;
             }
+            
+            // 按匹配度从高到低排序，前端最多展示 30 只；超过 30 只时，匹配度最低的不会出现在列表中
+            candidates.sort((a, b) => (b.匹配度 || b.match_score || 0) - (a.匹配度 || a.match_score || 0));
+            const displayCandidates = candidates.slice(0, 30);
             
             // 检查用户等级（VIP用户显示导出按钮）
             let exportButtons = '';
@@ -3225,8 +4248,10 @@
             }
             
             let html = '<div style="margin-top: 15px; padding: 15px; background: white; border-radius: 6px;">';
-            html += `<h4>🎯 扫描结果：找到 ${result.found_count} 只符合条件的股票（显示前 ${result.candidates.length} 只）</h4>`;
-            html += `<p style="color: #666; font-size: 12px;">扫描总数: ${result.total_scanned} 只</p>`;
+            html += `<h4>🎯 扫描结果：找到 ${result.found_count} 只符合条件的股票（显示前 ${displayCandidates.length} 只）</h4>`;
+            const sd = result.scan_date || '';
+            const ss = result.scan_session || '';
+            html += `<p style="color: #666; font-size: 12px;">扫描总数: ${result.total_scanned} 只${sd ? ` | 扫描日期(as-of): <strong>${sd}</strong>` : ''}${ss ? ` | 时间段: <strong>${ss === 'noon' ? '午盘' : '收盘'}</strong>` : ''}</p>`;
             html += exportButtons;
             // 检查用户等级，VIP用户显示"加入关注"按钮
             let showWatchlistButton = false;
@@ -3242,8 +4267,8 @@
             html += '<table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px;">';
             html += '<tr style="background: #f0f0f0;"><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">排名</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">股票代码</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">股票名称</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">匹配度</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">最佳买点日期</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">最佳买点价格</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">当前价格</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">市值(亿)</th><th style="padding: 8px; border: 1px solid #ddd; text-align: left;">操作</th></tr>';
             
-            result.candidates.forEach((candidate, index) => {
-                const matchColor = candidate.匹配度 >= 0.8 ? '#27ae60' : candidate.匹配度 >= 0.7 ? '#f39c12' : '#e74c3c';
+            displayCandidates.forEach((candidate, index) => {
+                const matchColor = (candidate.匹配度 || candidate.match_score || 0) >= 0.8 ? '#27ae60' : (candidate.匹配度 || candidate.match_score || 0) >= 0.7 ? '#f39c12' : '#e74c3c';
                 const stockCode = candidate.股票代码 || candidate.code || '';
                 const stockName = candidate.股票名称 || candidate.name || '';
                 const buyDate = candidate.最佳买点日期 || candidate.buy_date || '';
@@ -3274,14 +4299,14 @@
         
         // 检查登录状态（添加超时控制和重试机制）
         async function checkLoginStatus(retryCount = 0) {
-            const maxRetries = 1; // 最多重试1次
-            const timeout = 8000; // 增加到8秒超时
+            const maxRetries = 0; // ✅ 不重试，直接返回
+            const timeout = 2000; // ✅ 减少到2秒超时（加快响应）
             
             try {
-                // 添加超时控制（8秒）
+                // 添加超时控制（2秒）
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => {
-                    console.warn(`[checkLoginStatus] 请求超时（${timeout/1000}秒），${retryCount < maxRetries ? '将重试' : '返回 false'}`);
+                    console.warn(`[checkLoginStatus] 请求超时（${timeout/1000}秒），返回 false`);
                     controller.abort();
                 }, timeout);
                 
@@ -3301,21 +4326,8 @@
                 } catch (fetchError) {
                     clearTimeout(timeoutId);
                     if (fetchError.name === 'AbortError' || fetchError.message?.includes('aborted')) {
-                        console.warn(`[checkLoginStatus] 请求超时或中断 (尝试 ${retryCount + 1}/${maxRetries + 1})`);
-                        // 如果还有重试次数，等待1秒后重试
-                        if (retryCount < maxRetries) {
-                            console.log(`[checkLoginStatus] 等待1秒后重试...`);
-                            await new Promise(resolve => setTimeout(resolve, 1000));
-                            return checkLoginStatus(retryCount + 1);
-                        }
-                        console.warn('[checkLoginStatus] 已达到最大重试次数，返回 false（不跳转，给用户重试机会）');
+                        console.warn(`[checkLoginStatus] 请求超时或中断，返回 false（不跳转）`);
                         return false; // 超时返回false，不跳转，让用户重试
-                    }
-                    // 网络错误也重试一次
-                    if (retryCount < maxRetries && (fetchError.message?.includes('Failed to fetch') || fetchError.message?.includes('network'))) {
-                        console.warn(`[checkLoginStatus] 网络错误，等待1秒后重试... (尝试 ${retryCount + 1}/${maxRetries + 1})`);
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                        return checkLoginStatus(retryCount + 1);
                     }
                     // 网络错误时不立即跳转，给用户重试的机会
                     console.warn('[checkLoginStatus] 网络错误，返回 false（不跳转）');
@@ -3323,13 +4335,7 @@
                 }
                 
                 if (!response.ok) {
-                    console.error(`[checkLoginStatus] HTTP错误: ${response.status} (尝试 ${retryCount + 1}/${maxRetries + 1})`);
-                    // 如果是5xx错误，重试一次
-                    if (retryCount < maxRetries && response.status >= 500) {
-                        console.warn(`[checkLoginStatus] 服务器错误，等待1秒后重试...`);
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                        return checkLoginStatus(retryCount + 1);
-                    }
+                    console.error(`[checkLoginStatus] HTTP错误: ${response.status}`);
                     return false;
                 }
                 
@@ -3341,22 +4347,215 @@
                     window.location.href = '/login';
                     return false;
                 }
-                console.log(`[checkLoginStatus] ✅ 用户已登录 (尝试 ${retryCount + 1}/${maxRetries + 1})`);
+                console.log(`[checkLoginStatus] ✅ 用户已登录`);
                 return true;
             } catch (error) {
-                console.error(`[checkLoginStatus] 检查登录状态失败 (尝试 ${retryCount + 1}/${maxRetries + 1}):`, error);
-                // 网络错误时不立即跳转，给用户重试的机会
-                // 如果还有重试次数且是网络错误，重试一次
-                if (retryCount < maxRetries && (error.message?.includes('Failed to fetch') || error.message?.includes('network'))) {
-                    console.warn(`[checkLoginStatus] 网络错误，等待1秒后重试...`);
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    return checkLoginStatus(retryCount + 1);
-                }
+                console.error(`[checkLoginStatus] 检查登录状态失败:`, error);
                 return false;
             }
         }
         
         // 检查是否为本地环境（非Vercel）
+        // ========== 数据自动更新功能 ==========
+        let dataUpdatePollingInterval = null;
+        
+        async function startAutoDataUpdate() {
+            console.log('[数据更新] 检查是否需要更新数据...');
+            
+            try {
+                // ✅ 先检查是否应该跳过更新（交易日15:00后已更新过）
+                try {
+                    const timestampResp = await fetch('/api/get_data_update_timestamp');
+                    const timestampResult = await timestampResp.json();
+                    if (timestampResult.success && timestampResult.should_skip) {
+                        console.log(`[数据更新] ${timestampResult.message || '交易已结束，今日已更新，跳过更新'}`);
+                        showMessage(timestampResult.message || '交易已结束，今日已更新，无需更新', 'info');
+                        return;
+                    }
+                } catch (e) {
+                    console.warn('[数据更新] 检查时间戳失败，继续检查数据新鲜度:', e);
+                }
+                
+                // ✅ 先检查数据是否已是最新
+                const freshnessResp = await fetch('/api/check_data_freshness', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const freshness = await freshnessResp.json();
+                console.log('[数据更新] 数据新鲜度检查结果:', freshness);
+                
+                // ✅ 检查是否应该跳过更新（优先检查，即使数据不新鲜也要跳过）
+                if (freshness.should_skip || freshness.skip_reason === 'trading_hours_ended' || freshness.skip_reason === 'trading_hours_ended_no_timestamp') {
+                    console.log(`[数据更新] ✅ ${freshness.message || '交易已结束，今日已更新，跳过更新'}`);
+                    showMessage(freshness.message || '交易已结束，今日已更新，无需更新', 'info');
+                    return;
+                }
+                
+                // ✅ 额外检查：如果当前时间已经是15:00后，也阻止更新（即使数据不新鲜）
+                // 因为交易已结束，不应该自动更新
+                // 注意：这个检查由后端API完成，前端只需要检查返回的 should_skip 字段
+                
+                if (freshness.fresh) {
+                    console.log('[数据更新] ✅ 数据已是最新，无需更新');
+                    console.log(`[数据更新] 最新数据日期: ${freshness.latest_data_date || '未知'}`);
+                    console.log(`[数据更新] ${freshness.message || '数据已是最新'}`);
+                    // 不显示进度条，直接返回
+                    return;
+                }
+                
+                console.log(`[数据更新] ⚠️ 数据需要更新: ${freshness.message}`);
+                
+                // 先检查更新状态
+                const progressResp = await fetch('/api/get_data_update_progress');
+                const progress = await progressResp.json();
+                
+                if (progress.status === 'running') {
+                    console.log('[数据更新] 数据更新已在进行中，开始监控进度...');
+                    showDataUpdateProgress(progress);
+                    startDataUpdatePolling();
+                    return;
+                }
+                
+                // 启动数据更新
+                const startResp = await fetch('/api/start_data_update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await startResp.json();
+                
+                if (result.success) {
+                    console.log('[数据更新] 数据更新已启动');
+                    showDataUpdateProgress({ status: 'running', message: '正在启动数据更新...' });
+                    startDataUpdatePolling();
+                } else {
+                    // ✅ 如果返回失败，可能是数据已是最新
+                    if (result.message && result.message.includes('已是最新')) {
+                        console.log(`[数据更新] ✅ ${result.message}`);
+                        // 不显示进度条
+                        return;
+                    }
+                    console.warn('[数据更新] 启动失败:', result.message);
+                    showDataUpdateProgress({ status: 'error', message: `启动失败: ${result.message}` });
+                }
+            } catch (error) {
+                console.error('[数据更新] 检查或启动失败:', error);
+                showDataUpdateProgress({ status: 'error', message: '服务器错误: ' + error.message });
+            }
+        }
+        
+        function startDataUpdatePolling() {
+            console.log('[数据更新] 开始轮询数据更新进度...');
+            
+            // 如果已经有轮询在运行，先清除
+            if (dataUpdatePollingInterval) {
+                clearInterval(dataUpdatePollingInterval);
+            }
+            
+            // 立即获取一次进度
+            fetch('/api/get_data_update_progress')
+                .then(response => response.json())
+                .then(progress => {
+                    console.log('[数据更新] 初始进度:', progress);
+                    showDataUpdateProgress(progress);
+                })
+                .catch(error => {
+                    console.error('[数据更新] 获取初始进度失败:', error);
+                });
+            
+            // 每1秒轮询一次
+            dataUpdatePollingInterval = setInterval(async () => {
+                try {
+                    const response = await fetch('/api/get_data_update_progress', {
+                        cache: 'no-store',
+                        headers: {
+                            'Cache-Control': 'no-cache',
+                            'Pragma': 'no-cache'
+                        }
+                    });
+                    const progress = await response.json();
+                    
+                    console.log('[数据更新] 进度更新:', progress); // 添加调试日志
+                    showDataUpdateProgress(progress);
+                    
+                    if (progress.status === 'completed' || progress.status === 'error' || progress.status === 'stopped' || progress.status === 'merging') {
+                        // merging 状态时继续轮询，等待融合完成
+                        if (progress.status === 'merging') {
+                            // 继续轮询，不停止
+                        } else {
+                            clearInterval(dataUpdatePollingInterval);
+                            dataUpdatePollingInterval = null;
+                            
+                            // 3秒后隐藏进度条
+                            setTimeout(() => {
+                                hideDataUpdateProgress();
+                            }, 3000);
+                        }
+                    }
+                } catch (error) {
+                    console.error('[数据更新] 获取进度失败:', error);
+                }
+            }, 1000);
+        }
+        
+        function showDataUpdateProgress(progress) {
+            let progressDiv = document.getElementById('dataUpdateProgress');
+            if (!progressDiv) {
+                progressDiv = document.createElement('div');
+                progressDiv.id = 'dataUpdateProgress';
+                progressDiv.style.cssText = 'position:fixed;top:10px;right:10px;background:#fff;border:1px solid #ddd;border-radius:8px;padding:15px;box-shadow:0 2px 10px rgba(0,0,0,0.1);z-index:9999;min-width:300px;font-size:13px;';
+                document.body.appendChild(progressDiv);
+            }
+            
+            const statusIcon = progress.status === 'running' ? '🔄' : 
+                              progress.status === 'merging' ? '🔗' :
+                              progress.status === 'completed' ? '✅' : 
+                              progress.status === 'error' ? '❌' : '⏸️';
+            
+            const percentage = progress.percentage || 0;
+            const barColor = progress.status === 'completed' ? '#27ae60' : 
+                            progress.status === 'merging' ? '#9b59b6' :
+                            progress.status === 'error' ? '#e74c3c' : '#3498db';
+            
+            progressDiv.innerHTML = `
+                <div style="font-weight:bold;margin-bottom:8px;">${statusIcon} 数据更新</div>
+                <div style="background:#eee;border-radius:4px;height:8px;margin-bottom:8px;">
+                    <div style="background:${barColor};height:100%;border-radius:4px;width:${percentage}%;transition:width 0.3s;"></div>
+                </div>
+                <div style="color:#666;font-size:12px;">
+                    ${progress.message || ''}
+                    ${progress.current_stock ? `<br>当前: ${progress.current_stock}` : ''}
+                    ${progress.processed ? `<br>进度: ${progress.processed}/${progress.total} (${percentage}%)` : ''}
+                    ${progress.data_source ? `<br>数据源: ${progress.data_source === 'sina' ? '新浪' : '东方财富'}` : ''}
+                    ${progress.updated_count ? `<br>已更新: ${progress.updated_count} 只` : ''}
+                    ${progress.failed_count ? `<br>失败: ${progress.failed_count} 只` : ''}
+                </div>
+                ${progress.status === 'running' || progress.status === 'merging' ? `<button onclick="stopDataUpdate()" style="margin-top:8px;padding:4px 12px;background:#e74c3c;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;">停止</button>` : ''}
+            `;
+        }
+        
+        function hideDataUpdateProgress() {
+            const progressDiv = document.getElementById('dataUpdateProgress');
+            if (progressDiv) {
+                progressDiv.style.opacity = '0';
+                progressDiv.style.transition = 'opacity 0.5s';
+                setTimeout(() => {
+                    if (progressDiv.parentNode) {
+                        progressDiv.parentNode.removeChild(progressDiv);
+                    }
+                }, 500);
+            }
+        }
+        
+        async function stopDataUpdate() {
+            try {
+                await fetch('/api/stop_data_update', { method: 'POST' });
+                showMessage('已发送停止请求', 'success');
+            } catch (error) {
+                console.error('[数据更新] 停止失败:', error);
+            }
+        }
+        
         function isLocalEnvironment() {
             // 通过 hostname 判断：localhost 或 127.0.0.1 或本地IP地址
             const hostname = window.location.hostname;
@@ -3424,6 +4623,13 @@
                     reversalSection.style.display = 'block';
                     console.log('[updateFunctionButtonsVisibility] 反转个股功能已显示');
                 }
+                
+                // 显示KDJ模式功能
+                const kdjSection = document.getElementById('kdjModeSection');
+                if (kdjSection) {
+                    kdjSection.style.display = 'block';
+                    console.log('[updateFunctionButtonsVisibility] KDJ模式功能已显示');
+                }
             } else {
                 // 网络环境：根据用户等级显示
                 if (localButtons) localButtons.style.display = 'none';
@@ -3436,11 +4642,11 @@
                 // 获取用户信息（已内置超时和重试机制，这里只设置最大等待时间）
                 try {
                     const user = await Promise.race([
-                        getUserInfo(), // getUserInfo 内部已有超时和重试机制（10秒，最多重试2次，总时间最多约30秒）
-                        new Promise((resolve) => setTimeout(() => {
-                            console.warn('[updateFunctionButtonsVisibility] 获取用户信息超时（30秒，包括重试），使用默认显示');
-                            resolve(null);
-                        }, 30000)) // 30秒最大等待时间（getUserInfo 内部会重试，总时间可能更长）
+                    getUserInfo(), // getUserInfo 内部已有超时和重试机制（3秒，不重试）
+                    new Promise((resolve) => setTimeout(() => {
+                        console.warn('[updateFunctionButtonsVisibility] 获取用户信息超时（3秒），使用默认显示');
+                        resolve(null);
+                    }, 3000)) // ✅ 减少到3秒
                     ]);
                     
                     if (user) {
@@ -3590,77 +4796,373 @@
         }
         
         // 页面加载时获取股票列表（优化加载顺序，避免阻塞）
+        // 加载模型列表
+        async function loadModelList() {
+            try {
+                const response = await fetch('/api/list_models');
+                const result = await response.json();
+                
+                if (result.success && result.models) {
+                    const selector = document.getElementById('modelSelector');
+                    if (!selector) return;
+                    
+                    selector.innerHTML = '';
+                    result.models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.filename;
+                        option.textContent = `${model.filename} (${model.feature_count}特征, ${model.stock_count}股票, ${model.trained_at ? model.trained_at.substring(0, 10) : '未知日期'})`;
+                        if (model.is_current) {
+                            option.selected = true;
+                            option.textContent += ' [当前]';
+                        }
+                        selector.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('加载模型列表失败:', error);
+            }
+        }
+        
+        // 切换模型（VIP用户）
+        async function switchModel() {
+            const selector = document.getElementById('modelSelector');
+            if (!selector) return;
+            
+            const selectedModel = selector.value;
+            if (!selectedModel) return;
+            
+            try {
+                showMessage('正在切换模型，请稍候...', 'success');
+                
+                const response = await fetch('/api/switch_model', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model_filename: selectedModel
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage(`✅ ${result.message}`, 'success');
+                    // 重新加载所有模型列表以更新"当前"标记
+                    await Promise.all([
+                        loadModelList(),
+                        loadModelListSuper()
+                    ]);
+                    // 重新检查模型状态
+                    await checkMatchScoreStatus();
+                } else {
+                    showMessage(`❌ ${result.message}`, 'error');
+                    // 恢复选择
+                    await Promise.all([
+                        loadModelList(),
+                        loadModelListSuper()
+                    ]);
+                }
+            } catch (error) {
+                console.error('切换模型失败:', error);
+                showMessage('切换模型失败: ' + error.message, 'error');
+                // 恢复选择
+                await Promise.all([
+                    loadModelList(),
+                    loadModelListSuper()
+                ]);
+            }
+        }
+        
+        // 切换模型（超级用户）
+        async function deleteModel() {
+            const selector = document.getElementById('modelSelector');
+            if (!selector) return;
+            
+            const selectedModel = selector.value;
+            if (!selectedModel) {
+                showMessage('请先选择一个模型', 'error');
+                return;
+            }
+            
+            // 不允许删除默认模型
+            if (selectedModel === 'trained_model.json') {
+                showMessage('不能删除默认模型 trained_model.json', 'error');
+                return;
+            }
+            
+            // 确认删除
+            const confirmed = confirm(`确定要删除模型 "${selectedModel}" 吗？\n\n此操作不可恢复！`);
+            if (!confirmed) return;
+            
+            try {
+                showMessage('正在删除模型...', 'success');
+                
+                const response = await fetch('/api/delete_model', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model_filename: selectedModel
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage(`✅ ${result.message}${result.switched_to_default ? '（已切换到默认模型）' : ''}`, 'success');
+                    // 重新加载所有模型列表
+                    await Promise.all([
+                        loadModelList(),
+                        loadModelListSuper()
+                    ]);
+                } else {
+                    showMessage(`❌ ${result.message}`, 'error');
+                }
+            } catch (error) {
+                console.error('删除模型失败:', error);
+                showMessage('删除模型失败，请重试', 'error');
+            }
+        }
+        
+        async function deleteModelSuper() {
+            const selector = document.getElementById('superModelSelector');
+            if (!selector) return;
+            
+            const selectedModel = selector.value;
+            if (!selectedModel) {
+                showMessage('请先选择一个模型', 'error');
+                return;
+            }
+            
+            // 不允许删除默认模型
+            if (selectedModel === 'trained_model.json') {
+                showMessage('不能删除默认模型 trained_model.json', 'error');
+                return;
+            }
+            
+            // 确认删除
+            const confirmed = confirm(`确定要删除模型 "${selectedModel}" 吗？\n\n此操作不可恢复！`);
+            if (!confirmed) return;
+            
+            try {
+                showMessage('正在删除模型...', 'success');
+                
+                const response = await fetch('/api/delete_model', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model_filename: selectedModel
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage(`✅ ${result.message}${result.switched_to_default ? '（已切换到默认模型）' : ''}`, 'success');
+                    // 重新加载所有模型列表
+                    await Promise.all([
+                        loadModelList(),
+                        loadModelListSuper()
+                    ]);
+                } else {
+                    showMessage(`❌ ${result.message}`, 'error');
+                }
+            } catch (error) {
+                console.error('删除模型失败:', error);
+                showMessage('删除模型失败，请重试', 'error');
+            }
+        }
+        
+        async function switchModelSuper() {
+            const selector = document.getElementById('superModelSelector');
+            if (!selector) return;
+            
+            const selectedModel = selector.value;
+            if (!selectedModel) return;
+            
+            try {
+                showMessage('正在切换模型，请稍候...', 'success');
+                
+                const response = await fetch('/api/switch_model', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model_filename: selectedModel
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage(`✅ ${result.message}`, 'success');
+                    // 重新加载所有模型列表以更新"当前"标记
+                    await Promise.all([
+                        loadModelList(),
+                        loadModelListSuper()
+                    ]);
+                    // 重新检查模型状态
+                    await checkMatchScoreStatus();
+                } else {
+                    showMessage(`❌ ${result.message}`, 'error');
+                    // 恢复选择
+                    await Promise.all([
+                        loadModelList(),
+                        loadModelListSuper()
+                    ]);
+                }
+            } catch (error) {
+                console.error('切换模型失败:', error);
+                showMessage('切换模型失败: ' + error.message, 'error');
+                // 恢复选择
+                await Promise.all([
+                    loadModelList(),
+                    loadModelListSuper()
+                ]);
+            }
+        }
+        
+        // 加载模型列表（超级用户）
+        async function loadModelListSuper() {
+            try {
+                const response = await fetch('/api/list_models');
+                const result = await response.json();
+                
+                if (result.success && result.models) {
+                    const selector = document.getElementById('superModelSelector');
+                    if (!selector) return;
+                    
+                    selector.innerHTML = '';
+                    result.models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.filename;
+                        option.textContent = `${model.filename} (${model.feature_count}特征, ${model.stock_count}股票, ${model.trained_at ? model.trained_at.substring(0, 10) : '未知日期'})`;
+                        if (model.is_current) {
+                            option.selected = true;
+                            option.textContent += ' [当前]';
+                        }
+                        selector.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('加载模型列表失败:', error);
+            }
+        }
+        
         async function initPageLoad() {
             console.log('[initPageLoad] 开始初始化页面...');
             
-            // 立即显示用户信息（异步加载，不阻塞）
+            // ✅ 立即隐藏"加载中..."提示（页面已加载完成）
+            const loadingDiv = document.getElementById('loadingIndicator');
+            if (loadingDiv) {
+                loadingDiv.style.display = 'none';
+            }
+            
+            // ✅ 立即显示用户信息占位符（不等待网络请求）
+            const userInfoDiv = document.getElementById('userInfoDisplay');
+            if (userInfoDiv) {
+                userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #666;">加载中...</div>';
+            }
+            
+            // ✅ 立即加载股票列表（不等待任何检查）
+            loadStocks();
+            
+            // ✅ 完全异步执行所有初始化任务，不阻塞页面
+            // 任务1：显示用户信息（异步，不阻塞）
             displayUserInfo().catch(err => {
                 console.error('[initPageLoad] 显示用户信息失败:', err);
             });
             
-            // 首先检查登录状态（已内置超时和重试机制，这里只设置最大等待时间）
-            try {
-                const isLoggedIn = await Promise.race([
-                    checkLoginStatus(), // checkLoginStatus 内部已有超时和重试机制（8秒，最多重试1次，总时间最多约16秒）
-                    new Promise((resolve) => setTimeout(() => {
-                        console.warn('[initPageLoad] 检查登录状态超时（18秒，包括重试），继续执行（不跳转，给用户重试机会）');
-                        resolve(false);
-                    }, 18000)) // 18秒最大等待时间（checkLoginStatus 内部会重试）
-                ]);
-                
-                if (!isLoggedIn) {
-                    console.log('[initPageLoad] 用户未登录，停止初始化');
-                    return; // 未登录，已跳转，不再继续执行
-                }
-            } catch (error) {
-                console.error('[initPageLoad] 检查登录状态异常:', error);
-                // 即使检查失败，也继续执行，避免页面完全卡住
-            }
+            // ✅ 移除登录状态检查（后端已有检查，避免重复请求）
+            // 任务2：已移除（后端路由已有 @require_login 装饰器）
             
-            // 根据环境和用户等级显示/隐藏功能按钮（异步，不阻塞）
+            // 任务3：更新按钮显示（异步，不阻塞）
             updateFunctionButtonsVisibility().catch(err => {
                 console.error('[initPageLoad] 更新按钮显示失败:', err);
             });
             
-            // 检查用户等级，如果是免费用户，显示扫描结果图表（异步，不阻塞）
+            // ✅ 本地环境：延迟启动数据更新（不阻塞页面加载）
+            // ✅ 添加交易日15:00后检查，避免重复更新
+            if (isLocalEnvironment()) {
+                console.log('[initPageLoad] 本地环境，检查是否需要更新数据...');
+                
+                // ✅ 先检查当前时间，如果是15:00后，直接跳过自动更新
+                // 使用更可靠的方法：直接调用后端API检查时间
+                setTimeout(() => {
+                    // 先检查更新时间戳（后端会检查时间）
+                    fetch('/api/get_data_update_timestamp')
+                        .then(res => res.json())
+                        .then(result => {
+                            if (result.success && result.should_skip) {
+                                console.log(`[initPageLoad] ${result.message || '交易已结束，今日已更新，跳过自动更新'}`);
+                                return; // 跳过自动更新
+                            }
+                            // 如果后端没有说跳过，再检查数据新鲜度（后端也会检查时间）
+                            startAutoDataUpdate().catch(err => {
+                                console.error('[initPageLoad] 启动数据更新失败:', err);
+                            });
+                        })
+                        .catch(err => {
+                            console.error('[initPageLoad] 检查更新时间戳失败:', err);
+                            // 检查失败时，直接调用 startAutoDataUpdate，它内部会检查时间
+                            startAutoDataUpdate().catch(e => {
+                                console.error('[initPageLoad] 启动数据更新失败:', e);
+                            });
+                        });
+                }, 5000); // ✅ 延迟5秒，确保页面先加载完成
+            }
+            
+            // ✅ 根据用户等级加载内容（异步，不阻塞）
             Promise.race([
                 (async () => {
                     try {
-                        const user = await getUserInfo();
+                        const user = await Promise.race([
+                            getUserInfo(),
+                            new Promise((resolve) => setTimeout(() => resolve(null), 3000)) // ✅ 减少到3秒
+                        ]);
+                        
                         if (user && !isLocalEnvironment()) {
                             const tier = user.tier || 'free';
                             if (tier === 'free') {
                                 // 免费用户：显示扫描结果图表
                                 await loadAndDisplayFreeUserScanResults();
-                            } else {
-                                // VIP用户或超级用户：正常加载股票列表
-                                loadStocks();
                             }
-                        } else {
-                            // 本地环境或无法获取用户信息：正常加载股票列表
-                            loadStocks();
+                            // VIP用户：股票列表已在上面加载
                         }
                     } catch (error) {
                         console.error('[initPageLoad] 获取用户信息失败:', error);
-                        loadStocks();
                     }
                 })(),
                 new Promise((resolve) => setTimeout(() => {
-                    console.warn('[initPageLoad] 获取用户信息超时（30秒，包括重试），使用默认加载');
-                    loadStocks();
+                    console.warn('[initPageLoad] 获取用户信息超时（3秒），使用默认加载');
                     resolve();
-                }, 30000)) // 30秒最大等待时间（getUserInfo 内部会重试，总时间可能更长）
+                }, 3000)) // ✅ 减少到3秒
             ]).catch(err => {
                 console.error('[initPageLoad] 加载内容失败:', err);
-                loadStocks(); // 出错时也加载股票列表
             });
             
-            // 页面加载时检查匹配度状态（异步，不阻塞）
-            checkMatchScoreStatus().catch(err => {
-                console.error('[initPageLoad] 检查匹配度状态失败:', err);
-            });
+            // ✅ 页面加载时检查匹配度状态（延迟执行，不阻塞初始加载）
+            setTimeout(() => {
+                checkMatchScoreStatus().catch(err => {
+                    console.error('[initPageLoad] 检查匹配度状态失败:', err);
+                });
+                // 加载模型列表
+                Promise.all([
+                    loadModelList().catch(err => {
+                        console.error('[initPageLoad] 加载VIP模型列表失败:', err);
+                    }),
+                    loadModelListSuper().catch(err => {
+                        console.error('[initPageLoad] 加载超级用户模型列表失败:', err);
+                    })
+                ]);
+            }, 2000); // ✅ 延迟2秒执行，不阻塞初始加载
             
-            // 每5分钟刷新一次用户信息和按钮显示（减少刷新频率，避免页面跳动）
+            // ✅ 每5分钟刷新一次用户信息和按钮显示（减少刷新频率）
             setInterval(async () => {
                 try {
                     await displayUserInfo();
@@ -3668,7 +5170,7 @@
                 } catch (err) {
                     console.error('[initPageLoad] 定时刷新失败:', err);
                 }
-            }, 300000); // 改为5分钟（300000毫秒）
+            }, 300000); // 5分钟
             
             console.log('[initPageLoad] 页面初始化完成');
         }
@@ -3769,8 +5271,9 @@
                     }
                     const myChart = echarts.init(chartDom);
                     
-                    // 准备数据：按匹配度排序，取前20只
-                    const topCandidates = candidates.slice(0, 20);
+                    // 准备数据：按匹配度从高到低排序，取前30只（与列表展示上限一致）
+                    candidates.sort((a, b) => (b.匹配度 || b.match_score || 0) - (a.匹配度 || a.match_score || 0));
+                    const topCandidates = candidates.slice(0, 30);
                     const stockNames = topCandidates.map(c => c.name || c.code || '未知');
                     const matchScores = topCandidates.map(c => (c.match_score || 0) * 100);
                     const buyPrices = topCandidates.map(c => c.buy_price || 0);
@@ -3858,7 +5361,7 @@
                         tableHtml += '<th style="padding: 8px; border: 1px solid #ddd; text-align: left;">10周涨幅</th>';
                         tableHtml += '</tr>';
                         
-                        candidates.slice(0, 50).forEach((candidate, idx) => {
+                        candidates.slice(0, 30).forEach((candidate, idx) => {
                             const matchColor = (candidate.match_score || 0) >= 0.93 ? '#27ae60' : 
                                              (candidate.match_score || 0) >= 0.90 ? '#f39c12' : '#e74c3c';
                             tableHtml += '<tr>';
@@ -4142,6 +5645,12 @@
                 reversalSection.style.display = 'block';
                 console.log('[立即执行] 反转个股功能已显示');
             }
+            // 显示KDJ模式功能（本地环境）
+            const kdjSection = document.getElementById('kdjModeSection');
+            if (isLocal && kdjSection) {
+                kdjSection.style.display = 'block';
+                console.log('[立即执行] KDJ模式功能已显示');
+            }
             if (!isLocal && webButtons) {
                 webButtons.style.display = 'block';
             }
@@ -4170,20 +5679,20 @@
         
         // 获取用户信息（添加超时控制和重试机制）
         async function getUserInfo(retryCount = 0) {
-            const maxRetries = 2; // 最多重试2次
-            const timeout = 10000; // 增加到10秒超时
+            const maxRetries = 0; // ✅ 不重试，直接返回
+            const timeout = 3000; // ✅ 减少到3秒超时（加快响应）
             
             try {
-                // 添加超时控制（10秒）
+                // 添加超时控制（3秒）
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => {
-                    console.warn(`[getUserInfo] 请求超时（${timeout/1000}秒），${retryCount < maxRetries ? '将重试' : '中断请求'}`);
+                    console.warn(`[getUserInfo] 请求超时（${timeout/1000}秒），返回 null`);
                     controller.abort();
                 }, timeout);
                 
                 let response;
                 try {
-                    console.log(`[getUserInfo] 正在获取用户信息... (尝试 ${retryCount + 1}/${maxRetries + 1})`);
+                    console.log(`[getUserInfo] 正在获取用户信息...`);
                     response = await fetch('/api/user_info', {
                         signal: controller.signal,
                         cache: 'no-store',
@@ -4196,50 +5705,25 @@
                 } catch (fetchError) {
                     clearTimeout(timeoutId);
                     if (fetchError.name === 'AbortError' || fetchError.message?.includes('aborted')) {
-                        console.warn(`[getUserInfo] 请求超时或中断 (尝试 ${retryCount + 1}/${maxRetries + 1})`);
-                        // 如果还有重试次数，等待1秒后重试
-                        if (retryCount < maxRetries) {
-                            console.log(`[getUserInfo] 等待1秒后重试...`);
-                            await new Promise(resolve => setTimeout(resolve, 1000));
-                            return getUserInfo(retryCount + 1);
-                        }
-                        console.warn('[getUserInfo] 已达到最大重试次数，返回 null');
+                        console.warn(`[getUserInfo] 请求超时或中断，返回 null`);
                         return null;
-                    }
-                    // 网络错误也重试一次
-                    if (retryCount < maxRetries && (fetchError.message?.includes('Failed to fetch') || fetchError.message?.includes('network'))) {
-                        console.warn(`[getUserInfo] 网络错误，等待1秒后重试... (尝试 ${retryCount + 1}/${maxRetries + 1})`);
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                        return getUserInfo(retryCount + 1);
                     }
                     throw fetchError;
                 }
                 
                 if (!response.ok) {
-                    console.error(`[getUserInfo] HTTP错误: ${response.status} (尝试 ${retryCount + 1}/${maxRetries + 1})`);
-                    // 如果是5xx错误，重试一次
-                    if (retryCount < maxRetries && response.status >= 500) {
-                        console.warn(`[getUserInfo] 服务器错误，等待1秒后重试...`);
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                        return getUserInfo(retryCount + 1);
-                    }
+                    console.error(`[getUserInfo] HTTP错误: ${response.status}`);
                     return null;
                 }
                 
                 const result = await response.json();
                 if (result.success && result.user) {
-                    console.log(`[getUserInfo] ✅ 成功获取用户信息 (尝试 ${retryCount + 1}/${maxRetries + 1})`);
+                    console.log(`[getUserInfo] ✅ 成功获取用户信息`);
                     return result.user;
                 }
                 return null;
             } catch (error) {
-                console.error(`[getUserInfo] 获取用户信息失败 (尝试 ${retryCount + 1}/${maxRetries + 1}):`, error);
-                // 如果还有重试次数且是网络错误，重试一次
-                if (retryCount < maxRetries && (error.message?.includes('Failed to fetch') || error.message?.includes('network'))) {
-                    console.warn(`[getUserInfo] 网络错误，等待1秒后重试...`);
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    return getUserInfo(retryCount + 1);
-                }
+                console.error(`[getUserInfo] 获取用户信息失败:`, error);
                 return null;
             }
         }
@@ -4282,54 +5766,68 @@
             }
             
             // 先显示加载状态
-            userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #666;">正在加载用户信息...</div>';
+            userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #666;">加载中...</div>';
             
             try {
-                // 使用 checkLoginStatus 函数（已内置超时和重试机制）
+                // ✅ 使用快速超时（3秒），不等待太久
                 const isLoggedIn = await Promise.race([
-                    checkLoginStatus(), // checkLoginStatus 内部已有超时和重试机制（8秒，最多重试1次）
+                    checkLoginStatus(),
                     new Promise((resolve) => setTimeout(() => {
-                        console.warn('[displayUserInfo] 检查登录状态超时（18秒，包括重试）');
+                        console.warn('[displayUserInfo] 检查登录状态超时（3秒）');
                         resolve(false);
-                    }, 18000)) // 18秒最大等待时间
+                    }, 3000)) // ✅ 减少到3秒
                 ]);
                 
                 if (!isLoggedIn) {
                     console.warn('[displayUserInfo] 用户未登录或检查超时');
-                    userInfoDiv.innerHTML = '<div style="font-size: 12px; color: #e74c3c;">网络超时，请刷新重试</div>';
+                    // ✅ 显示错误信息，允许用户点击刷新
+                    userInfoDiv.innerHTML = `
+                        <div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">
+                            加载超时，点击刷新
+                        </div>
+                        <div style="font-size: 10px; color: #999; margin-top: 3px;">
+                            提示：可能是网络问题，请刷新重试
+                        </div>
+                    `;
                     return;
                 }
                 
-                // 如果已登录，继续获取用户详细信息
+                // ✅ 如果已登录，快速获取用户详细信息（添加超时）
                 let loginCheckResponse;
                 try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 3000); // ✅ 3秒超时
+                    
                     loginCheckResponse = await fetch('/api/check_login', {
                         method: 'GET',
+                        signal: controller.signal,
                         cache: 'no-store',
                         headers: {
                             'Cache-Control': 'no-cache, no-store, must-revalidate',
                             'Pragma': 'no-cache'
                         }
                     });
+                    
+                    clearTimeout(timeoutId);
                 } catch (fetchError) {
                     console.error('[displayUserInfo] 获取登录状态失败:', fetchError);
                     const isLocal = isLocalEnvironment();
                     if (isLocal) {
                         userInfoDiv.innerHTML = `
                             <div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">
-                                网络连接失败，点击刷新重试
+                                网络连接失败，点击刷新
                             </div>
                             <div style="font-size: 10px; color: #999; margin-top: 3px;">
-                                提示：请检查本地服务器是否运行（端口 5000）
+                                提示：请检查本地服务器是否运行
                             </div>
                         `;
                     } else {
                         userInfoDiv.innerHTML = `
                             <div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">
-                                网络连接失败，点击刷新重试
+                                网络连接失败，点击刷新
                             </div>
                             <div style="font-size: 10px; color: #999; margin-top: 3px;">
-                                提示：可能是网络波动或服务器暂时不可用，请稍后重试
+                                提示：可能是网络波动，请刷新重试
                             </div>
                         `;
                     }
@@ -4342,7 +5840,7 @@
                     if (isLocal) {
                         userInfoDiv.innerHTML = `
                             <div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">
-                                服务器错误 (${loginCheckResponse.status})，点击刷新重试
+                                服务器错误 (${loginCheckResponse.status})，点击刷新
                             </div>
                             <div style="font-size: 10px; color: #999; margin-top: 3px;">
                                 提示：请检查服务器日志或重启服务器
@@ -4351,10 +5849,10 @@
                     } else {
                         userInfoDiv.innerHTML = `
                             <div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">
-                                服务器错误 (${loginCheckResponse.status})，点击刷新重试
+                                服务器错误 (${loginCheckResponse.status})，点击刷新
                             </div>
                             <div style="font-size: 10px; color: #999; margin-top: 3px;">
-                                提示：服务器可能暂时不可用，请稍后重试。如问题持续，请联系客服
+                                提示：服务器可能暂时不可用，请稍后重试
                             </div>
                         `;
                     }
@@ -4370,34 +5868,37 @@
                     return;
                 }
                 
-                // 获取用户信息（已有超时控制）
-                const user = await getUserInfo();
+                // ✅ 获取用户信息（添加超时，快速失败）
+                const user = await Promise.race([
+                    getUserInfo(),
+                    new Promise((resolve) => setTimeout(() => {
+                        console.warn('[displayUserInfo] 获取用户信息超时（3秒）');
+                        resolve(null);
+                    }, 3000)) // ✅ 3秒超时
+                ]);
                 if (!user) {
-                    // 如果获取用户信息失败，显示错误信息而不是立即跳转（可能是网络问题）
+                    // ✅ 如果获取用户信息失败，显示错误信息
                     console.warn('[displayUserInfo] 获取用户信息失败，可能是网络问题或服务器未响应');
                     const isLocal = isLocalEnvironment();
                     if (isLocal) {
-                        // 本地环境：提供更详细的错误信息和解决建议
                         userInfoDiv.innerHTML = `
                             <div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">
-                                加载失败，点击刷新重试
+                                加载失败，点击刷新
                             </div>
                             <div style="font-size: 10px; color: #999; margin-top: 3px;">
-                                提示：请确保本地服务器已启动（运行 python bull_stock_web.py）
+                                提示：请确保本地服务器已启动
                             </div>
                         `;
                     } else {
-                        // 网络环境：显示更友好的错误信息
                         userInfoDiv.innerHTML = `
                             <div style="font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="location.reload()" title="点击刷新页面">
-                                加载失败，点击刷新重试
+                                加载失败，点击刷新
                             </div>
                             <div style="font-size: 10px; color: #999; margin-top: 3px;">
-                                提示：可能是网络波动或服务器暂时不可用，请稍后重试
+                                提示：可能是网络波动，请刷新重试
                             </div>
                         `;
                     }
-                    // 不立即跳转，给用户一个重试的机会
                     return;
                 }
                 
@@ -4553,15 +6054,41 @@
                             isScanning = false;
                         }
                         
-                        // 获取并显示扫描结果
-                        try {
-                            const resultsResponse = await fetch('/api/get_scan_results');
-                            const resultsResult = await resultsResponse.json();
-                            if (resultsResult.success) {
-                                await displayScanResults(resultsResult);
+                        // 【不可变】过程与最后一致：有 _liveScanCandidateMap 时不覆盖；仅当缓存为空时才从 get_scan_results 拉取并 MERGE 后 updateLiveScanResults。见 扫描显示不可变逻辑.md
+                        const cachedCount = window._liveScanCandidateMap ? Object.keys(window._liveScanCandidateMap).length : 0;
+                        if (cachedCount === 0) {
+                            // 如果缓存为空，尝试从后端获取
+                            console.log('[批次完成] 缓存为空，尝试从后端获取最终结果...');
+                            try {
+                                const resultsResponse = await fetch('/api/get_scan_results', { cache: 'no-store' });
+                                const resultsResult = await resultsResponse.json();
+                                if (resultsResult.success && resultsResult.candidates && resultsResult.candidates.length > 0) {
+                                    // 将结果同步到缓存
+                                    if (!window._liveScanCandidateMap) window._liveScanCandidateMap = {};
+                                    for (const c of resultsResult.candidates) {
+                                        const code = c.股票代码 || c.code || '';
+                                        const date = c.最佳买点日期 || c.buy_date || '';
+                                        if (!code) continue;
+                                        const key = `${code}__${date}`;
+                                        window._liveScanCandidateMap[key] = c;
+                                    }
+                                    // 使用 updateLiveScanResults 显示，而不是 displayScanResults
+                                    updateLiveScanResults({
+                                        status: '完成',
+                                        found: resultsResult.found_count || resultsResult.candidates.length,
+                                        current: resultsResult.total_scanned || 0,
+                                        total: resultsResult.total_scanned || 0,
+                                        candidates: resultsResult.candidates
+                                    });
+                                } else {
+                                    // 后端也没有结果，但实时结果可能已经显示了，不覆盖
+                                    console.log('[批次完成] 后端也没有结果，保持当前显示');
+                                }
+                            } catch (error) {
+                                console.error('获取扫描结果失败:', error);
                             }
-                        } catch (error) {
-                            console.error('获取扫描结果失败:', error);
+                        } else {
+                            console.log(`[批次完成] 实时缓存已有 ${cachedCount} 只股票，不覆盖显示`);
                         }
                         
                         // 刷新股票列表

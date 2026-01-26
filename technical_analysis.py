@@ -212,20 +212,30 @@ class TechnicalAnalysis:
         return price_diff <= threshold
     
     @staticmethod
-    def check_large_volume_recent(df, multiplier=2.0):
+    def check_weekly_turn_positive(df):
         """
-        检查最近一个交易日是否有大量成交
-        :param df: 日K线数据
-        :param multiplier: 倍数（默认2倍）
+        检查周线是否由阴线变为阳线（上周阴线，本周阳线）
+        :param df: 周K线数据
         :return: 是否满足条件
         """
         if df is None or df.empty or len(df) < 2:
             return False
         
-        recent_volume = df.iloc[-1]['成交量']
-        prev_volume = df.iloc[-2]['成交量']
+        # 本周数据
+        current_open = df.iloc[-1]['开盘']
+        current_close = df.iloc[-1]['收盘']
         
-        return recent_volume >= prev_volume * multiplier
+        # 上周数据
+        prev_open = df.iloc[-2]['开盘']
+        prev_close = df.iloc[-2]['收盘']
+        
+        # 上周是阴线（收盘 < 开盘）
+        prev_is_negative = prev_close < prev_open
+        
+        # 本周是阳线（收盘 >= 开盘）
+        current_is_positive = current_close >= current_open
+        
+        return prev_is_negative and current_is_positive
     
     @staticmethod
     def find_max_monthly_volume(monthly_df, months=12):
@@ -269,4 +279,47 @@ class TechnicalAnalysis:
         slope = np.polyfit(x, closes, 1)[0]
         
         return slope > 0  # 斜率为正表示上升趋势
+    
+    @staticmethod
+    def find_max_monthly_volume_high(monthly_df, months=12):
+        """
+        找出过去N个月内月成交量最大那根K线的最高价
+        :param monthly_df: 月K线数据
+        :param months: 查询月数
+        :return: (最大月成交量, 最大月成交量日期, 最大月成交量的最高价)
+        """
+        if monthly_df is None or monthly_df.empty:
+            return None, None, None
+        
+        recent_df = monthly_df.tail(months) if len(monthly_df) > months else monthly_df
+        
+        # 确定成交量列名
+        volume_col = None
+        for col in ['成交量', '月成交量', 'volume']:
+            if col in recent_df.columns:
+                volume_col = col
+                break
+        
+        if volume_col is None:
+            return None, None, None
+        
+        max_volume_idx = recent_df[volume_col].idxmax()
+        max_volume = recent_df.loc[max_volume_idx, volume_col]
+        max_volume_date = recent_df.loc[max_volume_idx, '日期']
+        max_volume_high = recent_df.loc[max_volume_idx, '最高']
+        
+        return max_volume, max_volume_date, max_volume_high
+    
+    @staticmethod
+    def check_price_above_max_volume_high(current_price, max_volume_high):
+        """
+        检查当前价格是否突破月线最大量的最高价
+        :param current_price: 当前价格
+        :param max_volume_high: 月线最大成交量的最高价
+        :return: 是否突破
+        """
+        if current_price is None or max_volume_high is None:
+            return False
+        
+        return current_price >= max_volume_high
 

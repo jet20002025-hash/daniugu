@@ -168,9 +168,8 @@
             messageDiv.style.display = 'block';
             
             if (type === 'success') {
-                setTimeout(() => {
-                    window.location.href = '/';
-                }, 1000);
+                // ✅ 立即跳转，不等待1秒（提升登录速度）
+                window.location.href = '/';
             }
         }
         

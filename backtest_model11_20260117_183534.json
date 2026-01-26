@@ -1,0 +1,6604 @@
+{
+  "report_type": "backtest_validation",
+  "generated_at": "2026-01-17T18:35:34.462781",
+  "backtest_config": {
+    "start_date": "2025-01-01",
+    "end_date": "2025-12-31",
+    "scan_mode": "weekly",
+    "min_match_score": 0.83,
+    "max_market_cap": 100.0,
+    "max_stocks_per_day": 3,
+    "periods": [
+      7,
+      28,
+      56,
+      84,
+      140
+    ]
+  },
+  "statistics": {
+    "total_days": 53,
+    "days_with_stocks": 53,
+    "valid_stocks": 159,
+    "periods_stats": {
+      "7天": {
+        "count": 159,
+        "avg_gain": 0.21,
+        "max_gain": 14.78,
+        "min_gain": -27.39,
+        "positive_count": 84,
+        "positive_rate": 52.83,
+        "risk_metrics": {
+          "max_drawdown_pct": 39.89,
+          "volatility": 81.8033,
+          "sharpe_ratio": 10.4794,
+          "sortino_ratio": 13.3055,
+          "win_loss_ratio": 1.0,
+          "avg_win": 3.48,
+          "avg_loss": 3.49,
+          "win_count": 84,
+          "loss_count": 74,
+          "avg_return": 0.21,
+          "total_return": 34.08,
+          "positive_rate": 52.83
+        }
+      },
+      "28天": {
+        "count": 159,
+        "avg_gain": 2.69,
+        "max_gain": 49.78,
+        "min_gain": -26.9,
+        "positive_count": 93,
+        "positive_rate": 58.49,
+        "risk_metrics": {
+          "max_drawdown_pct": 69.4,
+          "volatility": 168.8187,
+          "sharpe_ratio": 63.7136,
+          "sortino_ratio": 136.5906,
+          "win_loss_ratio": 1.58,
+          "avg_win": 8.35,
+          "avg_loss": 5.29,
+          "win_count": 93,
+          "loss_count": 66,
+          "avg_return": 2.69,
+          "total_return": 427.52,
+          "positive_rate": 58.49
+        }
+      },
+      "56天": {
+        "count": 159,
+        "avg_gain": 2.82,
+        "max_gain": 60.99,
+        "min_gain": -23.64,
+        "positive_count": 96,
+        "positive_rate": 60.38,
+        "risk_metrics": {
+          "max_drawdown_pct": 85.13,
+          "volatility": 195.4893,
+          "sharpe_ratio": 57.6453,
+          "sortino_ratio": 118.7006,
+          "win_loss_ratio": 1.29,
+          "avg_win": 9.31,
+          "avg_loss": 7.19,
+          "win_count": 96,
+          "loss_count": 62,
+          "avg_return": 2.82,
+          "total_return": 447.91,
+          "positive_rate": 60.38
+        }
+      },
+      "84天": {
+        "count": 159,
+        "avg_gain": 1.42,
+        "max_gain": 37.11,
+        "min_gain": -27.05,
+        "positive_count": 89,
+        "positive_rate": 55.97,
+        "risk_metrics": {
+          "max_drawdown_pct": 90.24,
+          "volatility": 163.8425,
+          "sharpe_ratio": 34.5666,
+          "sortino_ratio": 57.4198,
+          "win_loss_ratio": 1.13,
+          "avg_win": 8.33,
+          "avg_loss": 7.38,
+          "win_count": 89,
+          "loss_count": 70,
+          "avg_return": 1.42,
+          "total_return": 225.11,
+          "positive_rate": 55.97
+        }
+      },
+      "140天": {
+        "count": 159,
+        "avg_gain": 1.83,
+        "max_gain": 32.99,
+        "min_gain": -20.14,
+        "positive_count": 83,
+        "positive_rate": 52.2,
+        "risk_metrics": {
+          "max_drawdown_pct": 78.65,
+          "volatility": 157.9539,
+          "sharpe_ratio": 46.2614,
+          "sortino_ratio": 100.7865,
+          "win_loss_ratio": 1.47,
+          "avg_win": 9.11,
+          "avg_loss": 6.21,
+          "win_count": 83,
+          "loss_count": 75,
+          "avg_return": 1.83,
+          "total_return": 290.44,
+          "positive_rate": 52.2
+        }
+      }
+    }
+  },
+  "detailed_results": [
+    {
+      "date": "2025-01-02",
+      "stocks": [
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.68,
+          "buy_date": "2025-01-02",
+          "gains": {
+            "7天": {
+              "gain": -2.44,
+              "end_price": 12.37,
+              "end_date": "2025-01-09",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -3.39,
+              "end_price": 12.25,
+              "end_date": "2025-01-27",
+              "actual_days": 25
+            },
+            "56天": {
+              "gain": 3.08,
+              "end_price": 13.07,
+              "end_date": "2025-02-27",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 5.91,
+              "end_price": 13.43,
+              "end_date": "2025-03-27",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -8.52,
+              "end_price": 11.6,
+              "end_date": "2025-05-22",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300183",
+          "stock_name": "东软载波",
+          "match_score": 0.947,
+          "buy_price": 17.6,
+          "buy_date": "2025-01-02",
+          "gains": {
+            "7天": {
+              "gain": -15.28,
+              "end_price": 14.91,
+              "end_date": "2025-01-09",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -9.15,
+              "end_price": 15.99,
+              "end_date": "2025-01-27",
+              "actual_days": 25
+            },
+            "56天": {
+              "gain": 5.06,
+              "end_price": 18.49,
+              "end_date": "2025-02-27",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 7.1,
+              "end_price": 18.85,
+              "end_date": "2025-03-27",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -7.67,
+              "end_price": 16.25,
+              "end_date": "2025-05-22",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002635",
+          "stock_name": "安洁科技",
+          "match_score": 0.943,
+          "buy_price": 15.23,
+          "buy_date": "2025-01-02",
+          "gains": {
+            "7天": {
+              "gain": -3.61,
+              "end_price": 14.68,
+              "end_date": "2025-01-09",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -1.44,
+              "end_price": 15.01,
+              "end_date": "2025-01-27",
+              "actual_days": 25
+            },
+            "56天": {
+              "gain": 7.55,
+              "end_price": 16.38,
+              "end_date": "2025-02-27",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 2.82,
+              "end_price": 15.66,
+              "end_date": "2025-03-27",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -15.36,
+              "end_price": 12.89,
+              "end_date": "2025-05-22",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-01-06",
+      "stocks": [
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.85,
+          "buy_date": "2025-01-06",
+          "gains": {
+            "7天": {
+              "gain": -5.29,
+              "end_price": 12.17,
+              "end_date": "2025-01-13",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -4.67,
+              "end_price": 12.25,
+              "end_date": "2025-01-27",
+              "actual_days": 21
+            },
+            "56天": {
+              "gain": -0.23,
+              "end_price": 12.82,
+              "end_date": "2025-03-03",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 0.62,
+              "end_price": 12.93,
+              "end_date": "2025-03-31",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -10.89,
+              "end_price": 11.45,
+              "end_date": "2025-05-26",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300183",
+          "stock_name": "东软载波",
+          "match_score": 0.947,
+          "buy_price": 14.88,
+          "buy_date": "2025-01-06",
+          "gains": {
+            "7天": {
+              "gain": -3.76,
+              "end_price": 14.32,
+              "end_date": "2025-01-13",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 7.46,
+              "end_price": 15.99,
+              "end_date": "2025-01-27",
+              "actual_days": 21
+            },
+            "56天": {
+              "gain": 16.73,
+              "end_price": 17.37,
+              "end_date": "2025-03-03",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 23.92,
+              "end_price": 18.44,
+              "end_date": "2025-03-31",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 8.4,
+              "end_price": 16.13,
+              "end_date": "2025-05-26",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002635",
+          "stock_name": "安洁科技",
+          "match_score": 0.943,
+          "buy_price": 14.51,
+          "buy_date": "2025-01-06",
+          "gains": {
+            "7天": {
+              "gain": -2.96,
+              "end_price": 14.08,
+              "end_date": "2025-01-13",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 3.45,
+              "end_price": 15.01,
+              "end_date": "2025-01-27",
+              "actual_days": 21
+            },
+            "56天": {
+              "gain": 7.65,
+              "end_price": 15.62,
+              "end_date": "2025-03-03",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 5.1,
+              "end_price": 15.25,
+              "end_date": "2025-03-31",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -11.44,
+              "end_price": 12.85,
+              "end_date": "2025-05-26",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-01-13",
+      "stocks": [
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.17,
+          "buy_date": "2025-01-13",
+          "gains": {
+            "7天": {
+              "gain": 3.45,
+              "end_price": 12.59,
+              "end_date": "2025-01-20",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 5.42,
+              "end_price": 12.83,
+              "end_date": "2025-02-10",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 12.41,
+              "end_price": 13.68,
+              "end_date": "2025-03-10",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -7.56,
+              "end_price": 11.25,
+              "end_date": "2025-04-07",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -2.88,
+              "end_price": 11.82,
+              "end_date": "2025-05-30",
+              "actual_days": 137
+            }
+          }
+        },
+        {
+          "stock_code": "300183",
+          "stock_name": "东软载波",
+          "match_score": 0.947,
+          "buy_price": 14.32,
+          "buy_date": "2025-01-13",
+          "gains": {
+            "7天": {
+              "gain": 11.24,
+              "end_price": 15.93,
+              "end_date": "2025-01-20",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 22.56,
+              "end_price": 17.55,
+              "end_date": "2025-02-10",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 56.77,
+              "end_price": 22.45,
+              "end_date": "2025-03-10",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 0.77,
+              "end_price": 14.43,
+              "end_date": "2025-04-07",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 10.41,
+              "end_price": 15.81,
+              "end_date": "2025-05-30",
+              "actual_days": 137
+            }
+          }
+        },
+        {
+          "stock_code": "002635",
+          "stock_name": "安洁科技",
+          "match_score": 0.943,
+          "buy_price": 14.08,
+          "buy_date": "2025-01-13",
+          "gains": {
+            "7天": {
+              "gain": 8.1,
+              "end_price": 15.22,
+              "end_date": "2025-01-20",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 13.64,
+              "end_price": 16.0,
+              "end_date": "2025-02-10",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 14.35,
+              "end_price": 16.1,
+              "end_date": "2025-03-10",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -5.47,
+              "end_price": 13.31,
+              "end_date": "2025-04-07",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -8.52,
+              "end_price": 12.88,
+              "end_date": "2025-05-30",
+              "actual_days": 137
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-01-20",
+      "stocks": [
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.59,
+          "buy_date": "2025-01-20",
+          "gains": {
+            "7天": {
+              "gain": -2.7,
+              "end_price": 12.25,
+              "end_date": "2025-01-27",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 5.8,
+              "end_price": 13.32,
+              "end_date": "2025-02-17",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 18.67,
+              "end_price": 14.94,
+              "end_date": "2025-03-17",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -5.08,
+              "end_price": 11.95,
+              "end_date": "2025-04-14",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -4.05,
+              "end_price": 12.08,
+              "end_date": "2025-06-09",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300183",
+          "stock_name": "东软载波",
+          "match_score": 0.947,
+          "buy_price": 15.93,
+          "buy_date": "2025-01-20",
+          "gains": {
+            "7天": {
+              "gain": 0.38,
+              "end_price": 15.99,
+              "end_date": "2025-01-27",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 9.17,
+              "end_price": 17.39,
+              "end_date": "2025-02-17",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 32.52,
+              "end_price": 21.11,
+              "end_date": "2025-03-17",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 5.27,
+              "end_price": 16.77,
+              "end_date": "2025-04-14",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 2.95,
+              "end_price": 16.4,
+              "end_date": "2025-06-09",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002635",
+          "stock_name": "安洁科技",
+          "match_score": 0.943,
+          "buy_price": 15.22,
+          "buy_date": "2025-01-20",
+          "gains": {
+            "7天": {
+              "gain": -1.38,
+              "end_price": 15.01,
+              "end_date": "2025-01-27",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 4.4,
+              "end_price": 15.89,
+              "end_date": "2025-02-17",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 9.13,
+              "end_price": 16.61,
+              "end_date": "2025-03-17",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -15.37,
+              "end_price": 12.88,
+              "end_date": "2025-04-14",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -12.94,
+              "end_price": 13.25,
+              "end_date": "2025-06-09",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-01-27",
+      "stocks": [
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.25,
+          "buy_date": "2025-01-27",
+          "gains": {
+            "7天": {
+              "gain": -5.14,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 354
+            },
+            "28天": {
+              "gain": 6.12,
+              "end_price": 13.0,
+              "end_date": "2025-02-24",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 9.71,
+              "end_price": 13.44,
+              "end_date": "2025-03-24",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -3.59,
+              "end_price": 11.81,
+              "end_date": "2025-04-21",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -4.73,
+              "end_price": 11.67,
+              "end_date": "2025-06-16",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300183",
+          "stock_name": "东软载波",
+          "match_score": 0.947,
+          "buy_price": 15.99,
+          "buy_date": "2025-01-27",
+          "gains": {
+            "7天": {
+              "gain": -0.81,
+              "end_price": 15.86,
+              "end_date": "2026-01-16",
+              "actual_days": 354
+            },
+            "28天": {
+              "gain": 10.26,
+              "end_price": 17.63,
+              "end_date": "2025-02-24",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 19.95,
+              "end_price": 19.18,
+              "end_date": "2025-03-24",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 4.5,
+              "end_price": 16.71,
+              "end_date": "2025-04-21",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -0.81,
+              "end_price": 15.86,
+              "end_date": "2025-06-16",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002635",
+          "stock_name": "安洁科技",
+          "match_score": 0.943,
+          "buy_price": 15.01,
+          "buy_date": "2025-01-27",
+          "gains": {
+            "7天": {
+              "gain": -4.93,
+              "end_price": 14.27,
+              "end_date": "2026-01-16",
+              "actual_days": 354
+            },
+            "28天": {
+              "gain": 10.06,
+              "end_price": 16.52,
+              "end_date": "2025-02-24",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 7.26,
+              "end_price": 16.1,
+              "end_date": "2025-03-24",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -14.39,
+              "end_price": 12.85,
+              "end_date": "2025-04-21",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -13.32,
+              "end_price": 13.01,
+              "end_date": "2025-06-16",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-02-05",
+      "stocks": [
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.32,
+          "buy_date": "2025-02-05",
+          "gains": {
+            "7天": {
+              "gain": 3.0,
+              "end_price": 12.69,
+              "end_date": "2025-02-12",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 3.9,
+              "end_price": 12.8,
+              "end_date": "2025-03-05",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 7.31,
+              "end_price": 13.22,
+              "end_date": "2025-04-02",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -8.52,
+              "end_price": 11.27,
+              "end_date": "2025-04-30",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -3.73,
+              "end_price": 11.86,
+              "end_date": "2025-06-25",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300183",
+          "stock_name": "东软载波",
+          "match_score": 0.947,
+          "buy_price": 16.23,
+          "buy_date": "2025-02-05",
+          "gains": {
+            "7天": {
+              "gain": 4.68,
+              "end_price": 16.99,
+              "end_date": "2025-02-12",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 49.78,
+              "end_price": 24.31,
+              "end_date": "2025-03-05",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 13.8,
+              "end_price": 18.47,
+              "end_date": "2025-04-02",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 0.8,
+              "end_price": 16.36,
+              "end_date": "2025-04-30",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 1.48,
+              "end_price": 16.47,
+              "end_date": "2025-06-25",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002635",
+          "stock_name": "安洁科技",
+          "match_score": 0.943,
+          "buy_price": 15.13,
+          "buy_date": "2025-02-05",
+          "gains": {
+            "7天": {
+              "gain": 7.73,
+              "end_price": 16.3,
+              "end_date": "2025-02-12",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 6.41,
+              "end_price": 16.1,
+              "end_date": "2025-03-05",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 0.93,
+              "end_price": 15.27,
+              "end_date": "2025-04-02",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -16.33,
+              "end_price": 12.66,
+              "end_date": "2025-04-30",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -11.3,
+              "end_price": 13.42,
+              "end_date": "2025-06-25",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-02-10",
+      "stocks": [
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.83,
+          "buy_date": "2025-02-10",
+          "gains": {
+            "7天": {
+              "gain": 3.82,
+              "end_price": 13.32,
+              "end_date": "2025-02-17",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 6.63,
+              "end_price": 13.68,
+              "end_date": "2025-03-10",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -12.31,
+              "end_price": 11.25,
+              "end_date": "2025-04-07",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -12.16,
+              "end_price": 11.27,
+              "end_date": "2025-04-30",
+              "actual_days": 79
+            },
+            "140天": {
+              "gain": -7.25,
+              "end_price": 11.9,
+              "end_date": "2025-06-30",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300183",
+          "stock_name": "东软载波",
+          "match_score": 0.947,
+          "buy_price": 17.55,
+          "buy_date": "2025-02-10",
+          "gains": {
+            "7天": {
+              "gain": -0.91,
+              "end_price": 17.39,
+              "end_date": "2025-02-17",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 27.92,
+              "end_price": 22.45,
+              "end_date": "2025-03-10",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -17.78,
+              "end_price": 14.43,
+              "end_date": "2025-04-07",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -6.78,
+              "end_price": 16.36,
+              "end_date": "2025-04-30",
+              "actual_days": 79
+            },
+            "140天": {
+              "gain": -4.22,
+              "end_price": 16.81,
+              "end_date": "2025-06-30",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002635",
+          "stock_name": "安洁科技",
+          "match_score": 0.943,
+          "buy_price": 16.0,
+          "buy_date": "2025-02-10",
+          "gains": {
+            "7天": {
+              "gain": -0.69,
+              "end_price": 15.89,
+              "end_date": "2025-02-17",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 0.63,
+              "end_price": 16.1,
+              "end_date": "2025-03-10",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -16.81,
+              "end_price": 13.31,
+              "end_date": "2025-04-07",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -20.88,
+              "end_price": 12.66,
+              "end_date": "2025-04-30",
+              "actual_days": 79
+            },
+            "140天": {
+              "gain": -15.38,
+              "end_price": 13.54,
+              "end_date": "2025-06-30",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-02-17",
+      "stocks": [
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 13.32,
+          "buy_date": "2025-02-17",
+          "gains": {
+            "7天": {
+              "gain": -2.4,
+              "end_price": 13.0,
+              "end_date": "2025-02-24",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 12.16,
+              "end_price": 14.94,
+              "end_date": "2025-03-17",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -10.29,
+              "end_price": 11.95,
+              "end_date": "2025-04-14",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -11.94,
+              "end_price": 11.73,
+              "end_date": "2025-05-12",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -10.44,
+              "end_price": 11.93,
+              "end_date": "2025-07-07",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 13.69,
+          "buy_date": "2025-02-17",
+          "gains": {
+            "7天": {
+              "gain": 1.75,
+              "end_price": 13.93,
+              "end_date": "2025-02-24",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -7.09,
+              "end_price": 12.72,
+              "end_date": "2025-03-17",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -9.57,
+              "end_price": 12.38,
+              "end_date": "2025-04-14",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -0.73,
+              "end_price": 13.59,
+              "end_date": "2025-05-12",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -6.06,
+              "end_price": 12.86,
+              "end_date": "2025-07-07",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300183",
+          "stock_name": "东软载波",
+          "match_score": 0.947,
+          "buy_price": 17.39,
+          "buy_date": "2025-02-17",
+          "gains": {
+            "7天": {
+              "gain": 1.38,
+              "end_price": 17.63,
+              "end_date": "2025-02-24",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 21.39,
+              "end_price": 21.11,
+              "end_date": "2025-03-17",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -3.57,
+              "end_price": 16.77,
+              "end_date": "2025-04-14",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 0.35,
+              "end_price": 17.45,
+              "end_date": "2025-05-12",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -3.97,
+              "end_price": 16.7,
+              "end_date": "2025-07-07",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-02-24",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 11.02,
+          "buy_date": "2025-02-24",
+          "gains": {
+            "7天": {
+              "gain": 2.9,
+              "end_price": 11.34,
+              "end_date": "2025-03-03",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 5.63,
+              "end_price": 11.64,
+              "end_date": "2025-03-24",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 10.98,
+              "end_price": 12.23,
+              "end_date": "2025-04-21",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 1.36,
+              "end_price": 11.17,
+              "end_date": "2025-05-19",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 17.42,
+              "end_price": 12.94,
+              "end_date": "2025-07-14",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 13.0,
+          "buy_date": "2025-02-24",
+          "gains": {
+            "7天": {
+              "gain": -1.38,
+              "end_price": 12.82,
+              "end_date": "2025-03-03",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 3.38,
+              "end_price": 13.44,
+              "end_date": "2025-03-24",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -9.15,
+              "end_price": 11.81,
+              "end_date": "2025-04-21",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -9.0,
+              "end_price": 11.83,
+              "end_date": "2025-05-19",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -5.46,
+              "end_price": 12.29,
+              "end_date": "2025-07-14",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 13.93,
+          "buy_date": "2025-02-24",
+          "gains": {
+            "7天": {
+              "gain": -9.76,
+              "end_price": 12.57,
+              "end_date": "2025-03-03",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 3.45,
+              "end_price": 14.41,
+              "end_date": "2025-03-24",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -12.06,
+              "end_price": 12.25,
+              "end_date": "2025-04-21",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -6.96,
+              "end_price": 12.96,
+              "end_date": "2025-05-19",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -5.38,
+              "end_price": 13.18,
+              "end_date": "2025-07-14",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-03-03",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 11.34,
+          "buy_date": "2025-03-03",
+          "gains": {
+            "7天": {
+              "gain": 1.41,
+              "end_price": 11.5,
+              "end_date": "2025-03-10",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -1.94,
+              "end_price": 11.12,
+              "end_date": "2025-03-31",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 4.23,
+              "end_price": 11.82,
+              "end_date": "2025-04-28",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -1.94,
+              "end_price": 11.12,
+              "end_date": "2025-05-26",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 22.31,
+              "end_price": 13.87,
+              "end_date": "2025-07-21",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.82,
+          "buy_date": "2025-03-03",
+          "gains": {
+            "7天": {
+              "gain": 6.71,
+              "end_price": 13.68,
+              "end_date": "2025-03-10",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 0.86,
+              "end_price": 12.93,
+              "end_date": "2025-03-31",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -11.23,
+              "end_price": 11.38,
+              "end_date": "2025-04-28",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -10.69,
+              "end_price": 11.45,
+              "end_date": "2025-05-26",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -1.87,
+              "end_price": 12.58,
+              "end_date": "2025-07-21",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 12.57,
+          "buy_date": "2025-03-03",
+          "gains": {
+            "7天": {
+              "gain": 1.11,
+              "end_price": 12.71,
+              "end_date": "2025-03-10",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 31.58,
+              "end_price": 16.54,
+              "end_date": "2025-03-31",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -3.82,
+              "end_price": 12.09,
+              "end_date": "2025-04-28",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 2.78,
+              "end_price": 12.92,
+              "end_date": "2025-05-26",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 5.09,
+              "end_price": 13.21,
+              "end_date": "2025-07-21",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-03-10",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 11.5,
+          "buy_date": "2025-03-10",
+          "gains": {
+            "7天": {
+              "gain": 0.61,
+              "end_price": 11.57,
+              "end_date": "2025-03-17",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -8.0,
+              "end_price": 10.58,
+              "end_date": "2025-04-07",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 3.74,
+              "end_price": 11.93,
+              "end_date": "2025-04-30",
+              "actual_days": 51
+            },
+            "84天": {
+              "gain": -1.3,
+              "end_price": 11.35,
+              "end_date": "2025-05-30",
+              "actual_days": 81
+            },
+            "140天": {
+              "gain": 26.52,
+              "end_price": 14.55,
+              "end_date": "2025-07-28",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 13.68,
+          "buy_date": "2025-03-10",
+          "gains": {
+            "7天": {
+              "gain": 9.21,
+              "end_price": 14.94,
+              "end_date": "2025-03-17",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -17.76,
+              "end_price": 11.25,
+              "end_date": "2025-04-07",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -17.62,
+              "end_price": 11.27,
+              "end_date": "2025-04-30",
+              "actual_days": 51
+            },
+            "84天": {
+              "gain": -13.6,
+              "end_price": 11.82,
+              "end_date": "2025-05-30",
+              "actual_days": 81
+            },
+            "140天": {
+              "gain": -4.82,
+              "end_price": 13.02,
+              "end_date": "2025-07-28",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 12.71,
+          "buy_date": "2025-03-10",
+          "gains": {
+            "7天": {
+              "gain": 0.08,
+              "end_price": 12.72,
+              "end_date": "2025-03-17",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -5.51,
+              "end_price": 12.01,
+              "end_date": "2025-04-07",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 0.55,
+              "end_price": 12.78,
+              "end_date": "2025-04-30",
+              "actual_days": 51
+            },
+            "84天": {
+              "gain": -1.57,
+              "end_price": 12.51,
+              "end_date": "2025-05-30",
+              "actual_days": 81
+            },
+            "140天": {
+              "gain": 4.48,
+              "end_price": 13.28,
+              "end_date": "2025-07-28",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-03-17",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 11.57,
+          "buy_date": "2025-03-17",
+          "gains": {
+            "7天": {
+              "gain": 0.61,
+              "end_price": 11.64,
+              "end_date": "2025-03-24",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 2.42,
+              "end_price": 11.85,
+              "end_date": "2025-04-14",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 6.05,
+              "end_price": 12.27,
+              "end_date": "2025-05-12",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 2.85,
+              "end_price": 11.9,
+              "end_date": "2025-06-09",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 20.83,
+              "end_price": 13.98,
+              "end_date": "2025-08-04",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 14.94,
+          "buy_date": "2025-03-17",
+          "gains": {
+            "7天": {
+              "gain": -10.04,
+              "end_price": 13.44,
+              "end_date": "2025-03-24",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -20.01,
+              "end_price": 11.95,
+              "end_date": "2025-04-14",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -21.49,
+              "end_price": 11.73,
+              "end_date": "2025-05-12",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -19.14,
+              "end_price": 12.08,
+              "end_date": "2025-06-09",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -14.73,
+              "end_price": 12.74,
+              "end_date": "2025-08-04",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 12.72,
+          "buy_date": "2025-03-17",
+          "gains": {
+            "7天": {
+              "gain": 13.29,
+              "end_price": 14.41,
+              "end_date": "2025-03-24",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -2.67,
+              "end_price": 12.38,
+              "end_date": "2025-04-14",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 6.84,
+              "end_price": 13.59,
+              "end_date": "2025-05-12",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 0.63,
+              "end_price": 12.8,
+              "end_date": "2025-06-09",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 2.36,
+              "end_price": 13.02,
+              "end_date": "2025-08-04",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-03-24",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 11.64,
+          "buy_date": "2025-03-24",
+          "gains": {
+            "7天": {
+              "gain": -4.47,
+              "end_price": 11.12,
+              "end_date": "2025-03-31",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 5.07,
+              "end_price": 12.23,
+              "end_date": "2025-04-21",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -4.04,
+              "end_price": 11.17,
+              "end_date": "2025-05-19",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 12.8,
+              "end_price": 13.13,
+              "end_date": "2025-06-16",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 22.42,
+              "end_price": 14.25,
+              "end_date": "2025-08-11",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 13.44,
+          "buy_date": "2025-03-24",
+          "gains": {
+            "7天": {
+              "gain": -3.79,
+              "end_price": 12.93,
+              "end_date": "2025-03-31",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -12.13,
+              "end_price": 11.81,
+              "end_date": "2025-04-21",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -11.98,
+              "end_price": 11.83,
+              "end_date": "2025-05-19",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -13.17,
+              "end_price": 11.67,
+              "end_date": "2025-06-16",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -5.06,
+              "end_price": 12.76,
+              "end_date": "2025-08-11",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 14.41,
+          "buy_date": "2025-03-24",
+          "gains": {
+            "7天": {
+              "gain": 14.78,
+              "end_price": 16.54,
+              "end_date": "2025-03-31",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -14.99,
+              "end_price": 12.25,
+              "end_date": "2025-04-21",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -10.06,
+              "end_price": 12.96,
+              "end_date": "2025-05-19",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -13.39,
+              "end_price": 12.48,
+              "end_date": "2025-06-16",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -5.2,
+              "end_price": 13.66,
+              "end_date": "2025-08-11",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-03-31",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 11.12,
+          "buy_date": "2025-03-31",
+          "gains": {
+            "7天": {
+              "gain": -4.86,
+              "end_price": 10.58,
+              "end_date": "2025-04-07",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 6.29,
+              "end_price": 11.82,
+              "end_date": "2025-04-28",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 0.0,
+              "end_price": 11.12,
+              "end_date": "2025-05-26",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 9.89,
+              "end_price": 12.22,
+              "end_date": "2025-06-23",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 25.45,
+              "end_price": 13.95,
+              "end_date": "2025-08-18",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.93,
+          "buy_date": "2025-03-31",
+          "gains": {
+            "7天": {
+              "gain": -12.99,
+              "end_price": 11.25,
+              "end_date": "2025-04-07",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -11.99,
+              "end_price": 11.38,
+              "end_date": "2025-04-28",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -11.45,
+              "end_price": 11.45,
+              "end_date": "2025-05-26",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -9.9,
+              "end_price": 11.65,
+              "end_date": "2025-06-23",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -2.09,
+              "end_price": 12.66,
+              "end_date": "2025-08-18",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 16.54,
+          "buy_date": "2025-03-31",
+          "gains": {
+            "7天": {
+              "gain": -27.39,
+              "end_price": 12.01,
+              "end_date": "2025-04-07",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -26.9,
+              "end_price": 12.09,
+              "end_date": "2025-04-28",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -21.89,
+              "end_price": 12.92,
+              "end_date": "2025-05-26",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -23.94,
+              "end_price": 12.58,
+              "end_date": "2025-06-23",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -15.05,
+              "end_price": 14.05,
+              "end_date": "2025-08-18",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-04-07",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 10.58,
+          "buy_date": "2025-04-07",
+          "gains": {
+            "7天": {
+              "gain": 12.0,
+              "end_price": 11.85,
+              "end_date": "2025-04-14",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 12.76,
+              "end_price": 11.93,
+              "end_date": "2025-04-30",
+              "actual_days": 23
+            },
+            "56天": {
+              "gain": 7.28,
+              "end_price": 11.35,
+              "end_date": "2025-05-30",
+              "actual_days": 53
+            },
+            "84天": {
+              "gain": 15.12,
+              "end_price": 12.18,
+              "end_date": "2025-06-30",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 32.99,
+              "end_price": 14.07,
+              "end_date": "2025-08-25",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.25,
+          "buy_date": "2025-04-07",
+          "gains": {
+            "7天": {
+              "gain": 6.22,
+              "end_price": 11.95,
+              "end_date": "2025-04-14",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 0.18,
+              "end_price": 11.27,
+              "end_date": "2025-04-30",
+              "actual_days": 23
+            },
+            "56天": {
+              "gain": 5.07,
+              "end_price": 11.82,
+              "end_date": "2025-05-30",
+              "actual_days": 53
+            },
+            "84天": {
+              "gain": 5.78,
+              "end_price": 11.9,
+              "end_date": "2025-06-30",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 14.93,
+              "end_price": 12.93,
+              "end_date": "2025-08-25",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 12.01,
+          "buy_date": "2025-04-07",
+          "gains": {
+            "7天": {
+              "gain": 3.08,
+              "end_price": 12.38,
+              "end_date": "2025-04-14",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 6.41,
+              "end_price": 12.78,
+              "end_date": "2025-04-30",
+              "actual_days": 23
+            },
+            "56天": {
+              "gain": 4.16,
+              "end_price": 12.51,
+              "end_date": "2025-05-30",
+              "actual_days": 53
+            },
+            "84天": {
+              "gain": 7.91,
+              "end_price": 12.96,
+              "end_date": "2025-06-30",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 19.57,
+              "end_price": 14.36,
+              "end_date": "2025-08-25",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-04-14",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 11.85,
+          "buy_date": "2025-04-14",
+          "gains": {
+            "7天": {
+              "gain": 3.21,
+              "end_price": 12.23,
+              "end_date": "2025-04-21",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 3.54,
+              "end_price": 12.27,
+              "end_date": "2025-05-12",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 0.42,
+              "end_price": 11.9,
+              "end_date": "2025-06-09",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 3.8,
+              "end_price": 12.3,
+              "end_date": "2025-07-07",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 16.88,
+              "end_price": 13.85,
+              "end_date": "2025-09-01",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.95,
+          "buy_date": "2025-04-14",
+          "gains": {
+            "7天": {
+              "gain": -1.17,
+              "end_price": 11.81,
+              "end_date": "2025-04-21",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -1.84,
+              "end_price": 11.73,
+              "end_date": "2025-05-12",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 1.09,
+              "end_price": 12.08,
+              "end_date": "2025-06-09",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -0.17,
+              "end_price": 11.93,
+              "end_date": "2025-07-07",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 3.18,
+              "end_price": 12.33,
+              "end_date": "2025-09-01",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 12.38,
+          "buy_date": "2025-04-14",
+          "gains": {
+            "7天": {
+              "gain": -1.05,
+              "end_price": 12.25,
+              "end_date": "2025-04-21",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 9.77,
+              "end_price": 13.59,
+              "end_date": "2025-05-12",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 3.39,
+              "end_price": 12.8,
+              "end_date": "2025-06-09",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 3.88,
+              "end_price": 12.86,
+              "end_date": "2025-07-07",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 16.88,
+              "end_price": 14.47,
+              "end_date": "2025-09-01",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-04-21",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 12.23,
+          "buy_date": "2025-04-21",
+          "gains": {
+            "7天": {
+              "gain": -3.35,
+              "end_price": 11.82,
+              "end_date": "2025-04-28",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -8.67,
+              "end_price": 11.17,
+              "end_date": "2025-05-19",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 7.36,
+              "end_price": 13.13,
+              "end_date": "2025-06-16",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 5.81,
+              "end_price": 12.94,
+              "end_date": "2025-07-14",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 14.15,
+              "end_price": 13.96,
+              "end_date": "2025-09-08",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.81,
+          "buy_date": "2025-04-21",
+          "gains": {
+            "7天": {
+              "gain": -3.64,
+              "end_price": 11.38,
+              "end_date": "2025-04-28",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 0.17,
+              "end_price": 11.83,
+              "end_date": "2025-05-19",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -1.19,
+              "end_price": 11.67,
+              "end_date": "2025-06-16",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 4.06,
+              "end_price": 12.29,
+              "end_date": "2025-07-14",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 5.59,
+              "end_price": 12.47,
+              "end_date": "2025-09-08",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 12.25,
+          "buy_date": "2025-04-21",
+          "gains": {
+            "7天": {
+              "gain": -1.31,
+              "end_price": 12.09,
+              "end_date": "2025-04-28",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 5.8,
+              "end_price": 12.96,
+              "end_date": "2025-05-19",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 1.88,
+              "end_price": 12.48,
+              "end_date": "2025-06-16",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 7.59,
+              "end_price": 13.18,
+              "end_date": "2025-07-14",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 12.57,
+              "end_price": 13.79,
+              "end_date": "2025-09-08",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-04-28",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 11.82,
+          "buy_date": "2025-04-28",
+          "gains": {
+            "7天": {
+              "gain": 0.93,
+              "end_price": 11.93,
+              "end_date": "2025-04-30",
+              "actual_days": 2
+            },
+            "28天": {
+              "gain": -5.92,
+              "end_price": 11.12,
+              "end_date": "2025-05-26",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 3.38,
+              "end_price": 12.22,
+              "end_date": "2025-06-23",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 17.34,
+              "end_price": 13.87,
+              "end_date": "2025-07-21",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 16.07,
+              "end_price": 13.72,
+              "end_date": "2025-09-15",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.38,
+          "buy_date": "2025-04-28",
+          "gains": {
+            "7天": {
+              "gain": -0.97,
+              "end_price": 11.27,
+              "end_date": "2025-04-30",
+              "actual_days": 2
+            },
+            "28天": {
+              "gain": 0.62,
+              "end_price": 11.45,
+              "end_date": "2025-05-26",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 2.37,
+              "end_price": 11.65,
+              "end_date": "2025-06-23",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 10.54,
+              "end_price": 12.58,
+              "end_date": "2025-07-21",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 7.03,
+              "end_price": 12.18,
+              "end_date": "2025-09-15",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 12.09,
+          "buy_date": "2025-04-28",
+          "gains": {
+            "7天": {
+              "gain": 5.71,
+              "end_price": 12.78,
+              "end_date": "2025-04-30",
+              "actual_days": 2
+            },
+            "28天": {
+              "gain": 6.87,
+              "end_price": 12.92,
+              "end_date": "2025-05-26",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 4.05,
+              "end_price": 12.58,
+              "end_date": "2025-06-23",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 9.26,
+              "end_price": 13.21,
+              "end_date": "2025-07-21",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 15.55,
+              "end_price": 13.97,
+              "end_date": "2025-09-15",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-05-06",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 12.04,
+          "buy_date": "2025-05-06",
+          "gains": {
+            "7天": {
+              "gain": -0.58,
+              "end_price": 11.97,
+              "end_date": "2025-05-13",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -4.24,
+              "end_price": 11.53,
+              "end_date": "2025-06-03",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 3.32,
+              "end_price": 12.44,
+              "end_date": "2025-07-01",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 24.58,
+              "end_price": 15.0,
+              "end_date": "2025-07-29",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 11.21,
+              "end_price": 13.39,
+              "end_date": "2025-09-23",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.44,
+          "buy_date": "2025-05-06",
+          "gains": {
+            "7天": {
+              "gain": 3.32,
+              "end_price": 11.82,
+              "end_date": "2025-05-13",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 4.63,
+              "end_price": 11.97,
+              "end_date": "2025-06-03",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 4.55,
+              "end_price": 11.96,
+              "end_date": "2025-07-01",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 14.42,
+              "end_price": 13.09,
+              "end_date": "2025-07-29",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 1.75,
+              "end_price": 11.64,
+              "end_date": "2025-09-23",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 13.18,
+          "buy_date": "2025-05-06",
+          "gains": {
+            "7天": {
+              "gain": 1.44,
+              "end_price": 13.37,
+              "end_date": "2025-05-13",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -5.46,
+              "end_price": 12.46,
+              "end_date": "2025-06-03",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -2.12,
+              "end_price": 12.9,
+              "end_date": "2025-07-01",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 0.38,
+              "end_price": 13.23,
+              "end_date": "2025-07-29",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 4.78,
+              "end_price": 13.81,
+              "end_date": "2025-09-23",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-05-12",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 12.27,
+          "buy_date": "2025-05-12",
+          "gains": {
+            "7天": {
+              "gain": -8.96,
+              "end_price": 11.17,
+              "end_date": "2025-05-19",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -3.02,
+              "end_price": 11.9,
+              "end_date": "2025-06-09",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 0.24,
+              "end_price": 12.3,
+              "end_date": "2025-07-07",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 13.94,
+              "end_price": 13.98,
+              "end_date": "2025-08-04",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 11.08,
+              "end_price": 13.63,
+              "end_date": "2025-09-29",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.73,
+          "buy_date": "2025-05-12",
+          "gains": {
+            "7天": {
+              "gain": 0.85,
+              "end_price": 11.83,
+              "end_date": "2025-05-19",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 2.98,
+              "end_price": 12.08,
+              "end_date": "2025-06-09",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 1.71,
+              "end_price": 11.93,
+              "end_date": "2025-07-07",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 8.61,
+              "end_price": 12.74,
+              "end_date": "2025-08-04",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -1.02,
+              "end_price": 11.61,
+              "end_date": "2025-09-29",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 13.59,
+          "buy_date": "2025-05-12",
+          "gains": {
+            "7天": {
+              "gain": -4.64,
+              "end_price": 12.96,
+              "end_date": "2025-05-19",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -5.81,
+              "end_price": 12.8,
+              "end_date": "2025-06-09",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -5.37,
+              "end_price": 12.86,
+              "end_date": "2025-07-07",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -4.19,
+              "end_price": 13.02,
+              "end_date": "2025-08-04",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -1.69,
+              "end_price": 13.36,
+              "end_date": "2025-09-29",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-05-19",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 11.17,
+          "buy_date": "2025-05-19",
+          "gains": {
+            "7天": {
+              "gain": -0.45,
+              "end_price": 11.12,
+              "end_date": "2025-05-26",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 17.55,
+              "end_price": 13.13,
+              "end_date": "2025-06-16",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 15.85,
+              "end_price": 12.94,
+              "end_date": "2025-07-14",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 27.57,
+              "end_price": 14.25,
+              "end_date": "2025-08-11",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 23.9,
+              "end_price": 13.84,
+              "end_date": "2025-09-30",
+              "actual_days": 134
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.83,
+          "buy_date": "2025-05-19",
+          "gains": {
+            "7天": {
+              "gain": -3.21,
+              "end_price": 11.45,
+              "end_date": "2025-05-26",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -1.35,
+              "end_price": 11.67,
+              "end_date": "2025-06-16",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 3.89,
+              "end_price": 12.29,
+              "end_date": "2025-07-14",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 7.86,
+              "end_price": 12.76,
+              "end_date": "2025-08-11",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -1.69,
+              "end_price": 11.63,
+              "end_date": "2025-09-30",
+              "actual_days": 134
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 12.96,
+          "buy_date": "2025-05-19",
+          "gains": {
+            "7天": {
+              "gain": -0.31,
+              "end_price": 12.92,
+              "end_date": "2025-05-26",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -3.7,
+              "end_price": 12.48,
+              "end_date": "2025-06-16",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 1.7,
+              "end_price": 13.18,
+              "end_date": "2025-07-14",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 5.4,
+              "end_price": 13.66,
+              "end_date": "2025-08-11",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 5.63,
+              "end_price": 13.69,
+              "end_date": "2025-09-30",
+              "actual_days": 134
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-05-26",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 11.12,
+          "buy_date": "2025-05-26",
+          "gains": {
+            "7天": {
+              "gain": 2.07,
+              "end_price": 11.35,
+              "end_date": "2025-05-30",
+              "actual_days": 4
+            },
+            "28天": {
+              "gain": 9.89,
+              "end_price": 12.22,
+              "end_date": "2025-06-23",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 24.73,
+              "end_price": 13.87,
+              "end_date": "2025-07-21",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 25.45,
+              "end_price": 13.95,
+              "end_date": "2025-08-18",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 23.92,
+              "end_price": 13.78,
+              "end_date": "2025-10-13",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.45,
+          "buy_date": "2025-05-26",
+          "gains": {
+            "7天": {
+              "gain": 3.23,
+              "end_price": 11.82,
+              "end_date": "2025-05-30",
+              "actual_days": 4
+            },
+            "28天": {
+              "gain": 1.75,
+              "end_price": 11.65,
+              "end_date": "2025-06-23",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 9.87,
+              "end_price": 12.58,
+              "end_date": "2025-07-21",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 10.57,
+              "end_price": 12.66,
+              "end_date": "2025-08-18",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -0.17,
+              "end_price": 11.43,
+              "end_date": "2025-10-13",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 12.92,
+          "buy_date": "2025-05-26",
+          "gains": {
+            "7天": {
+              "gain": -3.17,
+              "end_price": 12.51,
+              "end_date": "2025-05-30",
+              "actual_days": 4
+            },
+            "28天": {
+              "gain": -2.63,
+              "end_price": 12.58,
+              "end_date": "2025-06-23",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 2.24,
+              "end_price": 13.21,
+              "end_date": "2025-07-21",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 8.75,
+              "end_price": 14.05,
+              "end_date": "2025-08-18",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 0.08,
+              "end_price": 12.93,
+              "end_date": "2025-10-13",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-06-03",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 11.53,
+          "buy_date": "2025-06-03",
+          "gains": {
+            "7天": {
+              "gain": 2.69,
+              "end_price": 11.84,
+              "end_date": "2025-06-10",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 7.89,
+              "end_price": 12.44,
+              "end_date": "2025-07-01",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 30.1,
+              "end_price": 15.0,
+              "end_date": "2025-07-29",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 22.2,
+              "end_price": 14.09,
+              "end_date": "2025-08-26",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 15.87,
+              "end_price": 13.36,
+              "end_date": "2025-10-21",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.97,
+          "buy_date": "2025-06-03",
+          "gains": {
+            "7天": {
+              "gain": 0.33,
+              "end_price": 12.01,
+              "end_date": "2025-06-10",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -0.08,
+              "end_price": 11.96,
+              "end_date": "2025-07-01",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 9.36,
+              "end_price": 13.09,
+              "end_date": "2025-07-29",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 7.85,
+              "end_price": 12.91,
+              "end_date": "2025-08-26",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -2.84,
+              "end_price": 11.63,
+              "end_date": "2025-10-21",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 12.46,
+          "buy_date": "2025-06-03",
+          "gains": {
+            "7天": {
+              "gain": 0.4,
+              "end_price": 12.51,
+              "end_date": "2025-06-10",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 3.53,
+              "end_price": 12.9,
+              "end_date": "2025-07-01",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 6.18,
+              "end_price": 13.23,
+              "end_date": "2025-07-29",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 17.17,
+              "end_price": 14.6,
+              "end_date": "2025-08-26",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 0.8,
+              "end_price": 12.56,
+              "end_date": "2025-10-21",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-06-09",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 11.9,
+          "buy_date": "2025-06-09",
+          "gains": {
+            "7天": {
+              "gain": 10.34,
+              "end_price": 13.13,
+              "end_date": "2025-06-16",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 3.36,
+              "end_price": 12.3,
+              "end_date": "2025-07-07",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 17.48,
+              "end_price": 13.98,
+              "end_date": "2025-08-04",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 16.39,
+              "end_price": 13.85,
+              "end_date": "2025-09-01",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 12.02,
+              "end_price": 13.33,
+              "end_date": "2025-10-27",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.08,
+          "buy_date": "2025-06-09",
+          "gains": {
+            "7天": {
+              "gain": -3.39,
+              "end_price": 11.67,
+              "end_date": "2025-06-16",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -1.24,
+              "end_price": 11.93,
+              "end_date": "2025-07-07",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 5.46,
+              "end_price": 12.74,
+              "end_date": "2025-08-04",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 2.07,
+              "end_price": 12.33,
+              "end_date": "2025-09-01",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -3.64,
+              "end_price": 11.64,
+              "end_date": "2025-10-27",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 12.8,
+          "buy_date": "2025-06-09",
+          "gains": {
+            "7天": {
+              "gain": -2.5,
+              "end_price": 12.48,
+              "end_date": "2025-06-16",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 0.47,
+              "end_price": 12.86,
+              "end_date": "2025-07-07",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 1.72,
+              "end_price": 13.02,
+              "end_date": "2025-08-04",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 13.05,
+              "end_price": 14.47,
+              "end_date": "2025-09-01",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 0.23,
+              "end_price": 12.83,
+              "end_date": "2025-10-27",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-06-16",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 13.13,
+          "buy_date": "2025-06-16",
+          "gains": {
+            "7天": {
+              "gain": -6.93,
+              "end_price": 12.22,
+              "end_date": "2025-06-23",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -1.45,
+              "end_price": 12.94,
+              "end_date": "2025-07-14",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 8.53,
+              "end_price": 14.25,
+              "end_date": "2025-08-11",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 6.32,
+              "end_price": 13.96,
+              "end_date": "2025-09-08",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 6.93,
+              "end_price": 14.04,
+              "end_date": "2025-11-03",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.67,
+          "buy_date": "2025-06-16",
+          "gains": {
+            "7天": {
+              "gain": -0.17,
+              "end_price": 11.65,
+              "end_date": "2025-06-23",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 5.31,
+              "end_price": 12.29,
+              "end_date": "2025-07-14",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 9.34,
+              "end_price": 12.76,
+              "end_date": "2025-08-11",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 6.86,
+              "end_price": 12.47,
+              "end_date": "2025-09-08",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 0.77,
+              "end_price": 11.76,
+              "end_date": "2025-11-03",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 12.48,
+          "buy_date": "2025-06-16",
+          "gains": {
+            "7天": {
+              "gain": 0.8,
+              "end_price": 12.58,
+              "end_date": "2025-06-23",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 5.61,
+              "end_price": 13.18,
+              "end_date": "2025-07-14",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 9.46,
+              "end_price": 13.66,
+              "end_date": "2025-08-11",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 10.5,
+              "end_price": 13.79,
+              "end_date": "2025-09-08",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 1.28,
+              "end_price": 12.64,
+              "end_date": "2025-11-03",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-06-23",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 12.22,
+          "buy_date": "2025-06-23",
+          "gains": {
+            "7天": {
+              "gain": -0.33,
+              "end_price": 12.18,
+              "end_date": "2025-06-30",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 13.5,
+              "end_price": 13.87,
+              "end_date": "2025-07-21",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 14.16,
+              "end_price": 13.95,
+              "end_date": "2025-08-18",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 12.27,
+              "end_price": 13.72,
+              "end_date": "2025-09-15",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 15.14,
+              "end_price": 14.07,
+              "end_date": "2025-11-10",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.65,
+          "buy_date": "2025-06-23",
+          "gains": {
+            "7天": {
+              "gain": 2.15,
+              "end_price": 11.9,
+              "end_date": "2025-06-30",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 7.98,
+              "end_price": 12.58,
+              "end_date": "2025-07-21",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 8.67,
+              "end_price": 12.66,
+              "end_date": "2025-08-18",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 4.55,
+              "end_price": 12.18,
+              "end_date": "2025-09-15",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 3.0,
+              "end_price": 12.0,
+              "end_date": "2025-11-10",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 12.58,
+          "buy_date": "2025-06-23",
+          "gains": {
+            "7天": {
+              "gain": 3.02,
+              "end_price": 12.96,
+              "end_date": "2025-06-30",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 5.01,
+              "end_price": 13.21,
+              "end_date": "2025-07-21",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 11.69,
+              "end_price": 14.05,
+              "end_date": "2025-08-18",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 11.05,
+              "end_price": 13.97,
+              "end_date": "2025-09-15",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -0.24,
+              "end_price": 12.55,
+              "end_date": "2025-11-10",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-06-30",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 12.18,
+          "buy_date": "2025-06-30",
+          "gains": {
+            "7天": {
+              "gain": 0.99,
+              "end_price": 12.3,
+              "end_date": "2025-07-07",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 19.46,
+              "end_price": 14.55,
+              "end_date": "2025-07-28",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 15.52,
+              "end_price": 14.07,
+              "end_date": "2025-08-25",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 11.99,
+              "end_price": 13.64,
+              "end_date": "2025-09-22",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 15.35,
+              "end_price": 14.05,
+              "end_date": "2025-11-17",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.9,
+          "buy_date": "2025-06-30",
+          "gains": {
+            "7天": {
+              "gain": 0.25,
+              "end_price": 11.93,
+              "end_date": "2025-07-07",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 9.41,
+              "end_price": 13.02,
+              "end_date": "2025-07-28",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 8.66,
+              "end_price": 12.93,
+              "end_date": "2025-08-25",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -0.92,
+              "end_price": 11.79,
+              "end_date": "2025-09-22",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 1.18,
+              "end_price": 12.04,
+              "end_date": "2025-11-17",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 12.96,
+          "buy_date": "2025-06-30",
+          "gains": {
+            "7天": {
+              "gain": -0.77,
+              "end_price": 12.86,
+              "end_date": "2025-07-07",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 2.47,
+              "end_price": 13.28,
+              "end_date": "2025-07-28",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 10.8,
+              "end_price": 14.36,
+              "end_date": "2025-08-25",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 8.72,
+              "end_price": 14.09,
+              "end_date": "2025-09-22",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -3.01,
+              "end_price": 12.57,
+              "end_date": "2025-11-17",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-07-07",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 12.3,
+          "buy_date": "2025-07-07",
+          "gains": {
+            "7天": {
+              "gain": 5.2,
+              "end_price": 12.94,
+              "end_date": "2025-07-14",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 13.66,
+              "end_price": 13.98,
+              "end_date": "2025-08-04",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 12.6,
+              "end_price": 13.85,
+              "end_date": "2025-09-01",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 10.81,
+              "end_price": 13.63,
+              "end_date": "2025-09-29",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 8.7,
+              "end_price": 13.37,
+              "end_date": "2025-11-24",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.93,
+          "buy_date": "2025-07-07",
+          "gains": {
+            "7天": {
+              "gain": 3.02,
+              "end_price": 12.29,
+              "end_date": "2025-07-14",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 6.79,
+              "end_price": 12.74,
+              "end_date": "2025-08-04",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 3.35,
+              "end_price": 12.33,
+              "end_date": "2025-09-01",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -2.68,
+              "end_price": 11.61,
+              "end_date": "2025-09-29",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -4.02,
+              "end_price": 11.45,
+              "end_date": "2025-11-24",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 12.86,
+          "buy_date": "2025-07-07",
+          "gains": {
+            "7天": {
+              "gain": 2.49,
+              "end_price": 13.18,
+              "end_date": "2025-07-14",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 1.24,
+              "end_price": 13.02,
+              "end_date": "2025-08-04",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 12.52,
+              "end_price": 14.47,
+              "end_date": "2025-09-01",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 3.89,
+              "end_price": 13.36,
+              "end_date": "2025-09-29",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -8.01,
+              "end_price": 11.83,
+              "end_date": "2025-11-24",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-07-14",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 12.94,
+          "buy_date": "2025-07-14",
+          "gains": {
+            "7天": {
+              "gain": 7.19,
+              "end_price": 13.87,
+              "end_date": "2025-07-21",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 10.12,
+              "end_price": 14.25,
+              "end_date": "2025-08-11",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 7.88,
+              "end_price": 13.96,
+              "end_date": "2025-09-08",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 6.96,
+              "end_price": 13.84,
+              "end_date": "2025-09-30",
+              "actual_days": 78
+            },
+            "140天": {
+              "gain": 2.47,
+              "end_price": 13.26,
+              "end_date": "2025-12-01",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.29,
+          "buy_date": "2025-07-14",
+          "gains": {
+            "7天": {
+              "gain": 2.36,
+              "end_price": 12.58,
+              "end_date": "2025-07-21",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 3.82,
+              "end_price": 12.76,
+              "end_date": "2025-08-11",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 1.46,
+              "end_price": 12.47,
+              "end_date": "2025-09-08",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -5.37,
+              "end_price": 11.63,
+              "end_date": "2025-09-30",
+              "actual_days": 78
+            },
+            "140天": {
+              "gain": -6.1,
+              "end_price": 11.54,
+              "end_date": "2025-12-01",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "002655",
+          "stock_name": "共达电声",
+          "match_score": 0.948,
+          "buy_price": 13.18,
+          "buy_date": "2025-07-14",
+          "gains": {
+            "7天": {
+              "gain": 0.23,
+              "end_price": 13.21,
+              "end_date": "2025-07-21",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 3.64,
+              "end_price": 13.66,
+              "end_date": "2025-08-11",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 4.63,
+              "end_price": 13.79,
+              "end_date": "2025-09-08",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 3.87,
+              "end_price": 13.69,
+              "end_date": "2025-09-30",
+              "actual_days": 78
+            },
+            "140天": {
+              "gain": 0.0,
+              "end_price": 13.18,
+              "end_date": "2025-12-01",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-07-21",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 13.87,
+          "buy_date": "2025-07-21",
+          "gains": {
+            "7天": {
+              "gain": 4.9,
+              "end_price": 14.55,
+              "end_date": "2025-07-28",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 0.58,
+              "end_price": 13.95,
+              "end_date": "2025-08-18",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -1.08,
+              "end_price": 13.72,
+              "end_date": "2025-09-15",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -0.65,
+              "end_price": 13.78,
+              "end_date": "2025-10-13",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -6.06,
+              "end_price": 13.03,
+              "end_date": "2025-12-08",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.58,
+          "buy_date": "2025-07-21",
+          "gains": {
+            "7天": {
+              "gain": 3.5,
+              "end_price": 13.02,
+              "end_date": "2025-07-28",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 0.64,
+              "end_price": 12.66,
+              "end_date": "2025-08-18",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -3.18,
+              "end_price": 12.18,
+              "end_date": "2025-09-15",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -9.14,
+              "end_price": 11.43,
+              "end_date": "2025-10-13",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -8.98,
+              "end_price": 11.45,
+              "end_date": "2025-12-08",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "688007",
+          "stock_name": "光峰科技",
+          "match_score": 0.949,
+          "buy_price": 14.74,
+          "buy_date": "2025-07-21",
+          "gains": {
+            "7天": {
+              "gain": 2.58,
+              "end_price": 15.12,
+              "end_date": "2025-07-28",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 23.81,
+              "end_price": 18.25,
+              "end_date": "2025-08-18",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 60.99,
+              "end_price": 23.73,
+              "end_date": "2025-09-15",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 37.11,
+              "end_price": 20.21,
+              "end_date": "2025-10-13",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 17.44,
+              "end_price": 17.31,
+              "end_date": "2025-12-08",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-07-28",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 14.55,
+          "buy_date": "2025-07-28",
+          "gains": {
+            "7天": {
+              "gain": -3.92,
+              "end_price": 13.98,
+              "end_date": "2025-08-04",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -3.3,
+              "end_price": 14.07,
+              "end_date": "2025-08-25",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -6.25,
+              "end_price": 13.64,
+              "end_date": "2025-09-22",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -9.83,
+              "end_price": 13.12,
+              "end_date": "2025-10-20",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -10.31,
+              "end_price": 13.05,
+              "end_date": "2025-12-15",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 13.02,
+          "buy_date": "2025-07-28",
+          "gains": {
+            "7天": {
+              "gain": -2.15,
+              "end_price": 12.74,
+              "end_date": "2025-08-04",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -0.69,
+              "end_price": 12.93,
+              "end_date": "2025-08-25",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -9.45,
+              "end_price": 11.79,
+              "end_date": "2025-09-22",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -11.6,
+              "end_price": 11.51,
+              "end_date": "2025-10-20",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -14.06,
+              "end_price": 11.19,
+              "end_date": "2025-12-15",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "688007",
+          "stock_name": "光峰科技",
+          "match_score": 0.949,
+          "buy_price": 15.12,
+          "buy_date": "2025-07-28",
+          "gains": {
+            "7天": {
+              "gain": 1.59,
+              "end_price": 15.36,
+              "end_date": "2025-08-04",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 35.25,
+              "end_price": 20.45,
+              "end_date": "2025-08-25",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 43.06,
+              "end_price": 21.63,
+              "end_date": "2025-09-22",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 15.41,
+              "end_price": 17.45,
+              "end_date": "2025-10-20",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 10.91,
+              "end_price": 16.77,
+              "end_date": "2025-12-15",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-08-04",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 13.98,
+          "buy_date": "2025-08-04",
+          "gains": {
+            "7天": {
+              "gain": 1.93,
+              "end_price": 14.25,
+              "end_date": "2025-08-11",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -0.93,
+              "end_price": 13.85,
+              "end_date": "2025-09-01",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -2.5,
+              "end_price": 13.63,
+              "end_date": "2025-09-29",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -4.65,
+              "end_price": 13.33,
+              "end_date": "2025-10-27",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -3.65,
+              "end_price": 13.47,
+              "end_date": "2025-12-22",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.74,
+          "buy_date": "2025-08-04",
+          "gains": {
+            "7天": {
+              "gain": 0.16,
+              "end_price": 12.76,
+              "end_date": "2025-08-11",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -3.22,
+              "end_price": 12.33,
+              "end_date": "2025-09-01",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -8.87,
+              "end_price": 11.61,
+              "end_date": "2025-09-29",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -8.63,
+              "end_price": 11.64,
+              "end_date": "2025-10-27",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -9.81,
+              "end_price": 11.49,
+              "end_date": "2025-12-22",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "688007",
+          "stock_name": "光峰科技",
+          "match_score": 0.949,
+          "buy_price": 15.36,
+          "buy_date": "2025-08-04",
+          "gains": {
+            "7天": {
+              "gain": 6.71,
+              "end_price": 16.39,
+              "end_date": "2025-08-11",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 49.41,
+              "end_price": 22.95,
+              "end_date": "2025-09-01",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 37.63,
+              "end_price": 21.14,
+              "end_date": "2025-09-29",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 17.9,
+              "end_price": 18.11,
+              "end_date": "2025-10-27",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 10.29,
+              "end_price": 16.94,
+              "end_date": "2025-12-22",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-08-11",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 14.25,
+          "buy_date": "2025-08-11",
+          "gains": {
+            "7天": {
+              "gain": -2.11,
+              "end_price": 13.95,
+              "end_date": "2025-08-18",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -2.04,
+              "end_price": 13.96,
+              "end_date": "2025-09-08",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -2.88,
+              "end_price": 13.84,
+              "end_date": "2025-09-30",
+              "actual_days": 50
+            },
+            "84天": {
+              "gain": -1.47,
+              "end_price": 14.04,
+              "end_date": "2025-11-03",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -6.18,
+              "end_price": 13.37,
+              "end_date": "2025-12-29",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.76,
+          "buy_date": "2025-08-11",
+          "gains": {
+            "7天": {
+              "gain": -0.78,
+              "end_price": 12.66,
+              "end_date": "2025-08-18",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -2.27,
+              "end_price": 12.47,
+              "end_date": "2025-09-08",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -8.86,
+              "end_price": 11.63,
+              "end_date": "2025-09-30",
+              "actual_days": 50
+            },
+            "84天": {
+              "gain": -7.84,
+              "end_price": 11.76,
+              "end_date": "2025-11-03",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -11.13,
+              "end_price": 11.34,
+              "end_date": "2025-12-29",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "688007",
+          "stock_name": "光峰科技",
+          "match_score": 0.949,
+          "buy_price": 16.39,
+          "buy_date": "2025-08-11",
+          "gains": {
+            "7天": {
+              "gain": 11.35,
+              "end_price": 18.25,
+              "end_date": "2025-08-18",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 33.25,
+              "end_price": 21.84,
+              "end_date": "2025-09-08",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 29.65,
+              "end_price": 21.25,
+              "end_date": "2025-09-30",
+              "actual_days": 50
+            },
+            "84天": {
+              "gain": 13.24,
+              "end_price": 18.56,
+              "end_date": "2025-11-03",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 13.06,
+              "end_price": 18.53,
+              "end_date": "2025-12-29",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-08-18",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 13.95,
+          "buy_date": "2025-08-18",
+          "gains": {
+            "7天": {
+              "gain": 0.86,
+              "end_price": 14.07,
+              "end_date": "2025-08-25",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -1.65,
+              "end_price": 13.72,
+              "end_date": "2025-09-15",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -1.22,
+              "end_price": 13.78,
+              "end_date": "2025-10-13",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 0.86,
+              "end_price": 14.07,
+              "end_date": "2025-11-10",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -4.73,
+              "end_price": 13.29,
+              "end_date": "2026-01-05",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.66,
+          "buy_date": "2025-08-18",
+          "gains": {
+            "7天": {
+              "gain": 2.13,
+              "end_price": 12.93,
+              "end_date": "2025-08-25",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -3.79,
+              "end_price": 12.18,
+              "end_date": "2025-09-15",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -9.72,
+              "end_price": 11.43,
+              "end_date": "2025-10-13",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -5.21,
+              "end_price": 12.0,
+              "end_date": "2025-11-10",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -9.16,
+              "end_price": 11.5,
+              "end_date": "2026-01-05",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "688007",
+          "stock_name": "光峰科技",
+          "match_score": 0.949,
+          "buy_price": 18.25,
+          "buy_date": "2025-08-18",
+          "gains": {
+            "7天": {
+              "gain": 12.05,
+              "end_price": 20.45,
+              "end_date": "2025-08-25",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 30.03,
+              "end_price": 23.73,
+              "end_date": "2025-09-15",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 10.74,
+              "end_price": 20.21,
+              "end_date": "2025-10-13",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -0.71,
+              "end_price": 18.12,
+              "end_date": "2025-11-10",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 1.59,
+              "end_price": 18.54,
+              "end_date": "2026-01-05",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-08-25",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 14.07,
+          "buy_date": "2025-08-25",
+          "gains": {
+            "7天": {
+              "gain": -1.56,
+              "end_price": 13.85,
+              "end_date": "2025-09-01",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -3.06,
+              "end_price": 13.64,
+              "end_date": "2025-09-22",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -6.75,
+              "end_price": 13.12,
+              "end_date": "2025-10-20",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -0.14,
+              "end_price": 14.05,
+              "end_date": "2025-11-17",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -4.41,
+              "end_price": 13.45,
+              "end_date": "2026-01-12",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.93,
+          "buy_date": "2025-08-25",
+          "gains": {
+            "7天": {
+              "gain": -4.64,
+              "end_price": 12.33,
+              "end_date": "2025-09-01",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -8.82,
+              "end_price": 11.79,
+              "end_date": "2025-09-22",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -10.98,
+              "end_price": 11.51,
+              "end_date": "2025-10-20",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -6.88,
+              "end_price": 12.04,
+              "end_date": "2025-11-17",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -7.89,
+              "end_price": 11.91,
+              "end_date": "2026-01-12",
+              "actual_days": 140
+            }
+          }
+        },
+        {
+          "stock_code": "688007",
+          "stock_name": "光峰科技",
+          "match_score": 0.949,
+          "buy_price": 20.45,
+          "buy_date": "2025-08-25",
+          "gains": {
+            "7天": {
+              "gain": 12.22,
+              "end_price": 22.95,
+              "end_date": "2025-09-01",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 5.77,
+              "end_price": 21.63,
+              "end_date": "2025-09-22",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -14.67,
+              "end_price": 17.45,
+              "end_date": "2025-10-20",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -13.2,
+              "end_price": 17.75,
+              "end_date": "2025-11-17",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -1.71,
+              "end_price": 20.1,
+              "end_date": "2026-01-12",
+              "actual_days": 140
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-09-01",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 13.85,
+          "buy_date": "2025-09-01",
+          "gains": {
+            "7天": {
+              "gain": 0.79,
+              "end_price": 13.96,
+              "end_date": "2025-09-08",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -1.59,
+              "end_price": 13.63,
+              "end_date": "2025-09-29",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -3.75,
+              "end_price": 13.33,
+              "end_date": "2025-10-27",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -3.47,
+              "end_price": 13.37,
+              "end_date": "2025-11-24",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -3.32,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 137
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.33,
+          "buy_date": "2025-09-01",
+          "gains": {
+            "7天": {
+              "gain": 1.14,
+              "end_price": 12.47,
+              "end_date": "2025-09-08",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -5.84,
+              "end_price": 11.61,
+              "end_date": "2025-09-29",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -5.6,
+              "end_price": 11.64,
+              "end_date": "2025-10-27",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -7.14,
+              "end_price": 11.45,
+              "end_date": "2025-11-24",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -5.76,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 137
+            }
+          }
+        },
+        {
+          "stock_code": "688007",
+          "stock_name": "光峰科技",
+          "match_score": 0.949,
+          "buy_price": 22.95,
+          "buy_date": "2025-09-01",
+          "gains": {
+            "7天": {
+              "gain": -4.84,
+              "end_price": 21.84,
+              "end_date": "2025-09-08",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -7.89,
+              "end_price": 21.14,
+              "end_date": "2025-09-29",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -21.09,
+              "end_price": 18.11,
+              "end_date": "2025-10-27",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -25.4,
+              "end_price": 17.12,
+              "end_date": "2025-11-24",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -17.43,
+              "end_price": 18.95,
+              "end_date": "2026-01-16",
+              "actual_days": 137
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-09-08",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 13.96,
+          "buy_date": "2025-09-08",
+          "gains": {
+            "7天": {
+              "gain": -1.72,
+              "end_price": 13.72,
+              "end_date": "2025-09-15",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -0.86,
+              "end_price": 13.84,
+              "end_date": "2025-09-30",
+              "actual_days": 22
+            },
+            "56天": {
+              "gain": 0.57,
+              "end_price": 14.04,
+              "end_date": "2025-11-03",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -5.01,
+              "end_price": 13.26,
+              "end_date": "2025-12-01",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -4.08,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 130
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.47,
+          "buy_date": "2025-09-08",
+          "gains": {
+            "7天": {
+              "gain": -2.33,
+              "end_price": 12.18,
+              "end_date": "2025-09-15",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -6.74,
+              "end_price": 11.63,
+              "end_date": "2025-09-30",
+              "actual_days": 22
+            },
+            "56天": {
+              "gain": -5.69,
+              "end_price": 11.76,
+              "end_date": "2025-11-03",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -7.46,
+              "end_price": 11.54,
+              "end_date": "2025-12-01",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -6.82,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 130
+            }
+          }
+        },
+        {
+          "stock_code": "688007",
+          "stock_name": "光峰科技",
+          "match_score": 0.949,
+          "buy_price": 21.84,
+          "buy_date": "2025-09-08",
+          "gains": {
+            "7天": {
+              "gain": 8.65,
+              "end_price": 23.73,
+              "end_date": "2025-09-15",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -2.7,
+              "end_price": 21.25,
+              "end_date": "2025-09-30",
+              "actual_days": 22
+            },
+            "56天": {
+              "gain": -15.02,
+              "end_price": 18.56,
+              "end_date": "2025-11-03",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -17.95,
+              "end_price": 17.92,
+              "end_date": "2025-12-01",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -13.23,
+              "end_price": 18.95,
+              "end_date": "2026-01-16",
+              "actual_days": 130
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-09-15",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 13.72,
+          "buy_date": "2025-09-15",
+          "gains": {
+            "7天": {
+              "gain": -0.58,
+              "end_price": 13.64,
+              "end_date": "2025-09-22",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 0.44,
+              "end_price": 13.78,
+              "end_date": "2025-10-13",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 2.55,
+              "end_price": 14.07,
+              "end_date": "2025-11-10",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -5.03,
+              "end_price": 13.03,
+              "end_date": "2025-12-08",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -2.41,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 123
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.18,
+          "buy_date": "2025-09-15",
+          "gains": {
+            "7天": {
+              "gain": -3.2,
+              "end_price": 11.79,
+              "end_date": "2025-09-22",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -6.16,
+              "end_price": 11.43,
+              "end_date": "2025-10-13",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -1.48,
+              "end_price": 12.0,
+              "end_date": "2025-11-10",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -5.99,
+              "end_price": 11.45,
+              "end_date": "2025-12-08",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -4.6,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 123
+            }
+          }
+        },
+        {
+          "stock_code": "688007",
+          "stock_name": "光峰科技",
+          "match_score": 0.949,
+          "buy_price": 23.73,
+          "buy_date": "2025-09-15",
+          "gains": {
+            "7天": {
+              "gain": -8.85,
+              "end_price": 21.63,
+              "end_date": "2025-09-22",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -14.83,
+              "end_price": 20.21,
+              "end_date": "2025-10-13",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -23.64,
+              "end_price": 18.12,
+              "end_date": "2025-11-10",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -27.05,
+              "end_price": 17.31,
+              "end_date": "2025-12-08",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -20.14,
+              "end_price": 18.95,
+              "end_date": "2026-01-16",
+              "actual_days": 123
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-09-22",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 13.64,
+          "buy_date": "2025-09-22",
+          "gains": {
+            "7天": {
+              "gain": -0.07,
+              "end_price": 13.63,
+              "end_date": "2025-09-29",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -3.81,
+              "end_price": 13.12,
+              "end_date": "2025-10-20",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 3.01,
+              "end_price": 14.05,
+              "end_date": "2025-11-17",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -4.33,
+              "end_price": 13.05,
+              "end_date": "2025-12-15",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -1.83,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 116
+            }
+          }
+        },
+        {
+          "stock_code": "300404",
+          "stock_name": "博济医药",
+          "match_score": 0.951,
+          "buy_price": 10.31,
+          "buy_date": "2025-09-22",
+          "gains": {
+            "7天": {
+              "gain": -3.01,
+              "end_price": 10.0,
+              "end_date": "2025-09-29",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -4.66,
+              "end_price": 9.83,
+              "end_date": "2025-10-20",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 2.91,
+              "end_price": 10.61,
+              "end_date": "2025-11-17",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -9.02,
+              "end_price": 9.38,
+              "end_date": "2025-12-15",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 6.79,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 116
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.79,
+          "buy_date": "2025-09-22",
+          "gains": {
+            "7天": {
+              "gain": -1.53,
+              "end_price": 11.61,
+              "end_date": "2025-09-29",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -2.37,
+              "end_price": 11.51,
+              "end_date": "2025-10-20",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 2.12,
+              "end_price": 12.04,
+              "end_date": "2025-11-17",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -5.09,
+              "end_price": 11.19,
+              "end_date": "2025-12-15",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -1.44,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 116
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-09-29",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 13.63,
+          "buy_date": "2025-09-29",
+          "gains": {
+            "7天": {
+              "gain": 1.54,
+              "end_price": 13.84,
+              "end_date": "2025-09-30",
+              "actual_days": 1
+            },
+            "28天": {
+              "gain": -2.2,
+              "end_price": 13.33,
+              "end_date": "2025-10-27",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -1.91,
+              "end_price": 13.37,
+              "end_date": "2025-11-24",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -1.17,
+              "end_price": 13.47,
+              "end_date": "2025-12-22",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -1.76,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 109
+            }
+          }
+        },
+        {
+          "stock_code": "300404",
+          "stock_name": "博济医药",
+          "match_score": 0.951,
+          "buy_price": 10.0,
+          "buy_date": "2025-09-29",
+          "gains": {
+            "7天": {
+              "gain": 0.0,
+              "end_price": 10.0,
+              "end_date": "2025-09-30",
+              "actual_days": 1
+            },
+            "28天": {
+              "gain": 1.0,
+              "end_price": 10.1,
+              "end_date": "2025-10-27",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -1.7,
+              "end_price": 9.83,
+              "end_date": "2025-11-24",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -4.6,
+              "end_price": 9.54,
+              "end_date": "2025-12-22",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 10.1,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 109
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.61,
+          "buy_date": "2025-09-29",
+          "gains": {
+            "7天": {
+              "gain": 0.17,
+              "end_price": 11.63,
+              "end_date": "2025-09-30",
+              "actual_days": 1
+            },
+            "28天": {
+              "gain": 0.26,
+              "end_price": 11.64,
+              "end_date": "2025-10-27",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -1.38,
+              "end_price": 11.45,
+              "end_date": "2025-11-24",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -1.03,
+              "end_price": 11.49,
+              "end_date": "2025-12-22",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 0.09,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 109
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-10-09",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 13.89,
+          "buy_date": "2025-10-09",
+          "gains": {
+            "7天": {
+              "gain": -4.39,
+              "end_price": 13.28,
+              "end_date": "2025-10-16",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 0.72,
+              "end_price": 13.99,
+              "end_date": "2025-11-06",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -6.26,
+              "end_price": 13.02,
+              "end_date": "2025-12-04",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -4.1,
+              "end_price": 13.32,
+              "end_date": "2025-12-31",
+              "actual_days": 83
+            },
+            "140天": {
+              "gain": -3.6,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 99
+            }
+          }
+        },
+        {
+          "stock_code": "300404",
+          "stock_name": "博济医药",
+          "match_score": 0.951,
+          "buy_price": 10.01,
+          "buy_date": "2025-10-09",
+          "gains": {
+            "7天": {
+              "gain": -1.7,
+              "end_price": 9.84,
+              "end_date": "2025-10-16",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -0.2,
+              "end_price": 9.99,
+              "end_date": "2025-11-06",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -4.4,
+              "end_price": 9.57,
+              "end_date": "2025-12-04",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -6.79,
+              "end_price": 9.33,
+              "end_date": "2025-12-31",
+              "actual_days": 83
+            },
+            "140天": {
+              "gain": 9.99,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 99
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.54,
+          "buy_date": "2025-10-09",
+          "gains": {
+            "7天": {
+              "gain": 0.43,
+              "end_price": 11.59,
+              "end_date": "2025-10-16",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 2.69,
+              "end_price": 11.85,
+              "end_date": "2025-11-06",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -1.3,
+              "end_price": 11.39,
+              "end_date": "2025-12-04",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -3.03,
+              "end_price": 11.19,
+              "end_date": "2025-12-31",
+              "actual_days": 83
+            },
+            "140天": {
+              "gain": 0.69,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 99
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-10-13",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 13.78,
+          "buy_date": "2025-10-13",
+          "gains": {
+            "7天": {
+              "gain": -4.79,
+              "end_price": 13.12,
+              "end_date": "2025-10-20",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 2.1,
+              "end_price": 14.07,
+              "end_date": "2025-11-10",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -5.44,
+              "end_price": 13.03,
+              "end_date": "2025-12-08",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -3.56,
+              "end_price": 13.29,
+              "end_date": "2026-01-05",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": -2.83,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 95
+            }
+          }
+        },
+        {
+          "stock_code": "300404",
+          "stock_name": "博济医药",
+          "match_score": 0.951,
+          "buy_price": 9.76,
+          "buy_date": "2025-10-13",
+          "gains": {
+            "7天": {
+              "gain": 0.72,
+              "end_price": 9.83,
+              "end_date": "2025-10-20",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 3.89,
+              "end_price": 10.14,
+              "end_date": "2025-11-10",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -0.72,
+              "end_price": 9.69,
+              "end_date": "2025-12-08",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 4.41,
+              "end_price": 10.19,
+              "end_date": "2026-01-05",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 12.81,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 95
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.43,
+          "buy_date": "2025-10-13",
+          "gains": {
+            "7天": {
+              "gain": 0.7,
+              "end_price": 11.51,
+              "end_date": "2025-10-20",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 4.99,
+              "end_price": 12.0,
+              "end_date": "2025-11-10",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 0.17,
+              "end_price": 11.45,
+              "end_date": "2025-12-08",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 0.61,
+              "end_price": 11.5,
+              "end_date": "2026-01-05",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 1.66,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 95
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-10-20",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 13.12,
+          "buy_date": "2025-10-20",
+          "gains": {
+            "7天": {
+              "gain": 1.6,
+              "end_price": 13.33,
+              "end_date": "2025-10-27",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 7.09,
+              "end_price": 14.05,
+              "end_date": "2025-11-17",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -0.53,
+              "end_price": 13.05,
+              "end_date": "2025-12-15",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 2.52,
+              "end_price": 13.45,
+              "end_date": "2026-01-12",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 2.06,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 88
+            }
+          }
+        },
+        {
+          "stock_code": "300404",
+          "stock_name": "博济医药",
+          "match_score": 0.951,
+          "buy_price": 9.83,
+          "buy_date": "2025-10-20",
+          "gains": {
+            "7天": {
+              "gain": 2.75,
+              "end_price": 10.1,
+              "end_date": "2025-10-27",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 7.93,
+              "end_price": 10.61,
+              "end_date": "2025-11-17",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -4.58,
+              "end_price": 9.38,
+              "end_date": "2025-12-15",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 9.56,
+              "end_price": 10.77,
+              "end_date": "2026-01-12",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 12.0,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 88
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.51,
+          "buy_date": "2025-10-20",
+          "gains": {
+            "7天": {
+              "gain": 1.13,
+              "end_price": 11.64,
+              "end_date": "2025-10-27",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 4.6,
+              "end_price": 12.04,
+              "end_date": "2025-11-17",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -2.78,
+              "end_price": 11.19,
+              "end_date": "2025-12-15",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 3.48,
+              "end_price": 11.91,
+              "end_date": "2026-01-12",
+              "actual_days": 84
+            },
+            "140天": {
+              "gain": 0.96,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 88
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-10-27",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 13.33,
+          "buy_date": "2025-10-27",
+          "gains": {
+            "7天": {
+              "gain": 5.33,
+              "end_price": 14.04,
+              "end_date": "2025-11-03",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 0.3,
+              "end_price": 13.37,
+              "end_date": "2025-11-24",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 1.05,
+              "end_price": 13.47,
+              "end_date": "2025-12-22",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 0.45,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 81
+            },
+            "140天": {
+              "gain": 0.45,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 81
+            }
+          }
+        },
+        {
+          "stock_code": "300404",
+          "stock_name": "博济医药",
+          "match_score": 0.951,
+          "buy_price": 10.1,
+          "buy_date": "2025-10-27",
+          "gains": {
+            "7天": {
+              "gain": 0.5,
+              "end_price": 10.15,
+              "end_date": "2025-11-03",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -2.67,
+              "end_price": 9.83,
+              "end_date": "2025-11-24",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -5.54,
+              "end_price": 9.54,
+              "end_date": "2025-12-22",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 9.01,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 81
+            },
+            "140天": {
+              "gain": 9.01,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 81
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.64,
+          "buy_date": "2025-10-27",
+          "gains": {
+            "7天": {
+              "gain": 1.03,
+              "end_price": 11.76,
+              "end_date": "2025-11-03",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -1.63,
+              "end_price": 11.45,
+              "end_date": "2025-11-24",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -1.29,
+              "end_price": 11.49,
+              "end_date": "2025-12-22",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -0.17,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 81
+            },
+            "140天": {
+              "gain": -0.17,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 81
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-11-03",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 14.04,
+          "buy_date": "2025-11-03",
+          "gains": {
+            "7天": {
+              "gain": 0.21,
+              "end_price": 14.07,
+              "end_date": "2025-11-10",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -5.56,
+              "end_price": 13.26,
+              "end_date": "2025-12-01",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -4.77,
+              "end_price": 13.37,
+              "end_date": "2025-12-29",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -4.63,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 74
+            },
+            "140天": {
+              "gain": -4.63,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 74
+            }
+          }
+        },
+        {
+          "stock_code": "300404",
+          "stock_name": "博济医药",
+          "match_score": 0.951,
+          "buy_price": 10.15,
+          "buy_date": "2025-11-03",
+          "gains": {
+            "7天": {
+              "gain": -0.1,
+              "end_price": 10.14,
+              "end_date": "2025-11-10",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -2.07,
+              "end_price": 9.94,
+              "end_date": "2025-12-01",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -7.19,
+              "end_price": 9.42,
+              "end_date": "2025-12-29",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 8.47,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 74
+            },
+            "140天": {
+              "gain": 8.47,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 74
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.76,
+          "buy_date": "2025-11-03",
+          "gains": {
+            "7天": {
+              "gain": 2.04,
+              "end_price": 12.0,
+              "end_date": "2025-11-10",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -1.87,
+              "end_price": 11.54,
+              "end_date": "2025-12-01",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -3.57,
+              "end_price": 11.34,
+              "end_date": "2025-12-29",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -1.19,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 74
+            },
+            "140天": {
+              "gain": -1.19,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 74
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-11-10",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 14.07,
+          "buy_date": "2025-11-10",
+          "gains": {
+            "7天": {
+              "gain": -0.14,
+              "end_price": 14.05,
+              "end_date": "2025-11-17",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -7.39,
+              "end_price": 13.03,
+              "end_date": "2025-12-08",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -5.54,
+              "end_price": 13.29,
+              "end_date": "2026-01-05",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -4.83,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 67
+            },
+            "140天": {
+              "gain": -4.83,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 67
+            }
+          }
+        },
+        {
+          "stock_code": "300404",
+          "stock_name": "博济医药",
+          "match_score": 0.951,
+          "buy_price": 10.14,
+          "buy_date": "2025-11-10",
+          "gains": {
+            "7天": {
+              "gain": 4.64,
+              "end_price": 10.61,
+              "end_date": "2025-11-17",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -4.44,
+              "end_price": 9.69,
+              "end_date": "2025-12-08",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 0.49,
+              "end_price": 10.19,
+              "end_date": "2026-01-05",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 8.58,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 67
+            },
+            "140天": {
+              "gain": 8.58,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 67
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.0,
+          "buy_date": "2025-11-10",
+          "gains": {
+            "7天": {
+              "gain": 0.33,
+              "end_price": 12.04,
+              "end_date": "2025-11-17",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -4.58,
+              "end_price": 11.45,
+              "end_date": "2025-12-08",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -4.17,
+              "end_price": 11.5,
+              "end_date": "2026-01-05",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -3.17,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 67
+            },
+            "140天": {
+              "gain": -3.17,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 67
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-11-17",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 14.05,
+          "buy_date": "2025-11-17",
+          "gains": {
+            "7天": {
+              "gain": -4.84,
+              "end_price": 13.37,
+              "end_date": "2025-11-24",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -7.12,
+              "end_price": 13.05,
+              "end_date": "2025-12-15",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -4.27,
+              "end_price": 13.45,
+              "end_date": "2026-01-12",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -4.7,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 60
+            },
+            "140天": {
+              "gain": -4.7,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 60
+            }
+          }
+        },
+        {
+          "stock_code": "300404",
+          "stock_name": "博济医药",
+          "match_score": 0.951,
+          "buy_price": 10.61,
+          "buy_date": "2025-11-17",
+          "gains": {
+            "7天": {
+              "gain": -7.35,
+              "end_price": 9.83,
+              "end_date": "2025-11-24",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -11.59,
+              "end_price": 9.38,
+              "end_date": "2025-12-15",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 1.51,
+              "end_price": 10.77,
+              "end_date": "2026-01-12",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": 3.77,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 60
+            },
+            "140天": {
+              "gain": 3.77,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 60
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 12.04,
+          "buy_date": "2025-11-17",
+          "gains": {
+            "7天": {
+              "gain": -4.9,
+              "end_price": 11.45,
+              "end_date": "2025-11-24",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -7.06,
+              "end_price": 11.19,
+              "end_date": "2025-12-15",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": -1.08,
+              "end_price": 11.91,
+              "end_date": "2026-01-12",
+              "actual_days": 56
+            },
+            "84天": {
+              "gain": -3.49,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 60
+            },
+            "140天": {
+              "gain": -3.49,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 60
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-11-24",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 13.37,
+          "buy_date": "2025-11-24",
+          "gains": {
+            "7天": {
+              "gain": -0.82,
+              "end_price": 13.26,
+              "end_date": "2025-12-01",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 0.75,
+              "end_price": 13.47,
+              "end_date": "2025-12-22",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 0.15,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 53
+            },
+            "84天": {
+              "gain": 0.15,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 53
+            },
+            "140天": {
+              "gain": 0.15,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 53
+            }
+          }
+        },
+        {
+          "stock_code": "300404",
+          "stock_name": "博济医药",
+          "match_score": 0.951,
+          "buy_price": 9.83,
+          "buy_date": "2025-11-24",
+          "gains": {
+            "7天": {
+              "gain": 1.12,
+              "end_price": 9.94,
+              "end_date": "2025-12-01",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -2.95,
+              "end_price": 9.54,
+              "end_date": "2025-12-22",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 12.0,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 53
+            },
+            "84天": {
+              "gain": 12.0,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 53
+            },
+            "140天": {
+              "gain": 12.0,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 53
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.45,
+          "buy_date": "2025-11-24",
+          "gains": {
+            "7天": {
+              "gain": 0.79,
+              "end_price": 11.54,
+              "end_date": "2025-12-01",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 0.35,
+              "end_price": 11.49,
+              "end_date": "2025-12-22",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 1.48,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 53
+            },
+            "84天": {
+              "gain": 1.48,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 53
+            },
+            "140天": {
+              "gain": 1.48,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 53
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-12-01",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 13.26,
+          "buy_date": "2025-12-01",
+          "gains": {
+            "7天": {
+              "gain": -1.73,
+              "end_price": 13.03,
+              "end_date": "2025-12-08",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 0.83,
+              "end_price": 13.37,
+              "end_date": "2025-12-29",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 0.98,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 46
+            },
+            "84天": {
+              "gain": 0.98,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 46
+            },
+            "140天": {
+              "gain": 0.98,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 46
+            }
+          }
+        },
+        {
+          "stock_code": "300404",
+          "stock_name": "博济医药",
+          "match_score": 0.951,
+          "buy_price": 9.94,
+          "buy_date": "2025-12-01",
+          "gains": {
+            "7天": {
+              "gain": -2.52,
+              "end_price": 9.69,
+              "end_date": "2025-12-08",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -5.23,
+              "end_price": 9.42,
+              "end_date": "2025-12-29",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 10.76,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 46
+            },
+            "84天": {
+              "gain": 10.76,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 46
+            },
+            "140天": {
+              "gain": 10.76,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 46
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.54,
+          "buy_date": "2025-12-01",
+          "gains": {
+            "7天": {
+              "gain": -0.78,
+              "end_price": 11.45,
+              "end_date": "2025-12-08",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -1.73,
+              "end_price": 11.34,
+              "end_date": "2025-12-29",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 0.69,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 46
+            },
+            "84天": {
+              "gain": 0.69,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 46
+            },
+            "140天": {
+              "gain": 0.69,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 46
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-12-08",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 13.03,
+          "buy_date": "2025-12-08",
+          "gains": {
+            "7天": {
+              "gain": 0.15,
+              "end_price": 13.05,
+              "end_date": "2025-12-15",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 2.0,
+              "end_price": 13.29,
+              "end_date": "2026-01-05",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 2.76,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 39
+            },
+            "84天": {
+              "gain": 2.76,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 39
+            },
+            "140天": {
+              "gain": 2.76,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 39
+            }
+          }
+        },
+        {
+          "stock_code": "300404",
+          "stock_name": "博济医药",
+          "match_score": 0.951,
+          "buy_price": 9.69,
+          "buy_date": "2025-12-08",
+          "gains": {
+            "7天": {
+              "gain": -3.2,
+              "end_price": 9.38,
+              "end_date": "2025-12-15",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 5.16,
+              "end_price": 10.19,
+              "end_date": "2026-01-05",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 13.62,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 39
+            },
+            "84天": {
+              "gain": 13.62,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 39
+            },
+            "140天": {
+              "gain": 13.62,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 39
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.45,
+          "buy_date": "2025-12-08",
+          "gains": {
+            "7天": {
+              "gain": -2.27,
+              "end_price": 11.19,
+              "end_date": "2025-12-15",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 0.44,
+              "end_price": 11.5,
+              "end_date": "2026-01-05",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 1.48,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 39
+            },
+            "84天": {
+              "gain": 1.48,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 39
+            },
+            "140天": {
+              "gain": 1.48,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 39
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-12-15",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 13.05,
+          "buy_date": "2025-12-15",
+          "gains": {
+            "7天": {
+              "gain": 3.22,
+              "end_price": 13.47,
+              "end_date": "2025-12-22",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 3.07,
+              "end_price": 13.45,
+              "end_date": "2026-01-12",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 2.61,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 32
+            },
+            "84天": {
+              "gain": 2.61,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 32
+            },
+            "140天": {
+              "gain": 2.61,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 32
+            }
+          }
+        },
+        {
+          "stock_code": "300404",
+          "stock_name": "博济医药",
+          "match_score": 0.951,
+          "buy_price": 9.38,
+          "buy_date": "2025-12-15",
+          "gains": {
+            "7天": {
+              "gain": 1.71,
+              "end_price": 9.54,
+              "end_date": "2025-12-22",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 14.82,
+              "end_price": 10.77,
+              "end_date": "2026-01-12",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 17.38,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 32
+            },
+            "84天": {
+              "gain": 17.38,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 32
+            },
+            "140天": {
+              "gain": 17.38,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 32
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.19,
+          "buy_date": "2025-12-15",
+          "gains": {
+            "7天": {
+              "gain": 2.68,
+              "end_price": 11.49,
+              "end_date": "2025-12-22",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 6.43,
+              "end_price": 11.91,
+              "end_date": "2026-01-12",
+              "actual_days": 28
+            },
+            "56天": {
+              "gain": 3.84,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 32
+            },
+            "84天": {
+              "gain": 3.84,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 32
+            },
+            "140天": {
+              "gain": 3.84,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 32
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-12-22",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 13.47,
+          "buy_date": "2025-12-22",
+          "gains": {
+            "7天": {
+              "gain": -0.74,
+              "end_price": 13.37,
+              "end_date": "2025-12-29",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": -0.59,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 25
+            },
+            "56天": {
+              "gain": -0.59,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 25
+            },
+            "84天": {
+              "gain": -0.59,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 25
+            },
+            "140天": {
+              "gain": -0.59,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 25
+            }
+          }
+        },
+        {
+          "stock_code": "300404",
+          "stock_name": "博济医药",
+          "match_score": 0.951,
+          "buy_price": 9.54,
+          "buy_date": "2025-12-22",
+          "gains": {
+            "7天": {
+              "gain": -1.26,
+              "end_price": 9.42,
+              "end_date": "2025-12-29",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 15.41,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 25
+            },
+            "56天": {
+              "gain": 15.41,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 25
+            },
+            "84天": {
+              "gain": 15.41,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 25
+            },
+            "140天": {
+              "gain": 15.41,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 25
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.49,
+          "buy_date": "2025-12-22",
+          "gains": {
+            "7天": {
+              "gain": -1.31,
+              "end_price": 11.34,
+              "end_date": "2025-12-29",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 1.13,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 25
+            },
+            "56天": {
+              "gain": 1.13,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 25
+            },
+            "84天": {
+              "gain": 1.13,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 25
+            },
+            "140天": {
+              "gain": 1.13,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 25
+            }
+          }
+        }
+      ]
+    },
+    {
+      "date": "2025-12-29",
+      "stocks": [
+        {
+          "stock_code": "002096",
+          "stock_name": "易普力",
+          "match_score": 0.958,
+          "buy_price": 13.37,
+          "buy_date": "2025-12-29",
+          "gains": {
+            "7天": {
+              "gain": -0.6,
+              "end_price": 13.29,
+              "end_date": "2026-01-05",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 0.15,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 18
+            },
+            "56天": {
+              "gain": 0.15,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 18
+            },
+            "84天": {
+              "gain": 0.15,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 18
+            },
+            "140天": {
+              "gain": 0.15,
+              "end_price": 13.39,
+              "end_date": "2026-01-16",
+              "actual_days": 18
+            }
+          }
+        },
+        {
+          "stock_code": "300404",
+          "stock_name": "博济医药",
+          "match_score": 0.951,
+          "buy_price": 9.42,
+          "buy_date": "2025-12-29",
+          "gains": {
+            "7天": {
+              "gain": 8.17,
+              "end_price": 10.19,
+              "end_date": "2026-01-05",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 16.88,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 18
+            },
+            "56天": {
+              "gain": 16.88,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 18
+            },
+            "84天": {
+              "gain": 16.88,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 18
+            },
+            "140天": {
+              "gain": 16.88,
+              "end_price": 11.01,
+              "end_date": "2026-01-16",
+              "actual_days": 18
+            }
+          }
+        },
+        {
+          "stock_code": "300463",
+          "stock_name": "迈克生物",
+          "match_score": 0.95,
+          "buy_price": 11.34,
+          "buy_date": "2025-12-29",
+          "gains": {
+            "7天": {
+              "gain": 1.41,
+              "end_price": 11.5,
+              "end_date": "2026-01-05",
+              "actual_days": 7
+            },
+            "28天": {
+              "gain": 2.47,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 18
+            },
+            "56天": {
+              "gain": 2.47,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 18
+            },
+            "84天": {
+              "gain": 2.47,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 18
+            },
+            "140天": {
+              "gain": 2.47,
+              "end_price": 11.62,
+              "end_date": "2026-01-16",
+              "actual_days": 18
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

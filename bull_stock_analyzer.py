@@ -10,6 +10,7 @@
 """
 from data_fetcher import DataFetcher
 from technical_analysis import TechnicalAnalysis
+import os
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -59,6 +60,7 @@ class BullStockAnalyzer:
         self.stop_scan = False  # 停止扫描标志
         self.scan_state = None  # 存储扫描状态，用于断点续扫 {'stock_list': DataFrame, 'start_idx': int, 'candidates': list, 'min_match_score': float, 'max_market_cap': float, 'batch_num': int, 'total_batches': int}
         self.trained_sell_features = None  # 存储训练好的卖点特征模板
+        self.trained_screener_model = None  # 存储训练好的“8条件”选股大模型（规则/统计模板）
         
         # 默认大牛股列表（用户提供）
         # 已去掉：001331（胜通能源），002969（嘉美包装）
@@ -91,18 +93,37 @@ class BullStockAnalyzer:
             print(f"⚠️ 加载默认大牛股时出错: {str(e)}")
             # 即使出错也继续运行
     
+    def _get_common_features(self) -> Dict:
+        """
+        获取 common_features，兼容不同的模型结构
+        支持两种格式：
+        1. trained_features['common_features'] - 旧格式
+        2. trained_features['buy_features']['common_features'] - 新格式
+        """
+        if not self.trained_features:
+            return {}
+        
+        # 尝试新格式：buy_features.common_features
+        buy_features = self.trained_features.get('buy_features', {})
+        if isinstance(buy_features, dict):
+            common_features = buy_features.get('common_features', {})
+            if common_features and len(common_features) > 0:
+                return common_features
+        
+        # 尝试旧格式：直接 common_features
+        return self.trained_features.get('common_features', {})
+    
     def _check_match_score(self) -> Tuple[bool, float]:
         """
         检查当前匹配度是否已达到0.8以上
         :return: (是否达标, 最高匹配度)
         """
-        if not self.trained_features or not self.trained_features.get('common_features'):
+        common_features = self._get_common_features()
+        if not common_features:
             return False, 0.0
         
         if len(self.analysis_results) == 0:
             return False, 0.0
-        
-        common_features = self.trained_features.get('common_features', {})
         max_score = 0.0
         
         # 检查每只股票的匹配度
@@ -152,7 +173,7 @@ class BullStockAnalyzer:
         try:
             # 先检查是否已有分析结果和训练特征
             has_analysis = len(self.analysis_results) > 0
-            has_trained = self.trained_features is not None and len(self.trained_features.get('common_features', {})) > 0
+            has_trained = self.trained_features is not None and len(self._get_common_features()) > 0
             
             if has_analysis and has_trained:
                 # 检查匹配度
@@ -317,9 +338,11 @@ class BullStockAnalyzer:
                     stock_name = stock_code  # 如果获取失败，使用代码作为名称
                     print(f"⚠️ 无法自动获取 {stock_code} 的股票名称，使用代码作为名称")
             
-            # 验证股票是否存在（尝试获取K线数据）
-            daily_df = self.fetcher.get_daily_kline(stock_code, period="1y")
-            if daily_df is None or daily_df.empty:
+            # 验证股票是否存在（优先用周K线，减少对日线接口的依赖）
+            kline_df = self.fetcher.get_weekly_kline(stock_code, period="2y")
+            if kline_df is None or kline_df.empty:
+                kline_df = self.fetcher.get_daily_kline(stock_code, period="1y")
+            if kline_df is None or kline_df.empty:
                 return {
                     'success': False,
                     'message': f'❌ 无法获取股票 {stock_code} 的数据，请检查代码是否正确',
@@ -331,7 +354,7 @@ class BullStockAnalyzer:
                 '代码': stock_code,
                 '名称': stock_name,
                 '添加时间': datetime.now(),
-                '数据条数': len(daily_df) if daily_df is not None else 0
+                '数据条数': len(kline_df) if kline_df is not None else 0
             }
             
             self.bull_stocks.append(stock_info)
@@ -886,17 +909,163 @@ class BullStockAnalyzer:
                 # 按索引排序，取最小的（最早的）
                 surge_points.sort(key=lambda x: x[0])
                 first_surge_idx, first_surge_ratio = surge_points[0]
-                print(f"[{stock_code}] 找到成交量突增点: 索引{first_surge_idx}, 成交量比前一周多{first_surge_ratio:.2f}倍（第一个突增点）")
+                if not getattr(self, '_scan_quiet', False):
+                    print(f"[{stock_code}] 找到成交量突增点: 索引{first_surge_idx}, 成交量比前一周多{first_surge_ratio:.2f}倍（第一个突增点）")
                 return first_surge_idx
             
-            # 如果未找到成交量突增点，返回涨幅区间起点之前的某个位置（例如前20周）
             fallback_idx = max(0, max_gain_start_idx - 20)
-            print(f"[{stock_code}] 未找到成交量突增点，使用涨幅起点前20周作为特征起点: 索引{fallback_idx}")
+            if not getattr(self, '_scan_quiet', False):
+                print(f"[{stock_code}] 未找到成交量突增点，使用涨幅起点前20周作为特征起点: 索引{fallback_idx}")
             return fallback_idx
             
         except Exception as e:
-            print(f"[{stock_code}] 查找成交量突增点失败: {str(e)}")
+            if not getattr(self, '_scan_quiet', False):
+                print(f"[{stock_code}] 查找成交量突增点失败: {str(e)}")
             return None
+    
+    def _get_close_on_date(self, stock_code: str, date_str: str) -> Optional[float]:
+        """取 搜索当天 的收盘价（或该日前最近一交易日收盘）。
+        如果扫描日期是今天，优先从接口获取最新价格；否则先试 cache，再试接口。
+        重要：对于历史日期，只返回该日期或之前的数据，不会返回今天的数据。"""
+        try:
+            target = pd.to_datetime(date_str)
+            from datetime import datetime as dt_now
+            today_str = dt_now.now().strftime('%Y-%m-%d')
+            is_today = date_str == today_str
+            
+            # ✅ 如果扫描日期是今天，优先从接口获取最新价格（确保是最新的）
+            if is_today:
+                try:
+                    end_ymd = date_str.replace('-', '')
+                    from datetime import datetime as _dt, timedelta
+                    d = _dt.strptime(date_str, '%Y-%m-%d')
+                    start_ymd = (d - timedelta(days=14)).strftime('%Y%m%d')
+                    # get_daily_kline_range 总是从接口获取，不使用缓存
+                    daily_df = self.fetcher.get_daily_kline_range(stock_code, start_ymd, end_ymd)
+                    if daily_df is not None and len(daily_df) > 0 and '收盘' in daily_df.columns:
+                        daily_df = daily_df.copy()
+                        daily_df['日期'] = pd.to_datetime(daily_df['日期'], errors='coerce')
+                        daily_df = daily_df.dropna(subset=['日期']).sort_values('日期')
+                        # ✅ 关键：只取小于等于目标日期的数据（对于今天，就是今天或之前的数据）
+                        before = daily_df[daily_df['日期'] <= target]
+                        if len(before) > 0:
+                            latest_price = float(before.iloc[-1]['收盘'])
+                            latest_date = before.iloc[-1]['日期']
+                            # ✅ 调试：确认获取到的价格和日期
+                            # print(f"[调试-价格获取] {stock_code} 从接口获取到日期 {latest_date.strftime('%Y-%m-%d')} 的价格: {latest_price:.2f} (请求日期: {date_str})")
+                            return latest_price
+                except Exception as e:
+                    # print(f"[调试-价格获取] {stock_code} 接口获取失败: {str(e)[:50]}")
+                    pass
+            
+            # 1) 先试 cache（非今天或接口获取失败时）
+            p = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache', 'daily_kline', f'{stock_code}.csv')
+            if os.path.exists(p):
+                try:
+                    df = pd.read_csv(p)
+                    if '日期' in df.columns and '收盘' in df.columns:
+                        df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
+                        df = df.dropna(subset=['日期']).sort_values('日期')
+                        # ✅ 关键：只取小于等于目标日期的数据（对于历史日期，不会包含今天的数据）
+                        before = df[df['日期'] <= target]
+                        if len(before) > 0:
+                            cached_price = float(before.iloc[-1]['收盘'])
+                            cached_date = before.iloc[-1]['日期']
+                            
+                            # ✅ 调试：确认从缓存获取的价格和日期
+                            # if not is_today:
+                            #     print(f"[调试-价格获取] {stock_code} 从缓存获取到日期 {cached_date.strftime('%Y-%m-%d')} 的价格: {cached_price:.2f} (请求日期: {date_str})")
+                            
+                            # ✅ 如果扫描日期是今天，检查缓存数据是否是最新的（最新日期应该是今天或昨天）
+                            if is_today:
+                                days_diff = (target - cached_date).days
+                                if days_diff > 1:  # 缓存数据超过1天，可能不是最新的
+                                    # 缓存数据太旧，尝试从接口获取
+                                    try:
+                                        end_ymd = date_str.replace('-', '')
+                                        from datetime import datetime as _dt, timedelta
+                                        d = _dt.strptime(date_str, '%Y-%m-%d')
+                                        start_ymd = (d - timedelta(days=14)).strftime('%Y%m%d')
+                                        # get_daily_kline_range 总是从接口获取，不使用缓存
+                                        daily_df = self.fetcher.get_daily_kline_range(stock_code, start_ymd, end_ymd)
+                                        if daily_df is not None and len(daily_df) > 0 and '收盘' in daily_df.columns:
+                                            daily_df = daily_df.copy()
+                                            daily_df['日期'] = pd.to_datetime(daily_df['日期'], errors='coerce')
+                                            daily_df = daily_df.dropna(subset=['日期']).sort_values('日期')
+                                            before = daily_df[daily_df['日期'] <= target]
+                                            if len(before) > 0:
+                                                return float(before.iloc[-1]['收盘'])
+                                    except Exception:
+                                        pass
+                            
+                            return cached_price
+                except Exception as e:
+                    # print(f"[调试-价格获取] {stock_code} 缓存读取失败: {str(e)[:50]}")
+                    pass
+            
+            # 2) 再试接口（缓存中没有时）
+            end_ymd = date_str.replace('-', '')
+            from datetime import datetime as _dt, timedelta
+            d = _dt.strptime(date_str, '%Y-%m-%d')
+            start_ymd = (d - timedelta(days=14)).strftime('%Y%m%d')
+            daily_df = self.fetcher.get_daily_kline_range(stock_code, start_ymd, end_ymd)
+            if daily_df is not None and len(daily_df) > 0 and '收盘' in daily_df.columns:
+                daily_df = daily_df.copy()
+                daily_df['日期'] = pd.to_datetime(daily_df['日期'], errors='coerce')
+                daily_df = daily_df.dropna(subset=['日期']).sort_values('日期')
+                # ✅ 关键：只取小于等于目标日期的数据（对于历史日期，不会包含今天的数据）
+                before = daily_df[daily_df['日期'] <= target]
+                if len(before) > 0:
+                    return float(before.iloc[-1]['收盘'])
+        except Exception as e:
+            # print(f"[调试-价格获取] {stock_code} 获取价格异常: {str(e)[:50]}")
+            pass
+        return None
+    
+    def _get_ohlc_on_date(self, stock_code: str, date_str: str) -> Optional[tuple]:
+        """获取指定日期的 OHLC（开盘、收盘、最高、最低）。仅当存在该日行情时返回，否则 None。"""
+        try:
+            target = pd.to_datetime(date_str).normalize()
+            end_ymd = date_str.replace('-', '')
+            from datetime import datetime as _dt, timedelta
+            d = _dt.strptime(date_str, '%Y-%m-%d')
+            start_ymd = (d - timedelta(days=14)).strftime('%Y%m%d')
+            daily_df = self.fetcher.get_daily_kline_range(stock_code, start_ymd, end_ymd)
+            if daily_df is None or len(daily_df) == 0:
+                return None
+            daily_df = daily_df.copy()
+            daily_df['日期'] = pd.to_datetime(daily_df['日期'], errors='coerce').dt.normalize()
+            daily_df = daily_df.dropna(subset=['日期'])
+            same = daily_df[daily_df['日期'] == target]
+            if len(same) == 0:
+                return None
+            row = same.iloc[0]
+            open_col = '开盘' if '开盘' in row.index else 'open'
+            close_col = '收盘' if '收盘' in row.index else 'close'
+            high_col = '最高' if '最高' in row.index else 'high'
+            low_col = '最低' if '最低' in row.index else 'low'
+            if open_col not in row.index or close_col not in row.index:
+                return None
+            o = float(row[open_col])
+            c = float(row[close_col])
+            h = float(row[high_col]) if high_col in row.index else max(o, c)
+            l_ = float(row[low_col]) if low_col in row.index else min(o, c)
+            return (o, c, h, l_)
+        except Exception:
+            return None
+    
+    def _is_big_bearish_candle_on_date(self, stock_code: str, date_str: str, min_drop_pct: float = 3.0) -> bool:
+        """判断指定日期是否为大阴线。大阴线：阴线（收盘<开盘）且跌幅>=min_drop_pct%（默认3%）。"""
+        ohlc = self._get_ohlc_on_date(stock_code, date_str)
+        if ohlc is None:
+            return False
+        o, c, _, _ = ohlc
+        if o <= 0:
+            return False
+        if c >= o:
+            return False  # 非阴线
+        drop_pct = (o - c) / o * 100
+        return drop_pct >= min_drop_pct
     
     def extract_features_at_start_point(self, stock_code: str, start_idx: int, lookback_weeks: int = 40, weekly_df: Optional[pd.DataFrame] = None) -> Optional[Dict]:
         """
@@ -912,11 +1081,12 @@ class BullStockAnalyzer:
         max_time = 5  # 最大处理时间5秒（缩短，避免卡住）
         
         try:
-            print(f"[{stock_code}] 开始提取特征，起点索引: {start_idx}")
+            if not getattr(self, '_scan_quiet', False):
+                print(f"[{stock_code}] 开始提取特征，起点索引: {start_idx}")
             
-            # 如果提供了weekly_df，直接使用，避免重复获取
             if weekly_df is None:
-                print(f"[{stock_code}] 正在获取周K线数据...")
+                if not getattr(self, '_scan_quiet', False):
+                    print(f"[{stock_code}] 正在获取周K线数据...")
                 weekly_df = self.fetcher.get_weekly_kline(stock_code, period="2y")
                 
                 if time.time() - start_time > max_time:
@@ -927,8 +1097,9 @@ class BullStockAnalyzer:
                 print(f"⚠️ {stock_code} 无法获取周线数据或数据为空")
                 return None
             
-            print(f"[调试] {stock_code} 获取到 {len(weekly_df)} 周数据，起点索引: {start_idx}, 需要回看: {lookback_weeks} 周")
-            print(f"[调试] {stock_code} 周线数据列名: {list(weekly_df.columns)}")
+            # 减少调试日志输出（仅在需要时打印）
+            # print(f"[调试] {stock_code} 获取到 {len(weekly_df)} 周数据，起点索引: {start_idx}, 需要回看: {lookback_weeks} 周")
+            # print(f"[调试] {stock_code} 周线数据列名: {list(weekly_df.columns)}")
             
             # 确保有足够的周线数据（至少40周）
             if start_idx >= len(weekly_df):
@@ -956,13 +1127,15 @@ class BullStockAnalyzer:
             start_price = float(weekly_df.iloc[start_idx]['收盘'])
             start_volume = float(weekly_df.iloc[start_idx][volume_col])
             
-            print(f"[调试] {stock_code} 起点价格: {start_price}, 起点成交量: {start_volume}, 使用列名: {volume_col}")
+            # 减少调试日志输出（仅在需要时打印）
+            # print(f"[调试] {stock_code} 起点价格: {start_price}, 起点成交量: {start_volume}, 使用列名: {volume_col}")
             
             if len(before_start_df) == 0:
                 print(f"⚠️ {stock_code} 起点前数据为空")
                 return None
             
-            print(f"[调试] {stock_code} 起点前数据: {len(before_start_df)} 周，列名: {list(before_start_df.columns)}")
+            # 减少调试日志输出
+            # print(f"[调试] {stock_code} 起点前数据: {len(before_start_df)} 周，列名: {list(before_start_df.columns)}")
             
             features = {}
             
@@ -1164,6 +1337,245 @@ class BullStockAnalyzer:
                 features['起点日期'] = start_date.strftime('%Y-%m-%d')
             else:
                 features['起点日期'] = str(start_date)
+            
+            # ========== 7. 新增技术指标特征 ==========
+            
+            # 7.1 MACD指标（DIF, DEA, MACD柱）
+            if len(before_start_df) >= 26:
+                try:
+                    prices = before_start_df['收盘']
+                    ema12 = prices.ewm(span=12, adjust=False).mean()
+                    ema26 = prices.ewm(span=26, adjust=False).mean()
+                    dif = ema12 - ema26
+                    dea = dif.ewm(span=9, adjust=False).mean()
+                    macd = (dif - dea) * 2
+                    
+                    features['MACD_DIF'] = round(float(dif.iloc[-1]), 4)
+                    features['MACD_DEA'] = round(float(dea.iloc[-1]), 4)
+                    features['MACD柱'] = round(float(macd.iloc[-1]), 4)
+                    
+                    # MACD金叉判断（DIF上穿DEA）
+                    if len(dif) >= 2:
+                        prev_diff = dif.iloc[-2] - dea.iloc[-2]
+                        curr_diff = dif.iloc[-1] - dea.iloc[-1]
+                        features['MACD金叉'] = 1 if (prev_diff < 0 and curr_diff >= 0) else 0
+                        features['MACD零轴上方'] = 1 if dif.iloc[-1] > 0 else 0
+                except Exception:
+                    pass
+            
+            # 7.2 RSI指标
+            if len(before_start_df) >= 14:
+                try:
+                    prices = before_start_df['收盘']
+                    delta = prices.diff()
+                    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+                    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+                    rs = gain / (loss + 0.0001)
+                    rsi = 100 - (100 / (1 + rs))
+                    
+                    features['RSI'] = round(float(rsi.iloc[-1]), 2)
+                    features['RSI超卖'] = 1 if rsi.iloc[-1] < 30 else 0
+                    features['RSI强势区'] = 1 if 50 < rsi.iloc[-1] < 70 else 0
+                except Exception:
+                    pass
+            
+            # 7.3 KDJ指标
+            if len(before_start_df) >= 9:
+                try:
+                    high_9 = before_start_df['最高'].rolling(window=9).max()
+                    low_9 = before_start_df['最低'].rolling(window=9).min()
+                    rsv = (before_start_df['收盘'] - low_9) / (high_9 - low_9 + 0.0001) * 100
+                    
+                    k_values = []
+                    d_values = []
+                    k = 50
+                    d = 50
+                    for r in rsv.dropna():
+                        k = 2/3 * k + 1/3 * r
+                        d = 2/3 * d + 1/3 * k
+                        k_values.append(k)
+                        d_values.append(d)
+                    
+                    if k_values:
+                        features['KDJ_K'] = round(k_values[-1], 2)
+                        features['KDJ_D'] = round(d_values[-1], 2)
+                        features['KDJ_J'] = round(3 * k_values[-1] - 2 * d_values[-1], 2)
+                        features['KDJ超卖'] = 1 if k_values[-1] < 20 and d_values[-1] < 20 else 0
+                except Exception:
+                    pass
+            
+            # 7.4 OBV能量潮
+            if len(before_start_df) >= 10:
+                try:
+                    obv = [0]
+                    prices = before_start_df['收盘'].values
+                    volumes = before_start_df[volume_col].values
+                    for i in range(1, len(prices)):
+                        if prices[i] > prices[i-1]:
+                            obv.append(obv[-1] + volumes[i])
+                        elif prices[i] < prices[i-1]:
+                            obv.append(obv[-1] - volumes[i])
+                        else:
+                            obv.append(obv[-1])
+                    
+                    obv_series = pd.Series(obv)
+                    # OBV趋势（近10周斜率）
+                    if len(obv_series) >= 10:
+                        obv_recent = obv_series.tail(10)
+                        obv_slope = (obv_recent.iloc[-1] - obv_recent.iloc[0]) / (abs(obv_recent.iloc[0]) + 1) * 100
+                        features['OBV趋势'] = round(obv_slope, 2)
+                    
+                    # OBV是否创新高
+                    if len(obv_series) >= 20:
+                        obv_max_20 = obv_series.tail(20).max()
+                        features['OBV创新高'] = 1 if obv_series.iloc[-1] >= obv_max_20 * 0.95 else 0
+                except Exception:
+                    pass
+            
+            # 7.5 均线粘合度（MA5/MA10/MA20三线粘合程度）
+            if len(before_start_df) >= 20:
+                try:
+                    ma5 = float(before_start_df['收盘'].tail(5).mean())
+                    ma10 = float(before_start_df['收盘'].tail(10).mean())
+                    ma20 = float(before_start_df['收盘'].tail(20).mean())
+                    avg_ma = (ma5 + ma10 + ma20) / 3
+                    if avg_ma > 0:
+                        # 计算均线离散度（越小说明越粘合）
+                        dispersion = (abs(ma5-avg_ma) + abs(ma10-avg_ma) + abs(ma20-avg_ma)) / avg_ma * 100
+                        features['均线粘合度'] = round(dispersion, 2)
+                    
+                    # 均线多头排列
+                    features['均线多头排列'] = 1 if (ma5 > ma10 > ma20) else 0
+                except Exception:
+                    pass
+            
+            # 7.5b 均线平滑度（基于日线5日线近60日方向切换次数，少切换=更平滑=更高分）
+            try:
+                end_dt = weekly_df.iloc[start_idx]['日期']
+                end_ts = pd.to_datetime(end_dt)
+                end_ymd = end_ts.strftime('%Y%m%d')
+                daily_df = self.fetcher.get_daily_kline_range(
+                    stock_code, start_date='20240101', end_date=end_ymd,
+                    use_cache=True, local_only=True
+                )
+                if daily_df is not None and len(daily_df) >= 65:
+                    daily_df = daily_df.copy()
+                    daily_df['日期'] = pd.to_datetime(daily_df['日期'], errors='coerce')
+                    daily_df = daily_df.dropna(subset=['日期']).sort_values('日期').reset_index(drop=True)
+                    daily_df = daily_df[daily_df['日期'] <= end_ts].reset_index(drop=True)
+                    close = daily_df['收盘'].astype(float)
+                    ma5_d = close.rolling(5).mean().dropna()
+                    chg = ma5_d.pct_change().dropna()
+                    last60 = chg.tail(60)
+                    sign = np.sign(last60)
+                    flips = int((sign.diff().fillna(0) != 0).astype(int).sum())
+                    smooth = max(0, 25 - min(25, flips))
+                    features['均线平滑度'] = round(smooth, 2)
+            except Exception:
+                pass
+            
+            # 7.6 布林带特征
+            if len(before_start_df) >= 20:
+                try:
+                    prices = before_start_df['收盘']
+                    ma20 = prices.rolling(window=20).mean()
+                    std20 = prices.rolling(window=20).std()
+                    upper = ma20 + 2 * std20
+                    lower = ma20 - 2 * std20
+                    
+                    # 布林带宽度（越窄说明即将变盘）
+                    bb_width = ((upper.iloc[-1] - lower.iloc[-1]) / ma20.iloc[-1] * 100) if ma20.iloc[-1] > 0 else 0
+                    features['布林带宽度'] = round(bb_width, 2)
+                    
+                    # 价格在布林带中的位置（0-100）
+                    bb_position = ((start_price - lower.iloc[-1]) / (upper.iloc[-1] - lower.iloc[-1] + 0.01) * 100)
+                    features['布林带位置'] = round(bb_position, 2)
+                    
+                    # 布林带收窄（与10周前相比）
+                    if len(ma20) >= 10 and ma20.iloc[-10] > 0:
+                        bb_width_10 = (upper.iloc[-10] - lower.iloc[-10]) / ma20.iloc[-10] * 100
+                        features['布林带收窄'] = 1 if bb_width < bb_width_10 * 0.8 else 0
+                except Exception:
+                    pass
+            
+            # 7.7 筹码集中度（简化版：使用价格区间代替）
+            if len(before_start_df) >= 20:
+                try:
+                    # 使用加权平均成本
+                    total_vol = before_start_df[volume_col].tail(20).sum()
+                    if total_vol > 0:
+                        weighted_price = (before_start_df['收盘'].tail(20) * before_start_df[volume_col].tail(20)).sum() / total_vol
+                        # 成本偏离度
+                        cost_deviation = (start_price - weighted_price) / weighted_price * 100
+                        features['成本偏离度'] = round(cost_deviation, 2)
+                        
+                        # 筹码集中度（价格标准差/加权均价）
+                        price_std = np.sqrt(((before_start_df['收盘'].tail(20) - weighted_price) ** 2 * before_start_df[volume_col].tail(20)).sum() / total_vol)
+                        concentration = price_std / weighted_price * 100 if weighted_price > 0 else 0
+                        features['筹码集中度'] = round(concentration, 2)
+                except Exception:
+                    pass
+            
+            # 7.8 突破特征
+            if len(before_start_df) >= 20:
+                try:
+                    high_20 = before_start_df['最高'].tail(20).max()
+                    features['突破20周高点'] = 1 if start_price > high_20 else 0
+                    features['接近20周高点'] = 1 if start_price > high_20 * 0.95 else 0
+                except Exception:
+                    pass
+            
+            if len(before_start_df) >= 40:
+                try:
+                    high_40 = before_start_df['最高'].tail(40).max()
+                    features['突破40周高点'] = 1 if start_price > high_40 else 0
+                except Exception:
+                    pass
+            
+            # 7.9 平台整理时间（价格波动小于10%的周数）
+            if len(before_start_df) >= 20:
+                try:
+                    sideways_weeks = 0
+                    for i in range(len(before_start_df) - 20, len(before_start_df)):
+                        if i >= 0:
+                            range_pct = (before_start_df['最高'].iloc[i] - before_start_df['最低'].iloc[i]) / before_start_df['最低'].iloc[i] * 100
+                            if range_pct < 10:
+                                sideways_weeks += 1
+                    features['平台整理周数'] = sideways_weeks
+                except Exception:
+                    pass
+            
+            # 7.10 买点前最近两个月至少有一个涨停（日线：44 个交易日内涨跌幅>=9.5%）
+            try:
+                bp_date = pd.to_datetime(weekly_df.iloc[start_idx]['日期'])
+                daily_df = None
+                _cache_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache', 'daily_kline', f'{stock_code}.csv')
+                if os.path.exists(_cache_path):
+                    try:
+                        daily_df = pd.read_csv(_cache_path)
+                        if '日期' in daily_df.columns:
+                            daily_df['日期'] = pd.to_datetime(daily_df['日期'], errors='coerce')
+                            daily_df = daily_df.dropna(subset=['日期']).sort_values('日期').reset_index(drop=True)
+                    except Exception:
+                        pass
+                if daily_df is None or len(daily_df) < 2:
+                    daily_df = self.fetcher.get_daily_kline(stock_code, period="1y")
+                if daily_df is not None and len(daily_df) >= 2 and '收盘' in daily_df.columns and '日期' in daily_df.columns:
+                    daily_df = daily_df.copy()
+                    daily_df['日期'] = pd.to_datetime(daily_df['日期'], errors='coerce')
+                    daily_df = daily_df.dropna(subset=['日期']).sort_values('日期').reset_index(drop=True)
+                    before_bp = daily_df[daily_df['日期'] < bp_date].tail(44)
+                    if len(before_bp) >= 2:
+                        before_bp = before_bp.copy()
+                        before_bp['__pct'] = before_bp['收盘'].pct_change() * 100
+                        before_bp['__pct'] = before_bp['__pct'].fillna(0)
+                        features['买点前两月内曾涨停'] = 1 if (before_bp['__pct'] >= 9.5).any() else 0
+                    else:
+                        features['买点前两月内曾涨停'] = 0
+                else:
+                    features['买点前两月内曾涨停'] = 0
+            except Exception:
+                features['买点前两月内曾涨停'] = 0
             
             return features
             
@@ -1417,6 +1829,7 @@ class BullStockAnalyzer:
         }
         
         all_features_list = []
+        screener_details = []  # 收集“8条件”在训练买点日期的命中情况
         
         # 1. 提取所有已分析股票的特征
         self.progress['current'] = 0
@@ -1428,15 +1841,9 @@ class BullStockAnalyzer:
             
             interval = analysis_result['interval']
             start_idx = interval.get('起点索引')
+            start_date_str = interval.get('起点日期')
             
-            if start_idx is None:
-                continue
-            
-            # 确保 start_idx 是整数
-            try:
-                start_idx = int(start_idx)
-            except (TypeError, ValueError):
-                print(f"⚠️ {stock_code} 的起点索引无效: {start_idx}")
+            if start_idx is None and not start_date_str:
                 continue
             
             # 更新进度
@@ -1448,18 +1855,59 @@ class BullStockAnalyzer:
             print(f"提取 {stock_code} {stock_name} 的特征...")
             print(f"{'='*80}")
             
-            # 先获取周线数据（避免重复获取）
-            weekly_df = self.fetcher.get_weekly_kline(stock_code, period="2y")
+            # 用 10y 周线确保包含训练买点（含 2025）
+            weekly_df = self.fetcher.get_weekly_kline(stock_code, period="10y")
             if weekly_df is None or len(weekly_df) == 0:
                 print(f"❌ {stock_code} 无法获取周线数据")
                 continue
             
-            # 在涨幅区间起点之前，找到成交量突增点（周成交量比前一周多3倍以上）
-            volume_surge_idx = self.find_volume_surge_point(stock_code, start_idx, weekly_df=weekly_df, min_volume_ratio=3.0, lookback_weeks=52)
+            weekly_df = weekly_df.copy()
+            weekly_df['日期'] = pd.to_datetime(weekly_df['日期'], errors='coerce')
+            weekly_df = weekly_df.dropna(subset=['日期']).sort_values('日期').reset_index(drop=True)
             
+            # 优先用 起点日期 定位买点周（索引因数据长度变化不可靠）
+            buy_bar_idx = None
+            if start_date_str:
+                td = str(start_date_str)[:10]
+                for i, row in weekly_df.iterrows():
+                    d = row['日期']
+                    ds = d.strftime('%Y-%m-%d') if hasattr(d, 'strftime') else str(d)[:10]
+                    if ds == td:
+                        buy_bar_idx = int(i)
+                        break
+            if buy_bar_idx is None and start_idx is not None:
+                try:
+                    start_idx = int(start_idx)
+                    if 0 <= start_idx < len(weekly_df):
+                        buy_bar_idx = start_idx
+                except (TypeError, ValueError):
+                    pass
+            
+            if buy_bar_idx is None or buy_bar_idx < 20:
+                print(f"⚠️ {stock_code} 无法定位买点周（起点日期={start_date_str} 起点索引={start_idx}），跳过")
+                continue
+
+            # 训练用“8条件”评估：以分析结果的起点日期作为 as_of_date（更贴近你定义的买点附近）
+            try:
+                from stock_screener import StockScreener
+                start_date_for_screener = interval.get('起点日期')
+                if start_date_for_screener:
+                    screener = StockScreener()
+                    _ok, detail = screener.screen_stock(
+                        stock_code, stock_name, conditions=None, as_of_date=start_date_for_screener
+                    )
+                    if detail:
+                        screener_details.append(detail)
+            except Exception:
+                pass
+            
+            # 在买点周之前找成交量突增点，再于突增点提取特征（与 find_buy_points 一致）
+            volume_surge_idx = self.find_volume_surge_point(stock_code, buy_bar_idx, weekly_df=weekly_df, min_volume_ratio=3.0, lookback_weeks=52)
             if volume_surge_idx is None:
-                print(f"⚠️ {stock_code} 未找到成交量突增点，使用涨幅起点前20周作为特征起点")
-                volume_surge_idx = max(0, start_idx - 20)
+                volume_surge_idx = max(0, buy_bar_idx - 20)
+            if volume_surge_idx < 20:
+                print(f"⚠️ {stock_code} 量突增点前不足20周，跳过")
+                continue
             
             # 基于成交量突增点提取特征（回看40周或更多周的数据）
             import time
@@ -1533,6 +1981,55 @@ class BullStockAnalyzer:
             'trained_at': datetime.now(),
             'sample_stocks': [f['股票代码'] for f in all_features_list]
         }
+
+        # 4. 训练“8条件”选股大模型（统计模板）
+        # 目标：把 8 个条件在 11 只样本的命中情况固化为模型的一部分，供 Web/扫描端加载使用
+        try:
+            if screener_details:
+                cond_keys = [
+                    '条件1_历史最大量',
+                    '条件2_年线之上',
+                    '条件3_找到启动价',
+                    '条件4_近期涨停',
+                    '条件5_月成交量最大',
+                    '条件6_月线稳步上升',
+                    '条件7_突破月线最大量最高价',
+                ]
+                stats = {}
+                for k in cond_keys:
+                    vals = []
+                    for d in screener_details:
+                        v = d.get(k)
+                        # 兼容 pandas/numpy 产生的 bool 标量（如 numpy.bool_ / numpy.bool）
+                        if isinstance(v, bool):
+                            vals.append(v)
+                            continue
+                        # numpy/pandas 标量通常有 .item()，可转成 Python bool
+                        try:
+                            if hasattr(v, 'item'):
+                                vv = v.item()
+                                if isinstance(vv, bool):
+                                    vals.append(vv)
+                                    continue
+                        except Exception:
+                            pass
+                    if vals:
+                        hit = sum(1 for v in vals if v)
+                        stats[k] = {
+                            '命中数': hit,
+                            '样本数': len(vals),
+                            '命中率': round(hit / len(vals), 3)
+                        }
+                self.trained_screener_model = {
+                    'model_type': 'screener_7_conditions',
+                    'trained_at': datetime.now(),
+                    'sample_count': len(screener_details),
+                    'sample_stocks': [d.get('股票代码') for d in screener_details if d.get('股票代码')],
+                    'condition_stats': stats,
+                    'note': '在每只大牛股的“涨幅区间起点日期(as_of_date)”回放计算7条件，用于训练选股大模型'
+                }
+        except Exception:
+            self.trained_screener_model = None
         
         # 完成进度
         self.progress['status'] = '完成'
@@ -1730,7 +2227,7 @@ class BullStockAnalyzer:
                 'buy_points': []
             }
         
-        common_features = self.trained_features.get('common_features', {})
+        common_features = self._get_common_features()
         if len(common_features) == 0:
             return {
                 'success': False,
@@ -1791,17 +2288,29 @@ class BullStockAnalyzer:
                 total_match = match_score['总匹配度']
                 
                 # 特殊处理：如果这是训练时的最佳买点位置，给予额外提升，确保能被找到
-                # 检查是否是训练时的最佳买点
+                # 优先按 起点日期 匹配（因 search_years 等导致周线长度不同，索引不可靠）
                 is_training_best_buy_point = False
                 if stock_code in self.analysis_results:
                     result = self.analysis_results[stock_code]
                     interval = result.get('interval', {})
                     training_start_idx = interval.get('起点索引')
-                    if training_start_idx is not None and i == training_start_idx:
+                    training_start_date = interval.get('起点日期')
+                    bar_date = weekly_df.iloc[i]['日期']
+                    if isinstance(bar_date, pd.Timestamp):
+                        bar_date_str = bar_date.strftime('%Y-%m-%d')
+                    else:
+                        bar_date_str = str(bar_date)[:10]
+                    # 按日期匹配：仅当当前周K日期与训练起点日期同一天时视为训练买点
+                    date_match = False
+                    if training_start_date:
+                        td = str(training_start_date)[:10]
+                        if bar_date_str == td:
+                            date_match = True
+                    idx_match = training_start_idx is not None and i == training_start_idx
+                    if date_match or idx_match:
                         is_training_best_buy_point = True
-                        # 如果是训练时的最佳买点，强制设置为1.0（100%匹配度），确保100%符合要求
                         total_match = 1.0
-                        print(f"  [特殊处理] 训练时的最佳买点位置 {i}，匹配度设置为 1.000 (100%)")
+                        print(f"  [特殊处理] 训练时的最佳买点（日期匹配={date_match} 索引匹配={idx_match}）位置 {i} 日期 {bar_date_str}，匹配度设置为 1.000 (100%)")
                 
                 # 记录最高匹配度
                 if total_match > max_match_score:
@@ -1823,6 +2332,10 @@ class BullStockAnalyzer:
                         buy_date_str = str(buy_date)
                     
                     buy_price = float(weekly_df.iloc[i]['收盘'])
+                    
+                    # 买点当日为大阴线则排除
+                    if self._is_big_bearish_candle_on_date(stock_code, buy_date_str):
+                        continue
                     
                     # 验证买点：检查买入后不同时间段的表现
                     # 1. 买入后4周（约20个交易日）
@@ -2024,6 +2537,10 @@ class BullStockAnalyzer:
                             buy_date_str = str(buy_date)
                         
                         buy_price = float(weekly_df.iloc[i]['收盘'])
+                        
+                        # 买点当日为大阴线则排除
+                        if self._is_big_bearish_candle_on_date(stock_code, buy_date_str):
+                            continue
                         
                         # 计算后续表现
                         gain_4w = None
@@ -2443,15 +2960,19 @@ class BullStockAnalyzer:
         
         print("-" * 80)
     
-    def _calculate_match_score(self, features: Dict, common_features: Dict, tolerance: float = 0.3) -> Dict:
+    def _calculate_match_score(self, features: Dict, common_features: Dict, tolerance: float = 0.3, is_training_sample: bool = False) -> Dict:
         """
-        计算特征匹配度（优化版，目标匹配度 >= 0.95）
+        计算特征匹配度（V3 - 使用中位数+标准差评分，增加区分度）
         :param features: 目标股票的特征
         :param common_features: 训练好的共同特征模板
-        :param tolerance: 容差
+        :param tolerance: 容差（已不使用，保留参数兼容）
+        :param is_training_sample: 是否为训练样本
         :return: 匹配度分数
         """
-        # 核心特征（高权重，使用中位数作为目标值）
+        import math
+        import numpy as np
+        
+        # 核心特征（高权重，这些特征对牛股识别最重要）
         core_features = [
             '起点当周量比',
             '价格相对位置',
@@ -2459,13 +2980,19 @@ class BullStockAnalyzer:
             '价格相对MA20',
             '起点前20周波动率',
             '是否跌破最大量最低价',
-            '起点前40周最大量'
+            '均线多头排列',
+            'MACD零轴上方',
+            'RSI',
+            '均线粘合度',
+            '均线平滑度',
+            '布林带宽度',
+            'OBV趋势',
+            '买点前两月内曾涨停',
         ]
         
         match_scores = {}
         core_match_scores = {}
         total_score = 0
-        core_total_score = 0
         matched_count = 0
         core_matched_count = 0
         
@@ -2474,75 +3001,67 @@ class BullStockAnalyzer:
                 continue
             
             target_value = features[feature_name]
-            # 优先使用中位数，如果没有则使用均值
+            if target_value is None or (isinstance(target_value, float) and np.isnan(target_value)):
+                continue
+            
+            min_value = stats.get('最小值', 0)
+            max_value = stats.get('最大值', 0)
             median_value = stats.get('中位数', stats.get('均值', 0))
-            mean_value = stats['均值']
             std_value = stats.get('标准差', 0)
-            min_value = stats['最小值']
-            max_value = stats['最大值']
             
-            # 使用中位数作为目标值（更稳定）
-            center_value = median_value
+            range_val = max_value - min_value
+            if range_val == 0:
+                range_val = abs(median_value) * 0.2 if median_value != 0 else 1
             
-            # 优化的匹配度计算算法（目标：所有股票匹配度 >= 0.93）
+            # V3算法：基于到中位数的距离评分，严格版（提高区分度）
             if std_value > 0:
-                # 方法1: 使用标准差，更宽松的计算
-                # 计算z-score（标准化偏差）
-                z_score = abs(target_value - center_value) / std_value
+                # 计算z-score（到中位数的标准化距离）
+                z_score = abs(target_value - median_value) / std_value
                 
-                # 使用更严格的指数衰减函数（提高准确性）
-                # 当z_score=0时，匹配度=1.0
-                # 当z_score=1时，匹配度≈0.77
-                # 当z_score=2时，匹配度≈0.60
-                # 当z_score=3时，匹配度≈0.50
-                match_score = max(0, min(1.0, 1.0 / (1.0 + z_score * 0.4)))  # 从0.3改为0.4，更严格
+                # 使用高斯衰减：系数 0.35（更严格，提高区分度）
+                # z=0->1.0, z=0.5->0.92, z=1->0.70, z=1.5->0.45, z=2->0.25
+                base_score = math.exp(-0.35 * z_score * z_score)
                 
-                # 如果接近中位数，给予奖励（更严格的阈值）
-                if z_score < 0.1:  # 收紧阈值，从0.3降低到0.1
-                    match_score = min(1.0, match_score * 1.1)  # 减少奖励，从1.2降低到1.1
-                elif z_score < 0.2:  # 收紧阈值，从0.5降低到0.2
-                    match_score = min(1.0, match_score * 1.05)  # 减少奖励，从1.15降低到1.05
-            else:
-                # 标准差为0，使用范围计算
-                if max_value > min_value:
-                    range_size = max_value - min_value
-                    # 计算到中位数的相对距离
-                    distance_to_median = abs(target_value - center_value)
-                    relative_distance = distance_to_median / range_size
-                    
-                    # 使用更严格的指数衰减（提高准确性）
-                    match_score = max(0, min(1.0, 1.0 / (1.0 + relative_distance * 3)))  # 从2改为3，更严格
-                    
-                    # 如果在范围内，给予奖励（更严格）
-                    if min_value <= target_value <= max_value:
-                        match_score = min(1.0, match_score * 1.1)  # 减少奖励，从1.3降低到1.1
-                    elif relative_distance < 0.05:  # 收紧阈值，从0.1降低到0.05
-                        # 接近范围边界也给奖励
-                        match_score = min(1.0, match_score * 1.05)  # 减少奖励，从1.2降低到1.05
+                # 如果在 [min, max] 范围内，最低也有0.70分（更严格）
+                if min_value <= target_value <= max_value:
+                    match_score = max(base_score, 0.70)
+                    # 对于非常接近中位数的特征给予小幅奖励
+                    if z_score < 0.3:
+                        match_score = min(1.0, match_score + 0.05)  # z<0.3时额外+0.05
+                    elif z_score < 0.6:
+                        match_score = min(1.0, match_score + 0.03)  # z<0.6时额外+0.03
                 else:
-                    # 最大值等于最小值，完全匹配得1分
-                    if abs(target_value - center_value) < 0.01:
-                        match_score = 1.0
+                    # 超出范围，额外惩罚
+                    if target_value < min_value:
+                        out_distance = (min_value - target_value) / (range_val + 0.01)
                     else:
-                        # 计算相对误差，更宽松
-                        if abs(center_value) > 0.01:
-                            relative_error = abs(target_value - center_value) / abs(center_value)
-                            match_score = max(0, min(1.0, 1.0 / (1.0 + relative_error * 4)))  # 从3改为4，更严格
-                            # 如果相对误差较小，给予奖励（更严格）
-                            if relative_error < 0.05:
-                                match_score = min(1.0, match_score * 1.1)
-                            elif relative_error < 0.1:
-                                match_score = min(1.0, match_score * 1.05)
-                        else:
-                            match_score = 0.8 if abs(target_value - center_value) < 0.01 else 0.5  # 更严格
+                        out_distance = (target_value - max_value) / (range_val + 0.01)
+                    # 超出越远，惩罚越重
+                    penalty = math.exp(-out_distance * 3)
+                    match_score = base_score * penalty * 0.8
+            else:
+                # 标准差为0，使用范围判断
+                if min_value <= target_value <= max_value:
+                    # 在范围内，根据到中位数距离评分
+                    if range_val > 0:
+                        relative_dist = abs(target_value - median_value) / range_val
+                        match_score = max(0.70, 1.0 - relative_dist * 0.30)
+                    else:
+                        match_score = 1.0 if abs(target_value - median_value) < 0.01 else 0.70
+                else:
+                    # 超出范围
+                    if target_value < min_value:
+                        out_dist = (min_value - target_value) / (range_val + 0.01)
+                    else:
+                        out_dist = (target_value - max_value) / (range_val + 0.01)
+                    match_score = max(0, 0.5 * math.exp(-out_dist * 2))
             
             match_scores[feature_name] = round(match_score, 3)
             
-            # 核心特征使用更高权重（提高核心特征的重要性）
+            # 核心特征使用更高权重
             if feature_name in core_features:
-                weight = 4.0  # 从3.0提高到4.0，增强核心特征权重
+                weight = 3.0  # 核心特征权重
                 core_match_scores[feature_name] = round(match_score, 3)
-                core_total_score += match_score * weight
                 core_matched_count += 1
             else:
                 weight = 1.0
@@ -2551,29 +3070,25 @@ class BullStockAnalyzer:
             matched_count += 1
         
         # 计算总匹配度（加权平均）
-        # 核心特征权重更高，所以分母需要调整
-        total_weight = core_matched_count * 4.0 + (matched_count - core_matched_count) * 1.0  # 从3.0提高到4.0
+        total_weight = core_matched_count * 3.0 + (matched_count - core_matched_count) * 1.0
         if total_weight > 0:
             total_match_score = total_score / total_weight
         else:
             total_match_score = 0
         
-        # 如果核心特征匹配度都很高，给予奖励（更严格的阈值和更少的奖励）
-        if core_match_scores:
-            core_avg = sum(core_match_scores.values()) / len(core_match_scores)
-            if core_avg >= 0.9:  # 收紧阈值，从0.85提高到0.9
-                # 核心特征平均匹配度>=0.9时，提升总匹配度（减少奖励）
-                total_match_score = min(1.0, total_match_score * 1.05)  # 减少奖励，从1.15降低到1.05
-            elif core_avg >= 0.85:  # 收紧阈值，从0.75提高到0.85
-                # 核心特征平均匹配度>=0.85时，提升总匹配度（减少奖励）
-                total_match_score = min(1.0, total_match_score * 1.03)  # 减少奖励，从1.12降低到1.03
-        
-        # 额外优化：如果大部分特征匹配度都很高，给予奖励（更严格的阈值）
-        if len(match_scores) > 0:
-            high_match_count = sum(1 for s in match_scores.values() if s >= 0.9)  # 收紧阈值，从0.8提高到0.9
-            high_match_ratio = high_match_count / len(match_scores)
-            if high_match_ratio >= 0.9:  # 收紧阈值，从0.8提高到0.9
-                total_match_score = min(1.0, total_match_score * 1.03)  # 减少奖励，从1.08降低到1.03
+        # ✅ 均线粘合度奖励：在其他条件相同的情况下，均线粘合度高的股票匹配度更高
+        # 均线粘合度值越小，表示粘合度越高（MA5/MA10/MA20越接近）
+        if '均线粘合度' in features and '均线粘合度' in common_features:
+            ma_convergence_value = features.get('均线粘合度')
+            if ma_convergence_value is not None and isinstance(ma_convergence_value, (int, float)) and not np.isnan(ma_convergence_value):
+                ma_stats = common_features['均线粘合度']
+                ma_median = ma_stats.get('中位数', ma_stats.get('均值', 10))
+                # 如果均线粘合度低于中位数（粘合度高），给予奖励
+                if ma_convergence_value < ma_median:
+                    # 奖励幅度：粘合度越低（值越小），奖励越多，最多+0.02
+                    # 例如：中位数=10，当前值=5，奖励 = (10-5)/10 * 0.02 = 0.01
+                    reward = min(0.02, (ma_median - ma_convergence_value) / max(ma_median, 1) * 0.02)
+                    total_match_score = min(1.0, total_match_score + reward)
         
         return {
             '总匹配度': round(total_match_score, 3),
@@ -2582,13 +3097,48 @@ class BullStockAnalyzer:
             '所有特征匹配': match_scores
         }
     
-    def scan_all_stocks(self, min_match_score: float = 0.6, max_market_cap: float = 60.0, limit: int = None, use_parallel: bool = True, max_workers: int = 5) -> Dict:
+    def scan_all_stocks(self, min_match_score: float = 0.6, max_market_cap: float = 60.0, limit: int = None, use_parallel: bool = True, max_workers: int = 5, scan_date: str = None, scan_session: str = None, force_refresh: bool = False, strict_local_only: bool = None) -> Dict:
         """
         扫描所有股票，查找符合牛股特征的个股
         优化：在扫描开始前预先获取并缓存市值数据，避免扫描过程中卡住
+        :param strict_local_only: 是否严格只使用本地缓存（不从网络下载），None时自动判断（本地环境默认True）
         """
         # 重置停止标志
         self.stop_scan = False
+        # 记录本次扫描是否强制刷新（供串行扫描内部的线程取用）
+        self._force_refresh_scan = bool(force_refresh)
+        
+        # ✅ 关键：本地环境默认严格只使用本地缓存，避免网络下载导致速度慢
+        if strict_local_only is None:
+            # 自动判断：如果是本地环境（非Vercel/Render），默认启用严格本地模式
+            import os
+            is_cloud = (
+                os.environ.get('VERCEL') == '1' or 
+                os.environ.get('VERCEL_ENV') is not None or
+                os.environ.get('RENDER') == 'true' or
+                os.environ.get('RENDER_SERVICE_NAME') is not None
+            )
+            strict_local_only = not is_cloud  # 本地环境默认True，云环境默认False
+        
+        # 设置严格本地模式标志（供内部函数使用）
+        self._strict_local_only = bool(strict_local_only)
+        self._scan_skip_4d_gain_check = True
+        self._scan_quiet = True  # 扫描时减少特征提取等日志，加速
+        
+        if strict_local_only:
+            print("📌 严格本地模式：只使用本地缓存数据，缺失数据的股票将被跳过（不从网络下载）")
+
+        # 强制刷新：每次扫描前清空断点续扫状态和结果缓存，确保按“最新条件/最新数据”重新计算
+        if force_refresh:
+            self.scan_state = None
+            try:
+                self.scan_results = None
+            except Exception:
+                pass
+
+        # 标准化 scan_date（兼容 YYYY/MM/DD 与 YYYY-MM-DD）
+        if isinstance(scan_date, str) and scan_date.strip():
+            scan_date = scan_date.strip().replace('/', '-')
         
         # 预先获取并缓存市值数据（避免扫描过程中卡住）
         # 优化：完全跳过预加载，扫描时直接跳过市值检查，避免卡住
@@ -2610,7 +3160,7 @@ class BullStockAnalyzer:
                 'candidates': []
             }
         
-        common_features = self.trained_features.get('common_features', {})
+        common_features = self._get_common_features()
         if len(common_features) == 0:
             return {
                 'success': False,
@@ -2619,7 +3169,7 @@ class BullStockAnalyzer:
             }
         
         # 检查是否有未完成的扫描状态（断点续扫）
-        if self.scan_state is not None and self.scan_state.get('status') == '已停止':
+        if (not force_refresh) and self.scan_state is not None and self.scan_state.get('status') == '已停止':
             # 有未完成的扫描，继续扫描
             print("\n📌 检测到未完成的扫描，将从上次停止的地方继续...")
             print(f"   上次已处理: {self.scan_state.get('current_idx', 0)}/{self.scan_state.get('total_stocks', 0)} 只股票")
@@ -2650,15 +3200,68 @@ class BullStockAnalyzer:
             'current_idx': 0,
             'total_stocks': total_stocks,
             'candidates': [],
+            'scan_date': scan_date,
+            'scan_session': scan_session,
             'batch_num': 1,
             'total_batches': 1,
             'status': '进行中'
         }
         
+        # 初始化缺失数据统计
+        self._missing_data_stocks = set()
+        self.fetcher._missing_stocks = set()
+        
         # 一次性全部扫描（不再分批）
         print(f"\n📊 开始扫描全部 {total_stocks} 只股票（一次性完成，不分批）...")
-        return self._scan_stock_batch(stock_list, common_features, min_match_score, max_market_cap, 1, 1, start_idx=0, existing_candidates=None, total_all_stocks=total_stocks, use_parallel=use_parallel, max_workers=max_workers)
-    def _process_single_stock(self, stock_code: str, stock_name: str, common_features: Dict, min_match_score: float, max_market_cap: float, idx: int, total_stocks: int) -> Dict:
+        print(f"⚠️  注意：扫描将仅使用本地数据，如果本地没有数据将跳过该股票")
+        result = self._scan_stock_batch(
+            stock_list,
+            common_features,
+            min_match_score,
+            max_market_cap,
+            1,
+            1,
+            start_idx=0,
+            existing_candidates=None,
+            total_all_stocks=total_stocks,
+            use_parallel=use_parallel,
+            max_workers=max_workers,
+            scan_date=scan_date,
+            scan_session=scan_session
+        )
+        
+        # 扫描完成后，检查缺失数据并提示
+        missing_count = len(self._missing_data_stocks) if hasattr(self, '_missing_data_stocks') else 0
+        fetcher_missing_count = len(self.fetcher._missing_stocks) if hasattr(self.fetcher, '_missing_stocks') else 0
+        total_missing = max(missing_count, fetcher_missing_count)
+        
+        if total_missing > 0:
+            missing_pct = (total_missing / total_stocks * 100) if total_stocks > 0 else 0
+            warning_msg = f"\n⚠️  扫描完成，但发现 {total_missing} 只股票（{missing_pct:.1f}%）缺少本地数据，已跳过。\n"
+            warning_msg += f"   建议：请先下载完整数据后再进行扫描，以确保扫描结果的完整性。\n"
+            print(warning_msg)
+            
+            # 在结果中添加警告信息
+            if isinstance(result, dict):
+                result['data_warning'] = {
+                    'missing_count': total_missing,
+                    'total_stocks': total_stocks,
+                    'missing_percentage': round(missing_pct, 1),
+                    'message': f'发现 {total_missing} 只股票缺少本地数据，建议先下载数据'
+                }
+        
+        if isinstance(result, dict):
+            result.setdefault('scan_date', scan_date)
+            result.setdefault('scan_session', scan_session)
+        self._scan_quiet = False  # 扫描结束，恢复日志
+        return result
+
+    # 说明：之前为了实现“周内每天结果变化”，曾尝试用“日K截至指定日期聚合周K（含未完成周）”。
+    # - 如果 scan_date 在当前周内（周一到周K日期之间），会用该周周一到 scan_date 的日K聚合成部分周K
+    # - 这样回测结果与「当天实盘扫描」完全一致，保证回测的有效性和可比性
+    # - 历史回测时：回测上周二 = 用上周一+二聚合，回测上周四 = 用上周一～四聚合
+    # - 实时扫描时：scan_date = None 或 = 今天，同样进行 as-of 聚合
+    def _process_single_stock(self, stock_code: str, stock_name: str, common_features: Dict, min_match_score: float, max_market_cap: float, idx: int, total_stocks: int, scan_date: str = None, scan_session: str = None, force_refresh: bool = False) -> Dict:
         """
         处理单只股票（用于并行处理）
         :param stock_code: 股票代码
@@ -2680,7 +3283,7 @@ class BullStockAnalyzer:
                 return None
             
             start_time = time_module.time()
-            max_process_time = 8  # 单个股票最大处理时间（秒）
+            max_process_time = 3  # 单个股票最大处理时间（秒），更快跳过慢股票
             
             # 时间统计
             step_times = {}
@@ -2688,10 +3291,39 @@ class BullStockAnalyzer:
             # 1. 获取周K线数据
             step_start = time_module.time()
             try:
-                weekly_df = self.fetcher.get_weekly_kline(stock_code, period="2y", use_cache=True)
+                # 使用周K线（与训练/原扫描一致）；scan_date 的“回放”在后续通过截断周K实现
+                # 如果指定了历史 scan_date，强制使用本地缓存以确保历史回测一致性
+                use_cache = True
+                if force_refresh and not scan_date:
+                    use_cache = False  # 只有在没有指定scan_date且强制刷新时才不用缓存
+                # 扫描时优先使用本地数据，如果本地没有则从网络下载
+                # 先尝试本地数据（快速）
+                weekly_df = self.fetcher.get_weekly_kline(stock_code, period="2y", use_cache=use_cache, local_only=True)
                 step_times['获取周K线'] = time_module.time() - step_start
+                
+                # ✅ 关键：如果设置了 strict_local_only，即使本地没有数据也不从网络下载
+                strict_local_only = getattr(self, '_strict_local_only', False)
+                
+                # 如果本地没有数据，尝试从网络下载（除非 strict_local_only=True）
                 if weekly_df is None or len(weekly_df) < 40:
-                    return None
+                    if strict_local_only:
+                        # 严格本地模式：跳过缺失数据的股票，不从网络下载
+                        if not hasattr(self, '_missing_data_stocks'):
+                            self._missing_data_stocks = set()
+                        self._missing_data_stocks.add(stock_code)
+                        return None
+                    else:
+                        # 尝试从网络下载
+                        print(f"[_process_single_stock] {stock_code} 本地无数据，尝试从网络下载...")
+                        weekly_df = self.fetcher.get_weekly_kline(stock_code, period="2y", use_cache=False, local_only=False)
+                        step_times['获取周K线'] = time_module.time() - step_start
+                        
+                        # 如果网络获取也失败，记录到缺失列表
+                        if weekly_df is None or len(weekly_df) < 40:
+                            if not hasattr(self, '_missing_data_stocks'):
+                                self._missing_data_stocks = set()
+                            self._missing_data_stocks.add(stock_code)
+                            return None
             except Exception as e:
                 step_times['获取周K线'] = time_module.time() - step_start
                 return None
@@ -2704,13 +3336,150 @@ class BullStockAnalyzer:
             # 2. 提取特征
             step_start = time_module.time()
             try:
+                # 默认使用最新一周；如果指定 scan_date，则回到该日期对应的最近一周（as-of）
                 current_idx = len(weekly_df) - 1
+                if scan_date:
+                    try:
+                        scan_ts = pd.to_datetime(scan_date, errors='coerce')
+                        if pd.notna(scan_ts) and '日期' in weekly_df.columns:
+                            w = weekly_df.copy()
+                            w['__dt'] = pd.to_datetime(w['日期'], errors='coerce')
+                            w = w.dropna(subset=['__dt'])
+                            
+                            # 严格回溯（as-of）：仅保留 __dt <= scan_ts 的周K，避免偷看未来
+                            w = w[w['__dt'] <= scan_ts]
+                            
+                            if len(w) >= 40:
+                                weekly_df = w.drop(columns=['__dt'])
+                                current_idx = len(weekly_df) - 1
+                            else:
+                                return None
+                    except Exception:
+                        pass
+                
+                # ✅ as-of 聚合：对「当前周」进行部分周K聚合（适用于实时扫描和历史回测）
+                # 如果 scan_date 在当前周内（周一到周K日期之间），用该周周一到 scan_date 的日K聚合成部分周K
+                # 这样回测结果与「当天实盘扫描」完全一致，保证回测的有效性
+                aggregated_this_week = False  # 标记是否进行了聚合
+                try:
+                    from datetime import datetime as dt_now, timedelta
+                    
+                    # 确定实际使用的扫描日期：如果 scan_date 为 None，使用今天的日期（实时扫描）
+                    actual_scan_date = scan_date if scan_date else dt_now.now().strftime('%Y-%m-%d')
+                    
+                    if len(weekly_df) > 0 and '日期' in weekly_df.columns:
+                        # 使用确定的扫描日期
+                        scan_ts = pd.to_datetime(actual_scan_date, errors='coerce')
+                        
+                        if pd.notna(scan_ts):
+                            # 获取最后一周的日期
+                            last_week_date = pd.to_datetime(weekly_df.iloc[-1]['日期'], errors='coerce')
+                            
+                            if pd.notna(last_week_date):
+                                # 动态计算最后一周的周一：找到包含 last_week_date 的那一周的周一
+                                # 周K的日期可能是周五（weekday=4）或周日（weekday=6），代表该周结束日
+                                # 往前推 weekday 天，得到该周的周一
+                                last_week_weekday = last_week_date.weekday()  # 0=周一, 4=周五, 6=周日
+                                last_week_monday = last_week_date - timedelta(days=last_week_weekday)
+                                
+                                # 判断 scan_date 是否在最后一周内（周一到周K日期之间）
+                                # 或者 scan_date 在当前周内（最后一周之后，但仍在当前周）
+                                should_aggregate = False
+                                week_start_str = None
+                                week_end_date = None
+                                
+                                if last_week_monday <= scan_ts <= last_week_date:
+                                    # 情况1：scan_date 在最后一周内
+                                    should_aggregate = True
+                                    week_start_str = last_week_monday.strftime('%Y%m%d')
+                                    week_end_date = last_week_date
+                                elif scan_ts > last_week_date:
+                                    # 情况2：scan_date 在最后一周之后，检查是否在当前周内
+                                    # 计算当前周的周一（最后一周的下一个周一）
+                                    current_week_monday = last_week_date + timedelta(days=(7 - last_week_weekday))
+                                    # 计算当前周的结束日（周五或周日，取决于周K的格式）
+                                    # 假设周K在周五结束，则当前周结束日是 current_week_monday + 4
+                                    current_week_end = current_week_monday + timedelta(days=4)
+                                    
+                                    if current_week_monday <= scan_ts <= current_week_end:
+                                        # scan_date 在当前周内，需要聚合当前周的数据
+                                        should_aggregate = True
+                                        week_start_str = current_week_monday.strftime('%Y%m%d')
+                                        week_end_date = current_week_end
+                                
+                                if should_aggregate:
+                                    aggregated_this_week = True  # 标记进行了聚合
+                                    # 需要聚合：获取该周周一到 scan_date 的日K数据
+                                    scan_date_str = scan_ts.strftime('%Y%m%d')
+                                    
+                                    # 获取日K数据（回测时强制使用本地缓存，确保历史数据一致性）
+                                    daily_df = self.fetcher.get_daily_kline_range(
+                                        stock_code,
+                                        start_date=week_start_str,
+                                        end_date=scan_date_str,
+                                        use_cache=True,
+                                        local_only=True  # 回测时强制使用本地缓存，避免使用未来数据
+                                    )
+                                    
+                                    if daily_df is not None and len(daily_df) > 0:
+                                        # 确保必要的列存在
+                                        required_cols = ['日期', '开盘', '收盘', '最高', '最低', '成交量']
+                                        if all(col in daily_df.columns for col in required_cols):
+                                            # 转换为日期类型
+                                            daily_df = daily_df.copy()
+                                            daily_df['日期'] = pd.to_datetime(daily_df['日期'], errors='coerce')
+                                            daily_df = daily_df.dropna(subset=['日期'])
+                                            # ✅ 严格过滤：只使用扫描日期及之前的数据，避免使用未来数据
+                                            daily_df = daily_df[daily_df['日期'] <= scan_ts].sort_values('日期').reset_index(drop=True)
+                                            
+                                            if len(daily_df) > 0:
+                                                # 聚合为周K（仅该周的部分数据）
+                                                partial_week_k = pd.Series({
+                                                    '开盘': float(daily_df.iloc[0]['开盘']),
+                                                    '收盘': float(daily_df.iloc[-1]['收盘']),
+                                                    '最高': float(daily_df['最高'].max()),
+                                                    '最低': float(daily_df['最低'].min()),
+                                                    '周成交量': float(daily_df['成交量'].sum()),
+                                                    '日期': week_end_date  # 使用该周的结束日期
+                                                })
+                                                
+                                                # 如果成交额列存在，也聚合
+                                                if '成交额' in daily_df.columns:
+                                                    partial_week_k['周成交额'] = float(daily_df['成交额'].sum())
+                                                
+                                                # 如果当前周是新的一周（scan_ts > last_week_date），需要添加新的一行
+                                                if scan_ts > last_week_date:
+                                                    # 添加新的周K行
+                                                    weekly_df = weekly_df.copy()
+                                                    partial_week_k['日期'] = week_end_date
+                                                    weekly_df = pd.concat([weekly_df, pd.DataFrame([partial_week_k])], ignore_index=True)
+                                                    # ✅ 更新 current_idx 指向新添加的聚合周K
+                                                    current_idx = len(weekly_df) - 1
+                                                else:
+                                                    # 替换最后一周的周K
+                                                    weekly_df = weekly_df.copy()
+                                                    weekly_df.iloc[-1] = partial_week_k
+                                                    # current_idx 保持不变，仍指向最后一行
+                                                
+                                                # 调试输出（每100只股票输出一次）
+                                                if idx % 100 == 0:
+                                                    print(f"[as-of聚合周K] [{idx}/{total_stocks}] {stock_code} 扫描日期: {scan_ts.strftime('%Y-%m-%d')}, 聚合了周（{week_start_str} 到 {scan_ts.strftime('%Y-%m-%d')}），current_idx={current_idx}")
+                except Exception as e:
+                    # 聚合失败不影响扫描，继续使用原周K
+                    if idx % 100 == 0:
+                        print(f"[as-of聚合周K] [{idx}/{total_stocks}] {stock_code} 聚合失败: {str(e)[:50]}")
+                    pass
+                
                 features = self.extract_features_at_start_point(stock_code, current_idx, lookback_weeks=40, weekly_df=weekly_df)
                 step_times['提取特征'] = time_module.time() - step_start
                 if features is None:
+                    if idx % 10 == 0:
+                        print(f"[监控] [{idx}/{total_stocks}] {stock_code} 特征提取返回None，跳过")
                     return None
             except Exception as e:
                 step_times['提取特征'] = time_module.time() - step_start
+                if idx % 10 == 0:
+                    print(f"[监控] [{idx}/{total_stocks}] {stock_code} 特征提取异常: {str(e)[:50]}")
                 return None
             
             # 检查总耗时
@@ -2725,83 +3494,227 @@ class BullStockAnalyzer:
                 step_times['计算匹配度'] = time_module.time() - step_start
                 total_match = match_score['总匹配度']
                 
+                # 微调：最近4日涨幅>10%但无涨停板时降低匹配度（扫描加速时可关闭，避免每只股票拉日K）
+                if scan_date and not getattr(self, '_scan_skip_4d_gain_check', True):
+                    try:
+                        from datetime import timedelta
+                        scan_ts = pd.to_datetime(scan_date, errors='coerce')
+                        if pd.notna(scan_ts):
+                            start_date = (scan_ts - timedelta(days=10)).strftime('%Y%m%d')
+                            end_date = scan_ts.strftime('%Y%m%d')
+                            daily_df = self.fetcher.get_daily_kline_range(stock_code, start_date, end_date)
+                            if daily_df is not None and len(daily_df) >= 4:
+                                daily_df['日期'] = pd.to_datetime(daily_df['日期'], errors='coerce')
+                                daily_df = daily_df.dropna(subset=['日期']).copy()
+                                daily_df = daily_df[daily_df['日期'] <= scan_ts].sort_values('日期').reset_index(drop=True)
+                                if len(daily_df) >= 4:
+                                    recent_4 = daily_df.tail(4)
+                                    first_close = float(recent_4.iloc[0]['收盘'])
+                                    last_close = float(recent_4.iloc[-1]['收盘'])
+                                    if first_close > 0:
+                                        gain_4d = (last_close - first_close) / first_close * 100
+                                        has_limit_up = '涨跌幅' in recent_4.columns and any(float(r.get('涨跌幅', 0)) >= 9.8 for _, r in recent_4.iterrows())
+                                        if gain_4d > 10.0 and not has_limit_up:
+                                            total_match = total_match * 0.95
+                                            match_score['总匹配度'] = round(total_match, 3)
+                    except Exception:
+                        pass
+                
                 if total_match < min_match_score:
                     return None
             except Exception as e:
                 step_times['计算匹配度'] = time_module.time() - step_start
+                if idx % 500 == 0:
+                    print(f"[监控] [{idx}/{total_stocks}] {stock_code} 匹配度计算异常: {str(e)[:50]}")
                 return None
             
-            # 记录总耗时
+            # 3.5. 检查120日和250日均线方向（如果都向下，直接排除）
+            step_start_ma = time_module.time()
+            try:
+                # 获取日K线数据（用于计算120日和250日均线）
+                limit_date = scan_date if scan_date else pd.Timestamp.now().strftime('%Y-%m-%d')
+                limit_date_ymd = pd.to_datetime(limit_date).strftime('%Y%m%d')
+                
+                # 获取足够的历史数据（至少250天）
+                daily_df = self.fetcher.get_daily_kline_range(
+                    stock_code, 
+                    start_date='20220101',  # 从2022年开始足够覆盖250天
+                    end_date=limit_date_ymd,
+                    use_cache=True,
+                    local_only=True
+                )
+                
+                if daily_df is not None and len(daily_df) >= 250:
+                    daily_df['日期'] = pd.to_datetime(daily_df['日期'], errors='coerce')
+                    daily_df = daily_df.dropna(subset=['日期']).sort_values('日期').reset_index(drop=True)
+                    
+                    # 找到扫描日期对应的索引
+                    limit_dt = pd.to_datetime(limit_date)
+                    daily_before = daily_df[daily_df['日期'] <= limit_dt]
+                    if len(daily_before) >= 250:
+                        scan_idx = len(daily_before) - 1
+                        
+                        # 计算当前均线值
+                        ma120_current = daily_before['收盘'].iloc[scan_idx-119:scan_idx+1].mean()
+                        ma250_current = daily_before['收盘'].iloc[scan_idx-249:scan_idx+1].mean()
+                        
+                        # 计算20天前的均线值（用于判断方向）
+                        if scan_idx >= 20:
+                            ma120_20d_ago = daily_before['收盘'].iloc[scan_idx-139:scan_idx-119].mean()
+                            ma250_20d_ago = daily_before['收盘'].iloc[scan_idx-269:scan_idx-249].mean()
+                            
+                            # 计算斜率（方向）
+                            ma120_slope = (ma120_current - ma120_20d_ago) / ma120_20d_ago if ma120_20d_ago > 0 else 0
+                            ma250_slope = (ma250_current - ma250_20d_ago) / ma250_20d_ago if ma250_20d_ago > 0 else 0
+                            
+                            # 如果120日和250日均线都向下（斜率<0），直接排除
+                            if ma120_slope < 0 and ma250_slope < 0:
+                                print(f"[均线过滤] [{idx}/{total_stocks}] {stock_code} {stock_name} MA120和MA250都向下，已排除 (MA120斜率: {ma120_slope*100:.2f}%, MA250斜率: {ma250_slope*100:.2f}%, 扫描日期: {limit_date})")
+                                return None
+            except Exception as e:
+                # 均线检查失败不影响扫描，继续处理（但记录详细错误）
+                import traceback
+                error_detail = traceback.format_exc()
+                if idx % 100 == 0 or stock_code == '000798':  # 对中水渔业总是打印
+                    print(f"[均线检查异常] [{idx}/{total_stocks}] {stock_code} {stock_name} 均线方向检查异常: {str(e)}")
+                    if stock_code == '000798':
+                        print(f"[均线检查异常-详细] {error_detail[:500]}")
+                pass
+            
             step_times['总耗时'] = time_module.time() - start_time
+            if idx > 0 and idx % 500 == 0:
+                print(f"[时间统计] {idx}/{total_stocks}: 周K={step_times.get('获取周K线',0):.2f}s 特征={step_times.get('提取特征',0):.2f}s 匹配={step_times.get('计算匹配度',0):.2f}s 市值={step_times.get('获取市值',0):.2f}s 总={step_times.get('总耗时',0):.2f}s")
             
-            # 每100只股票输出一次时间统计（用于定位性能瓶颈）
-            if idx > 0 and idx % 100 == 0:
-                print(f"\n[时间统计] 股票 {idx}/{total_stocks}: "
-                      f"周K线={step_times.get('获取周K线', 0):.3f}s, "
-                      f"特征={step_times.get('提取特征', 0):.3f}s, "
-                      f"匹配={step_times.get('计算匹配度', 0):.3f}s, "
-                      f"总计={step_times.get('总耗时', 0):.3f}s")
-            
-            # 4. 检查市值（扫描时跳过，扫描后统一过滤）
+            # 4. 检查市值（✅ 必须同步检查，检索时同步检查）
             market_cap = None
             market_cap_valid = False
-            # 扫描时不检查市值，扫描完成后统一过滤（提升速度）
-            # if max_market_cap > 0:
-            #     try:
-            #         # 使用超时机制获取市值
-            #         market_cap_result = [None]
-            #         market_cap_error = [None]
-            #         
-            #         def fetch_market_cap():
-            #             try:
-            #                 market_cap_result[0] = self.fetcher.get_market_cap(stock_code, timeout=2)
-            #             except Exception as e:
-            #                 market_cap_error[0] = e
-            #         
-            #         cap_thread = threading.Thread(target=fetch_market_cap)
-            #         cap_thread.daemon = True
-            #         cap_thread.start()
-            #         cap_thread.join(timeout=2.5)
-            #         
-            #         if not cap_thread.is_alive() and market_cap_result[0] is not None and market_cap_result[0] > 0:
-            #             market_cap = market_cap_result[0]
-            #             market_cap_valid = True
-            #             if market_cap > max_market_cap:
-            #                 return None  # 市值超过限制
-            #     except Exception:
-            #         pass  # 市值获取失败，跳过市值检查
+            if max_market_cap > 0:
+                try:
+                    # 使用超时机制获取市值（避免卡住）
+                    step_start = time_module.time()
+                    market_cap_result = [None]
+                    market_cap_error = [None]
+                    
+                    def fetch_market_cap():
+                        try:
+                            market_cap_result[0] = self.fetcher.get_market_cap(stock_code, timeout=2)
+                        except Exception as e:
+                            market_cap_error[0] = e
+                    
+                    cap_thread = threading.Thread(target=fetch_market_cap)
+                    cap_thread.daemon = True
+                    cap_thread.start()
+                    cap_thread.join(timeout=2.5)  # 最多等待2.5秒
+                    
+                    step_times['获取市值'] = time_module.time() - step_start
+                    
+                    if not cap_thread.is_alive() and market_cap_result[0] is not None and market_cap_result[0] > 0:
+                        market_cap = market_cap_result[0]
+                        market_cap_valid = True
+                        # ✅ 市值超过限制，直接跳过该股票
+                        if market_cap > max_market_cap:
+                            return None
+                    else:
+                        if idx % 500 == 0:
+                            print(f"[监控] [{idx}/{total_stocks}] {stock_code} 市值获取失败或超时，继续处理")
+                except Exception as e:
+                    step_times['获取市值'] = time_module.time() - step_start if 'step_start' in locals() else 0
+                    if idx % 500 == 0:
+                        print(f"[监控] [{idx}/{total_stocks}] {stock_code} 市值获取异常: {str(e)[:50]}")
+                    pass  # 市值获取失败，继续处理该股票（将在扫描完成后二次过滤）
             
-            # 5. 记录候选股票
-            try:
-                current_price = float(weekly_df.iloc[current_idx]['收盘'])
-                current_date = weekly_df.iloc[current_idx]['日期']
-                
-                if isinstance(current_date, pd.Timestamp):
-                    current_date_str = current_date.strftime('%Y-%m-%d')
-                else:
-                    current_date_str = str(current_date)
-                
-                buy_price = current_price
-                buy_date = current_date_str
-                
-                return {
-                    '股票代码': stock_code,
-                    '股票名称': stock_name,
-                    '匹配度': round(match_score['总匹配度'], 3),
-                    '最佳买点日期': buy_date,
-                    '最佳买点价格': round(buy_price, 2),
-                    '当前价格': round(current_price, 2),
-                    '市值': round(market_cap, 2) if market_cap_valid else None,
-                    '核心特征匹配': match_score.get('核心特征匹配', {}),
-                    '特征': features
-                }
-            except Exception:
-                return None
+                # 5. 记录候选股票（最佳买点日期 = 最后一周的周K日期，价格 = 扫描日期的收盘价）
+                try:
+                    from datetime import datetime as dt_now
+                    today_str = dt_now.now().strftime('%Y-%m-%d')
+                    limit_date = scan_date if scan_date else today_str  # 搜索当天
+                    fallback_price = float(weekly_df.iloc[current_idx]['收盘'])
+                    current_date = weekly_df.iloc[current_idx]['日期']
+                    if isinstance(current_date, pd.Timestamp):
+                        current_date_str = current_date.strftime('%Y-%m-%d')
+                        current_date_ts = current_date
+                    else:
+                        current_date_str = str(current_date)[:10]
+                        current_date_ts = pd.to_datetime(current_date_str, errors='coerce')
+                    
+                    # ✅ 最佳买点日期：如果进行了聚合，使用扫描日期；否则使用最后一周的周K日期
+                    # 如果进行了聚合（aggregated_this_week=True），最佳买点日期应该是扫描日期
+                    # 否则使用最后一周的周K日期（特征匹配基于这一周）
+                    scan_date_ts = pd.to_datetime(limit_date, errors='coerce')
+                    if aggregated_this_week and scan_date:
+                        # 进行了聚合，最佳买点日期 = 扫描日期
+                        buy_date = limit_date
+                    else:
+                        # 没有聚合，使用最后一周的周K日期
+                        buy_date = current_date_str
+                    
+                    # 如果扫描日期在周K日期之前或等于周K日期，使用扫描日期的收盘价
+                    # 否则使用周K收盘价（这种情况不应该发生，因为我们已经截断了数据）
+                    if pd.notna(scan_date_ts) and pd.notna(current_date_ts) and scan_date_ts <= current_date_ts:
+                        close_on_search = self._get_close_on_date(stock_code, limit_date)
+                        if close_on_search is not None:
+                            buy_price = close_on_search
+                        else:
+                            buy_price = fallback_price
+                    else:
+                        # 扫描日期晚于周K日期（不应该发生），使用周K收盘价
+                        buy_price = fallback_price
+                    
+                    # ✅ 当前价格 = 扫描日期的收盘价（不是今天的最新价格）
+                    # 如果扫描日期是历史日期，当前价格就是扫描日期的价格
+                    # 如果扫描日期是今天，当前价格就是今天的最新价格
+                    current_price = buy_price  # 默认使用最佳买点价格（即扫描日期的价格）
+                    
+                    # 如果扫描日期是今天，且获取到了今天的价格，使用今天的价格
+                    # 如果扫描日期是历史日期，当前价格就是扫描日期的价格（buy_price）
+                    if limit_date == today_str:
+                        # 扫描日期是今天，尝试获取今天的最新价格（可能比buy_price更新）
+                        close_today = self._get_close_on_date(stock_code, today_str)
+                        if close_today is not None:
+                            current_price = close_today
+                        else:
+                            current_price = buy_price
+                    # else: 扫描日期是历史日期，current_price = buy_price（已经是扫描日期的价格）
+                    
+                    # ✅ 调试：确认最终价格
+                    if idx % 100 == 0:
+                        print(f"[调试-价格] [{idx}/{total_stocks}] {stock_code} 最佳买点日期: {buy_date}, 最佳买点价格: {buy_price:.2f}, 当前价格: {current_price:.2f}, 扫描日期: {limit_date}")
+                    
+                    # 检查数据是否过期（数据日期比扫描日期早超过7天）
+                    data_outdated = False
+                    try:
+                        data_date = pd.to_datetime(current_date_str)
+                        scan_date_ts = pd.to_datetime(limit_date)
+                        if (scan_date_ts - data_date).days > 7:
+                            data_outdated = True
+                    except Exception:
+                        pass
+                    # 买点当天为大阴线则排除（不加入候选）
+                    if self._is_big_bearish_candle_on_date(stock_code, limit_date):
+                        if idx % 100 == 0:
+                            print(f"[过滤] [{idx}/{total_stocks}] {stock_code} {stock_name} 买点当日({limit_date})为大阴线，已排除")
+                        return None
+                    return {
+                        '股票代码': stock_code,
+                        '股票名称': stock_name,
+                        '匹配度': round(match_score['总匹配度'], 3),
+                        '最佳买点日期': buy_date,
+                        '最佳买点价格': round(buy_price, 2),
+                        '当前价格': round(current_price, 2),
+                        '市值': round(market_cap, 2) if market_cap_valid else None,
+                        '扫描日期': scan_date,
+                        '时间段': scan_session,
+                        '核心特征匹配': match_score.get('核心特征匹配', {}),
+                        '特征': features,
+                        '数据过期': data_outdated  # 标记数据是否过期
+                    }
+                except Exception:
+                    return None
                 
         except Exception:
             return None
     
-    def _scan_stock_batch(self, stock_list, common_features: Dict, min_match_score: float, max_market_cap: float, batch_num: int = 1, total_batches: int = 1, start_idx: int = 0, existing_candidates: list = None, total_all_stocks: int = None, use_parallel: bool = True, max_workers: int = 5) -> Dict:
+    def _scan_stock_batch(self, stock_list, common_features: Dict, min_match_score: float, max_market_cap: float, batch_num: int = 1, total_batches: int = 1, start_idx: int = 0, existing_candidates: list = None, total_all_stocks: int = None, use_parallel: bool = True, max_workers: int = 5, scan_date: str = None, scan_session: str = None) -> Dict:
         # 在函数开始处统一导入，避免变量冲突
         import time as time_module
         import threading
@@ -2812,16 +3725,16 @@ class BullStockAnalyzer:
             return self._scan_stock_batch_parallel(
                 stock_list, common_features, min_match_score, max_market_cap,
                 batch_num, total_batches, start_idx, existing_candidates,
-                total_all_stocks, max_workers
+                total_all_stocks, max_workers, scan_date=scan_date, scan_session=scan_session
             )
         
         # 否则使用原有的串行处理（保持向后兼容）
         return self._scan_stock_batch_serial(
             stock_list, common_features, min_match_score, max_market_cap,
-            batch_num, total_batches, start_idx, existing_candidates, total_all_stocks
+            batch_num, total_batches, start_idx, existing_candidates, total_all_stocks, scan_date=scan_date, scan_session=scan_session
         )
     
-    def _scan_stock_batch_parallel(self, stock_list, common_features: Dict, min_match_score: float, max_market_cap: float, batch_num: int = 1, total_batches: int = 1, start_idx: int = 0, existing_candidates: list = None, total_all_stocks: int = None, max_workers: int = 5) -> Dict:
+    def _scan_stock_batch_parallel(self, stock_list, common_features: Dict, min_match_score: float, max_market_cap: float, batch_num: int = 1, total_batches: int = 1, start_idx: int = 0, existing_candidates: list = None, total_all_stocks: int = None, max_workers: int = 5, scan_date: str = None, scan_session: str = None) -> Dict:
         """
         并行扫描一批股票（使用线程池）
         :param stock_list: 股票列表（DataFrame）
@@ -2854,6 +3767,9 @@ class BullStockAnalyzer:
             'detail': f'开始并行扫描 {total_stocks} 只股票{batch_info}（{max_workers} 线程）...',
             'percentage': 0,
             'found': 0,
+            'candidates': [],
+            'scan_date': scan_date,
+            'scan_session': scan_session,
             'batch': batch_num,
             'total_batches': total_batches
         }
@@ -2897,7 +3813,19 @@ class BullStockAnalyzer:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # 提交所有任务
             future_to_stock = {
-                executor.submit(self._process_single_stock, stock_code, stock_name, common_features, min_match_score, max_market_cap, idx, total_all_stocks): (stock_code, stock_name, idx)
+                executor.submit(
+                    self._process_single_stock,
+                    stock_code,
+                    stock_name,
+                    common_features,
+                    min_match_score,
+                    max_market_cap,
+                    idx,
+                    total_all_stocks,
+                    scan_date,
+                    scan_session,
+                    getattr(self, "_force_refresh_scan", False),
+                ): (stock_code, stock_name, idx)
                 for stock_code, stock_name, idx in stock_items
             }
             
@@ -2913,15 +3841,32 @@ class BullStockAnalyzer:
                 stock_code, stock_name, idx = future_to_stock[future]
                 processed_count += 1
                 
+                # ✅ 监控：更新当前处理的股票（用于定位卡点）
+                with progress_lock:
+                    self.progress['current_stock'] = stock_code
+                    self.progress['current_stock_name'] = stock_name
+                    self.progress['last_update_time'] = time_module.time()
+                    if processed_count % 200 == 0:
+                        print(f"[进度] 已处理: {processed_count}/{total_stocks} | 已找到: {len(candidates)}只")
+                
                 try:
-                    result = future.result(timeout=1)  # 获取结果，超时1秒
+                    result = future.result(timeout=6)  # 获取结果，超时6秒（允许单个股票处理更长时间）
                     if result:
                         with progress_lock:
                             candidates.append(result)
                             self.progress['found'] = len(candidates)
+                            # 实时输出：只保留最近/最优的一部分，避免进度对象过大
+                            try:
+                                candidates.sort(key=lambda x: x.get('匹配度', 0), reverse=True)
+                            except Exception:
+                                pass
+                            self.progress['candidates'] = candidates[:50] if len(candidates) > 50 else candidates
                             market_cap_info = f" 市值: {result['市值']:.2f}亿" if result['市值'] else " 市值: 未知"
                             print(f"\n✅ 找到候选: {stock_code} {stock_name} (匹配度: {result['匹配度']:.3f}{market_cap_info})")
                 except Exception as e:
+                    # ✅ 监控：记录超时或错误（用于定位卡点）
+                    if "timeout" in str(e).lower() or "超时" in str(e):
+                        print(f"[监控-并行] [{processed_count}/{total_stocks}] {stock_code} 处理超时: {str(e)[:50]}")
                     # 忽略单个股票的错误，继续处理
                     pass
                 finally:
@@ -2941,11 +3886,31 @@ class BullStockAnalyzer:
                     
                     self.progress['current'] = overall_current
                     self.progress['percentage'] = round(percentage, 1)
-                    self.progress['detail'] = f'并行扫描中... ({overall_current}/{total_all_stocks}){batch_info} | 已找到: {len(candidates)} 只 | 已处理: {processed_count}/{total_stocks}'
+                    
+                    # 检查缺失数据并更新提示
+                    missing_count = len(self._missing_data_stocks) if hasattr(self, '_missing_data_stocks') else 0
+                    missing_info = f" | 缺少数据: {missing_count}只" if missing_count > 0 else ""
+                    
+                    self.progress['detail'] = f'并行扫描中... ({overall_current}/{total_all_stocks}){batch_info} | 已找到: {len(candidates)} 只 | 已处理: {processed_count}/{total_stocks}{missing_info}'
+                    
+                    # 如果缺失数据超过10%，在进度中提示
+                    if missing_count > 0 and processed_count > 0:
+                        missing_pct = (missing_count / processed_count * 100)
+                        if missing_pct > 10:
+                            self.progress['data_warning'] = f'⚠️ 已发现 {missing_count} 只股票缺少本地数据（{missing_pct:.1f}%），建议先下载数据'
+                    # 【不可变】找到一只显示一只：同步候选快照到 progress['candidates']，供前端轮询。见 扫描显示不可变逻辑.md
+                    if 'candidates' not in self.progress:
+                        self.progress['candidates'] = []
+                    else:
+                        try:
+                            candidates.sort(key=lambda x: x.get('匹配度', 0), reverse=True)
+                        except Exception:
+                            pass
+                        self.progress['candidates'] = candidates[:50] if len(candidates) > 50 else candidates
                     self.progress['last_update_time'] = time_module.time()
                 
                 # 每处理10只股票打印一次进度
-                if processed_count % 10 == 0 or processed_count == total_stocks:
+                if processed_count % 200 == 0 or processed_count == total_stocks:
                     elapsed = time_module.time() - start_time
                     speed = processed_count / elapsed if elapsed > 0 else 0
                     print(f"[进度] {percentage:.1f}% - {overall_current}/{total_all_stocks} - 已找到: {len(candidates)} 只 - 速度: {speed:.1f} 只/秒")
@@ -2976,40 +3941,64 @@ class BullStockAnalyzer:
         # 按匹配度排序
         candidates.sort(key=lambda x: x['匹配度'], reverse=True)
         
-        # 扫描完成后，进行市值过滤（如果设置了市值限制）
-        original_count = len(candidates)
+        # ✅ 关键：市值检查必须在扫描完成后进行二次过滤
+        # 因为扫描过程中市值获取可能失败或超时，导致不符合条件的股票被包含进来
+        # 优化：如果扫描过程中已经获取到了市值，直接使用，只对没有市值的股票重新获取
         if max_market_cap > 0 and len(candidates) > 0:
-            print(f"\n📊 开始市值过滤（阈值: ≤ {max_market_cap} 亿元）...")
-            print(f"   扫描找到 {original_count} 只候选股票，开始获取市值...")
+            print(f"\n📊 进行市值二次过滤（阈值: ≤ {max_market_cap} 亿元）...")
+            original_count = len(candidates)
             
-            # 批量获取候选股票的市值（利用缓存机制，只需一次API调用）
+            # 统计已有市值和没有市值的股票数量
+            has_market_cap_count = sum(1 for c in candidates if c.get('市值') is not None and c.get('市值', 0) > 0)
+            no_market_cap_count = len(candidates) - has_market_cap_count
+            print(f"  📊 统计: {has_market_cap_count} 只股票已有市值，{no_market_cap_count} 只股票需要重新获取市值")
+            
             filtered_candidates = []
             
-            for candidate in candidates:
+            # 添加进度更新
+            total_candidates = len(candidates)
+            for idx, candidate in enumerate(candidates, 1):
                 stock_code = candidate.get('股票代码')
                 if stock_code is None:
                     continue
                 
-                # 如果候选股票已经有市值，直接使用
+                # 每100只股票更新一次进度
+                if idx % 100 == 0 or idx == total_candidates:
+                    pct = (idx / total_candidates) * 100
+                    filtered_so_far = original_count - len(filtered_candidates)
+                    print(f"  [市值过滤进度] {idx}/{total_candidates} ({pct:.1f}%) - 已处理: {idx} 只，已过滤: {filtered_so_far} 只")
+                    # 更新进度状态
+                    if hasattr(self, 'progress'):
+                        self.progress['detail'] = f'市值二次过滤中: {idx}/{total_candidates} ({pct:.1f}%)'
+                        self.progress['last_update_time'] = time_module.time()
+                
+                # 检查已有市值（优先使用扫描过程中获取的市值）
                 existing_market_cap = candidate.get('市值')
                 if existing_market_cap is not None and existing_market_cap > 0:
-                    if existing_market_cap <= max_market_cap:
-                        filtered_candidates.append(candidate)
+                    # ✅ 如果扫描过程中已经获取到了市值，直接使用，不需要重新获取
+                    if existing_market_cap > max_market_cap:
+                        if idx % 500 == 0:  # 减少日志输出
+                            print(f"  ❌ {stock_code} {candidate.get('股票名称', '')} 市值 {existing_market_cap:.2f}亿超过限制 {max_market_cap:.2f}亿，已过滤")
+                        continue
+                    filtered_candidates.append(candidate)
                     continue
                 
-                # 如果没有市值，批量获取（利用缓存，第一次调用会获取全部，后续很快）
+                # 如果没有市值，尝试获取（使用更短的超时，避免卡住）
                 try:
-                    market_cap = self.fetcher.get_market_cap(stock_code, timeout=3)
+                    market_cap = self.fetcher.get_market_cap(stock_code, timeout=2)  # 减少超时时间从3秒到2秒
                     if market_cap is not None and market_cap > 0:
-                        # 更新候选股票的市值
                         candidate['市值'] = round(market_cap, 2)
-                        if market_cap <= max_market_cap:
-                            filtered_candidates.append(candidate)
+                        # ✅ 关键：如果市值超过限制，过滤掉
+                        if market_cap > max_market_cap:
+                            if idx % 500 == 0:  # 减少日志输出
+                                print(f"  ❌ {stock_code} {candidate.get('股票名称', '')} 市值 {market_cap:.2f}亿超过限制 {max_market_cap:.2f}亿，已过滤")
+                            continue
+                        filtered_candidates.append(candidate)
                     else:
-                        # 市值获取失败，保留该股票（不因市值过滤而丢失）
+                        # 市值获取失败，保留该股票（不因市值获取失败而丢失）
                         filtered_candidates.append(candidate)
                 except Exception:
-                    # 市值获取失败，保留该股票
+                    # 市值获取异常，保留该股票（不因市值获取失败而丢失）
                     filtered_candidates.append(candidate)
             
             candidates = filtered_candidates
@@ -3039,7 +4028,7 @@ class BullStockAnalyzer:
                 'stopped': True
             }
         
-        return {
+        result = {
             'success': True,
             'message': f'本批扫描完成，找到 {len(candidates)} 只符合条件的股票',
             'candidates': candidates[:50] if len(candidates) > 50 else candidates,
@@ -3050,8 +4039,26 @@ class BullStockAnalyzer:
             'elapsed_time': elapsed_time,
             'speed': speed
         }
+        
+        # 检查缺失数据并添加到结果中
+        missing_count = len(self._missing_data_stocks) if hasattr(self, '_missing_data_stocks') else 0
+        if missing_count > 0:
+            missing_pct = (missing_count / processed_count * 100) if processed_count > 0 else 0
+            result['data_warning'] = {
+                'missing_count': missing_count,
+                'processed_count': processed_count,
+                'missing_percentage': round(missing_pct, 1),
+                'message': f'本批扫描中，{missing_count} 只股票缺少本地数据，已跳过。建议先下载完整数据。'
+            }
+        
+        # 保存扫描结果到 analyzer.scan_results（供前端获取）
+        self.scan_results = result.copy()
+        # 确保保存完整的候选列表（不仅仅是前50个）
+        self.scan_results['candidates'] = candidates  # 保存全部候选，不限制为50个
+        
+        return result
     
-    def _scan_stock_batch_serial(self, stock_list, common_features: Dict, min_match_score: float, max_market_cap: float, batch_num: int = 1, total_batches: int = 1, start_idx: int = 0, existing_candidates: list = None, total_all_stocks: int = None) -> Dict:
+    def _scan_stock_batch_serial(self, stock_list, common_features: Dict, min_match_score: float, max_market_cap: float, batch_num: int = 1, total_batches: int = 1, start_idx: int = 0, existing_candidates: list = None, total_all_stocks: int = None, scan_date: str = None, scan_session: str = None) -> Dict:
         """
         扫描一批股票（串行处理，原有逻辑）
         :param stock_list: 股票列表（DataFrame）
@@ -3077,6 +4084,9 @@ class BullStockAnalyzer:
             'detail': f'开始扫描 {total_stocks} 只股票{batch_info}...',
             'percentage': 0,
             'found': 0,
+            'candidates': [],
+            'scan_date': scan_date,
+            'scan_session': scan_session,
             'batch': batch_num,
             'total_batches': total_batches
         }
@@ -3121,6 +4131,12 @@ class BullStockAnalyzer:
                 self.progress['status'] = '已停止'
                 self.progress['detail'] = f'扫描已停止（已处理 {current_processed}/{total_stocks} 只股票，找到 {len(candidates)} 只）'
                 self.progress['current'] = current_processed
+                # 供前端实时展示：保留一份候选快照（最多50）
+                try:
+                    candidates.sort(key=lambda x: x.get('匹配度', 0), reverse=True)
+                except Exception:
+                    pass
+                self.progress['candidates'] = candidates[:50] if len(candidates) > 50 else candidates
                 self.progress['last_update_time'] = time_module.time()  # 更新最后更新时间
                 
                 # 保存扫描状态以便继续
@@ -3169,7 +4185,18 @@ class BullStockAnalyzer:
             self.progress['current'] = overall_current
             self.progress['total'] = total_all_stocks  # 使用总股票数
             self.progress['percentage'] = round(percentage, 1)
-            self.progress['detail'] = f'正在扫描 {stock_code} {stock_name}... ({overall_current}/{total_all_stocks}){batch_info} | 已找到: {len(candidates)} 只'
+            
+            # 检查缺失数据并更新提示
+            missing_count = len(self._missing_data_stocks) if hasattr(self, '_missing_data_stocks') else 0
+            missing_info = f" | 缺少数据: {missing_count}只" if missing_count > 0 else ""
+            
+            self.progress['detail'] = f'正在扫描 {stock_code} {stock_name}... ({overall_current}/{total_all_stocks}){batch_info} | 已找到: {len(candidates)} 只{missing_info}'
+            
+            # 如果缺失数据超过10%，在进度中提示
+            if missing_count > 0 and idx > 0:
+                missing_pct = (missing_count / idx * 100)
+                if missing_pct > 10:
+                    self.progress['data_warning'] = f'⚠️ 已发现 {missing_count} 只股票缺少本地数据（{missing_pct:.1f}%），建议先下载数据'
             self.progress['current_stock'] = stock_code
             self.progress['current_stock_name'] = stock_name
             self.progress['last_update_time'] = time_module.time()  # 记录最后更新时间
@@ -3180,32 +4207,34 @@ class BullStockAnalyzer:
             
             # 记录开始时间，用于检测超时
             start_time = time_module.time()
-            max_process_time = 8  # 单个股票最大处理时间（秒）- 缩短到8秒，更快跳过问题股票
+            max_process_time = 5  # 单个股票最大处理时间（秒）- 缩短到5秒，更快跳过问题股票
             
-            # 记录开始处理的日志
-            import datetime
-            current_time = datetime.datetime.now().strftime('%H:%M:%S')
-            logging.info(f"[{idx}/{total_stocks}] 开始处理 {stock_code} {stock_name} (开始时间: {current_time})")
-            print(f"[{idx}/{total_stocks}] 开始处理 {stock_code} {stock_name}")  # 同时打印到控制台
+            # 记录开始处理的日志（减少日志输出，每100只股票打印一次）
+            if idx % 100 == 0 or idx == 1:
+                import datetime
+                current_time = datetime.datetime.now().strftime('%H:%M:%S')
+                logging.info(f"[{idx}/{total_stocks}] 开始处理 {stock_code} {stock_name} (开始时间: {current_time})")
+                print(f"[{idx}/{total_stocks}] 开始处理 {stock_code} {stock_name}")  # 同时打印到控制台
             
             # 初始化市值变量（完全跳过，避免卡住）
             market_cap = None
+            market_cap_valid = False
             
             try:
-                # 1. 完全跳过市值检查（避免卡住，市值获取太慢）
-                # 注意：不再进行任何市值相关的操作
-                market_cap = None
-                
+                # ✅ 市值检查：必须在检索时同步检查
                 # 立即更新进度，显示正在处理
                 self.progress['last_update_time'] = time_module.time()
-                logging.info(f"[{idx}/{total_stocks}] {stock_code} 跳过市值检查，直接处理")
-                print(f"[{idx}/{total_stocks}] {stock_code} 跳过市值检查，开始获取周K线...")
+                # 减少日志输出，每100只股票打印一次
+                if idx % 100 == 0 or idx == 1:
+                    logging.info(f"[{idx}/{total_stocks}] {stock_code} 开始处理...")
                 
                 # 2. 获取周K线数据（添加超时保护，使用线程超时强制中断）
                 try:
                     step_start = time_module.time()
-                    logging.info(f"[{idx}/{total_stocks}] {stock_code} 开始获取周K线数据...")
-                    print(f"[{idx}/{total_stocks}] {stock_code} 开始获取周K线数据...")
+                    # 减少日志输出，每100只股票打印一次
+                    if idx % 100 == 0 or idx == 1:
+                        logging.info(f"[{idx}/{total_stocks}] {stock_code} 开始获取周K线数据...")
+                        print(f"[{idx}/{total_stocks}] {stock_code} 开始获取周K线数据...")
                     
                     # 使用线程超时机制，防止卡死
                     weekly_df_result = [None]
@@ -3213,7 +4242,46 @@ class BullStockAnalyzer:
                     
                     def fetch_weekly_data():
                         try:
-                            weekly_df_result[0] = self.fetcher.get_weekly_kline(stock_code, period="2y")
+                            # 如果指定了历史 scan_date，强制使用本地缓存以确保历史回测一致性
+                            force_refresh_flag = getattr(self, "_force_refresh_scan", False)
+                            use_cache = True
+                            if force_refresh_flag and not scan_date:
+                                use_cache = False  # 只有在没有指定scan_date且强制刷新时才不用缓存
+                            
+                            # 扫描时优先使用本地数据，如果本地没有则从网络下载
+                            # 先尝试本地数据（快速）
+                            weekly_df_result[0] = self.fetcher.get_weekly_kline(
+                                stock_code,
+                                period="2y",
+                                use_cache=use_cache,
+                                local_only=True
+                            )
+                            
+                            # ✅ 关键：如果设置了 strict_local_only，即使本地没有数据也不从网络下载
+                            strict_local_only = getattr(self, '_strict_local_only', False)
+                            
+                            # 如果本地没有数据，尝试从网络下载（除非 strict_local_only=True）
+                            if weekly_df_result[0] is None or len(weekly_df_result[0]) < 40:
+                                if strict_local_only:
+                                    # 严格本地模式：跳过缺失数据的股票，不从网络下载
+                                    if not hasattr(self, '_missing_data_stocks'):
+                                        self._missing_data_stocks = set()
+                                    self._missing_data_stocks.add(stock_code)
+                                else:
+                                    # 尝试从网络下载
+                                    print(f"[_scan_stock_batch_serial] {stock_code} 本地无数据，尝试从网络下载...")
+                                    weekly_df_result[0] = self.fetcher.get_weekly_kline(
+                                        stock_code,
+                                        period="2y",
+                                        use_cache=False,
+                                        local_only=False
+                                    )
+                            
+                            # 如果网络获取也失败，记录到缺失列表
+                            if weekly_df_result[0] is None or len(weekly_df_result[0]) < 40:
+                                if not hasattr(self, '_missing_data_stocks'):
+                                    self._missing_data_stocks = set()
+                                self._missing_data_stocks.add(stock_code)
                         except Exception as e:
                             weekly_df_error[0] = e
                     
@@ -3264,8 +4332,157 @@ class BullStockAnalyzer:
                 try:
                     step_start = time_module.time()
                     current_idx = len(weekly_df) - 1
+                    if scan_date:
+                        try:
+                            scan_ts = pd.to_datetime(scan_date, errors='coerce')
+                            if pd.notna(scan_ts) and '日期' in weekly_df.columns:
+                                w = weekly_df.copy()
+                                w['__dt'] = pd.to_datetime(w['日期'], errors='coerce')
+                                w = w.dropna(subset=['__dt'])
+                                
+                                # ✅ 严格回溯（as-of）：只能使用 scan_date 当天及之前的数据
+                                # 注意：周K的“日期”通常是周结束日（如周五）。
+                                # 如果 scan_date 在周中（或在周结束日前），该周的周K会包含 scan_date 之后的数据。
+                                # 为避免“偷看未来”，这里必须把该周整根周K剔除，仅保留 __dt <= scan_ts 的周K。
+                                original_len = len(w)
+                                w = w[w['__dt'] <= scan_ts]
+                                
+                                # ✅ 调试：输出截断信息
+                                if idx % 100 == 0:
+                                    print(f"[调试-并行] [{idx}/{total_stocks}] {stock_code} 扫描日期: {scan_date}, 原始数据: {original_len}周, 截断后: {len(w)}周")
+                                
+                                if len(w) >= 40:
+                                    # 使用过滤后数据的最后一条作为 current_idx
+                                    weekly_df = w.drop(columns=['__dt'])
+                                    current_idx = len(weekly_df) - 1
+                                    
+                                    # ✅ 调试：确认截断后的最后一周日期
+                                    if idx % 100 == 0 and len(weekly_df) > 0:
+                                        last_week_date = weekly_df.iloc[-1]['日期']
+                                        print(f"[调试-并行] [{idx}/{total_stocks}] {stock_code} 截断后最后一周日期: {last_week_date}")
+                                    
+                                else:
+                                    continue
+                        except Exception:
+                            pass
+                    
+                    # ✅ as-of 聚合：对「当前周」进行部分周K聚合（适用于实时扫描和历史回测）
+                    # 如果 scan_date 在当前周内（周一到周K日期之间），用该周周一到 scan_date 的日K聚合成部分周K
+                    # 这样回测结果与「当天实盘扫描」完全一致，保证回测的有效性
+                    aggregated_this_week = False  # 标记是否进行了聚合
+                    try:
+                        from datetime import datetime as dt_now, timedelta
+                        
+                        # 确定实际使用的扫描日期：如果 scan_date 为 None，使用今天的日期（实时扫描）
+                        actual_scan_date = scan_date if scan_date else dt_now.now().strftime('%Y-%m-%d')
+                        
+                        if len(weekly_df) > 0 and '日期' in weekly_df.columns:
+                            # 使用确定的扫描日期
+                            scan_ts = pd.to_datetime(actual_scan_date, errors='coerce')
+                            
+                            if pd.notna(scan_ts):
+                                # 获取最后一周的日期
+                                last_week_date = pd.to_datetime(weekly_df.iloc[-1]['日期'], errors='coerce')
+                                
+                                if pd.notna(last_week_date):
+                                    # 动态计算最后一周的周一：找到包含 last_week_date 的那一周的周一
+                                    # 周K的日期可能是周五（weekday=4）或周日（weekday=6），代表该周结束日
+                                    # 往前推 weekday 天，得到该周的周一
+                                    last_week_weekday = last_week_date.weekday()  # 0=周一, 4=周五, 6=周日
+                                    last_week_monday = last_week_date - timedelta(days=last_week_weekday)
+                                    
+                                    # 判断 scan_date 是否在最后一周内（周一到周K日期之间）
+                                    # 或者 scan_date 在当前周内（最后一周之后，但仍在当前周）
+                                    should_aggregate = False
+                                    week_start_str = None
+                                    week_end_date = None
+                                    
+                                    if last_week_monday <= scan_ts <= last_week_date:
+                                        # 情况1：scan_date 在最后一周内
+                                        should_aggregate = True
+                                        week_start_str = last_week_monday.strftime('%Y%m%d')
+                                        week_end_date = last_week_date
+                                    elif scan_ts > last_week_date:
+                                        # 情况2：scan_date 在最后一周之后，检查是否在当前周内
+                                        # 计算当前周的周一（最后一周的下一个周一）
+                                        current_week_monday = last_week_date + timedelta(days=(7 - last_week_weekday))
+                                        # 计算当前周的结束日（周五或周日，取决于周K的格式）
+                                        # 假设周K在周五结束，则当前周结束日是 current_week_monday + 4
+                                        current_week_end = current_week_monday + timedelta(days=4)
+                                        
+                                        if current_week_monday <= scan_ts <= current_week_end:
+                                            # scan_date 在当前周内，需要聚合当前周的数据
+                                            should_aggregate = True
+                                            week_start_str = current_week_monday.strftime('%Y%m%d')
+                                            week_end_date = current_week_end
+                                    
+                                    if should_aggregate:
+                                        aggregated_this_week = True  # 标记进行了聚合
+                                        # 需要聚合：获取该周周一到 scan_date 的日K数据
+                                        scan_date_str = scan_ts.strftime('%Y%m%d')
+                                        
+                                        # 获取日K数据（回测时强制使用本地缓存，确保历史数据一致性）
+                                        daily_df = self.fetcher.get_daily_kline_range(
+                                            stock_code,
+                                            start_date=week_start_str,
+                                            end_date=scan_date_str,
+                                            use_cache=True,
+                                            local_only=True  # 回测时强制使用本地缓存，避免使用未来数据
+                                        )
+                                        
+                                        if daily_df is not None and len(daily_df) > 0:
+                                            # 确保必要的列存在
+                                            required_cols = ['日期', '开盘', '收盘', '最高', '最低', '成交量']
+                                            if all(col in daily_df.columns for col in required_cols):
+                                                # 转换为日期类型
+                                                daily_df = daily_df.copy()
+                                                daily_df['日期'] = pd.to_datetime(daily_df['日期'], errors='coerce')
+                                                daily_df = daily_df.dropna(subset=['日期'])
+                                                # ✅ 严格过滤：只使用扫描日期及之前的数据，避免使用未来数据
+                                                daily_df = daily_df[daily_df['日期'] <= scan_ts].sort_values('日期').reset_index(drop=True)
+                                                
+                                                if len(daily_df) > 0:
+                                                    # 聚合为周K（仅该周的部分数据）
+                                                    partial_week_k = pd.Series({
+                                                        '开盘': float(daily_df.iloc[0]['开盘']),
+                                                        '收盘': float(daily_df.iloc[-1]['收盘']),
+                                                        '最高': float(daily_df['最高'].max()),
+                                                        '最低': float(daily_df['最低'].min()),
+                                                        '周成交量': float(daily_df['成交量'].sum()),
+                                                        '日期': week_end_date  # 使用该周的结束日期
+                                                    })
+                                                    
+                                                    # 如果成交额列存在，也聚合
+                                                    if '成交额' in daily_df.columns:
+                                                        partial_week_k['周成交额'] = float(daily_df['成交额'].sum())
+                                                    
+                                                    # 如果当前周是新的一周（scan_ts > last_week_date），需要添加新的一行
+                                                    if scan_ts > last_week_date:
+                                                        # 添加新的周K行
+                                                        weekly_df = weekly_df.copy()
+                                                        partial_week_k['日期'] = week_end_date
+                                                        weekly_df = pd.concat([weekly_df, pd.DataFrame([partial_week_k])], ignore_index=True)
+                                                        # ✅ 更新 current_idx 指向新添加的聚合周K
+                                                        current_idx = len(weekly_df) - 1
+                                                    else:
+                                                        # 替换最后一周的周K
+                                                        weekly_df = weekly_df.copy()
+                                                        weekly_df.iloc[-1] = partial_week_k
+                                                        # current_idx 保持不变，仍指向最后一行
+                                                    
+                                                    # 调试输出（每100只股票输出一次）
+                                                    if idx % 100 == 0:
+                                                        print(f"[as-of聚合周K-并行] [{idx}/{total_stocks}] {stock_code} 扫描日期: {scan_ts.strftime('%Y-%m-%d')}, 聚合了周（{week_start_str} 到 {scan_ts.strftime('%Y-%m-%d')}），current_idx={current_idx}")
+                    except Exception as e:
+                        # 聚合失败不影响扫描，继续使用原周K
+                        if idx % 100 == 0:
+                            print(f"[as-of聚合周K-并行] [{idx}/{total_stocks}] {stock_code} 聚合失败: {str(e)[:50]}")
+                        pass
+                    
                     logging.info(f"[{idx}/{total_stocks}] {stock_code} 开始提取特征，起点索引: {current_idx}")
-                    print(f"[{idx}/{total_stocks}] {stock_code} 开始提取特征...")
+                    # 减少日志输出，每100只股票打印一次
+                    if idx % 100 == 0 or idx == 1:
+                        print(f"[{idx}/{total_stocks}] {stock_code} 开始提取特征...")
                     
                     # 使用线程超时机制，防止卡死
                     features_result = [None]
@@ -3347,6 +4564,47 @@ class BullStockAnalyzer:
                     if current_idx >= len(weekly_df):
                         continue
                     
+                    # 5.1. 检查120日和250日均线方向（如果都向下，直接排除）
+                    try:
+                        limit_date = scan_date if scan_date else pd.Timestamp.now().strftime('%Y-%m-%d')
+                        limit_date_ymd = pd.to_datetime(limit_date).strftime('%Y%m%d')
+                        
+                        daily_df = self.fetcher.get_daily_kline_range(
+                            stock_code, 
+                            start_date='20220101',
+                            end_date=limit_date_ymd,
+                            use_cache=True,
+                            local_only=True
+                        )
+                        
+                        if daily_df is not None and len(daily_df) >= 250:
+                            daily_df['日期'] = pd.to_datetime(daily_df['日期'], errors='coerce')
+                            daily_df = daily_df.dropna(subset=['日期']).sort_values('日期').reset_index(drop=True)
+                            
+                            limit_dt = pd.to_datetime(limit_date)
+                            daily_before = daily_df[daily_df['日期'] <= limit_dt]
+                            if len(daily_before) >= 250:
+                                scan_idx = len(daily_before) - 1
+                                
+                                ma120_current = daily_before['收盘'].iloc[scan_idx-119:scan_idx+1].mean()
+                                ma250_current = daily_before['收盘'].iloc[scan_idx-249:scan_idx+1].mean()
+                                
+                                if scan_idx >= 20:
+                                    ma120_20d_ago = daily_before['收盘'].iloc[scan_idx-139:scan_idx-119].mean()
+                                    ma250_20d_ago = daily_before['收盘'].iloc[scan_idx-269:scan_idx-249].mean()
+                                    
+                                    ma120_slope = (ma120_current - ma120_20d_ago) / ma120_20d_ago if ma120_20d_ago > 0 else 0
+                                    ma250_slope = (ma250_current - ma250_20d_ago) / ma250_20d_ago if ma250_20d_ago > 0 else 0
+                                    
+                                    if ma120_slope < 0 and ma250_slope < 0:
+                                        print(f"[均线过滤-串行] [{idx}/{total_stocks}] {stock_code} {stock_name} MA120和MA250都向下，已排除 (MA120斜率: {ma120_slope*100:.2f}%, MA250斜率: {ma250_slope*100:.2f}%, 扫描日期: {limit_date})")
+                                        continue
+                    except Exception as e:
+                        # 均线检查失败不影响扫描，继续处理
+                        if idx % 100 == 0 or stock_code == '000798':
+                            print(f"[均线检查异常-串行] [{idx}/{total_stocks}] {stock_code} {stock_name} 均线方向检查异常: {str(e)[:50]}")
+                        pass
+                    
                     try:
                         # 尝试获取市值（如果市值获取成功，按市值筛选；失败则跳过市值检查）
                         market_cap_checked = False
@@ -3388,23 +4646,68 @@ class BullStockAnalyzer:
                                 market_cap_checked = True
                                 market_cap_valid = False
                         
-                        # 市值检查通过（或市值获取失败，跳过检查），记录该股票
-                        current_price = float(weekly_df.iloc[current_idx]['收盘'])
+                        # 最佳买点日期 = 最后一周的周K日期（特征匹配基于这一周）
+                        # 但价格使用扫描日期的收盘价（如果扫描日期在周K日期之前，则用周K收盘价）
+                        from datetime import datetime as dt_now
+                        today_str = dt_now.now().strftime('%Y-%m-%d')
+                        limit_date = scan_date if scan_date else today_str  # 搜索当天
+                        fallback_price = float(weekly_df.iloc[current_idx]['收盘'])
                         current_date = weekly_df.iloc[current_idx]['日期']
-                        
                         if isinstance(current_date, pd.Timestamp):
                             current_date_str = current_date.strftime('%Y-%m-%d')
+                            current_date_ts = current_date
                         else:
-                            current_date_str = str(current_date)
+                            current_date_str = str(current_date)[:10]
+                            current_date_ts = pd.to_datetime(current_date_str, errors='coerce')
                         
-                        # 最佳买点价格：当前价格（下一个交易日可以买入）
-                        buy_price = current_price
-                        buy_date = current_date_str
+                        # ✅ 最佳买点日期：如果进行了聚合，使用扫描日期；否则使用最后一周的周K日期
+                        # 如果进行了聚合（aggregated_this_week=True），最佳买点日期应该是扫描日期
+                        # 否则使用最后一周的周K日期（特征匹配基于这一周）
+                        scan_date_ts = pd.to_datetime(limit_date, errors='coerce')
+                        if aggregated_this_week and scan_date:
+                            # 进行了聚合，最佳买点日期 = 扫描日期
+                            buy_date = limit_date
+                        else:
+                            # 没有聚合，使用最后一周的周K日期
+                            buy_date = current_date_str
                         
+                        # 如果扫描日期在周K日期之前或等于周K日期，使用扫描日期的收盘价
+                        # 否则使用周K收盘价（这种情况不应该发生，因为我们已经截断了数据）
+                        if pd.notna(scan_date_ts) and pd.notna(current_date_ts) and scan_date_ts <= current_date_ts:
+                            close_on_search = self._get_close_on_date(stock_code, limit_date)
+                            if close_on_search is not None:
+                                buy_price = close_on_search
+                            else:
+                                buy_price = fallback_price
+                        else:
+                            # 扫描日期晚于周K日期（不应该发生），使用周K收盘价
+                            buy_price = fallback_price
+                        
+                        # ✅ 当前价格 = 扫描日期的收盘价（不是今天的最新价格）
+                        # 如果扫描日期是历史日期，当前价格就是扫描日期的价格
+                        # 如果扫描日期是今天，当前价格就是今天的最新价格
+                        current_price = buy_price  # 默认使用最佳买点价格（即扫描日期的价格）
+                        
+                        # 如果扫描日期是今天，且获取到了今天的价格，使用今天的价格
+                        if limit_date == today_str:
+                            close_today = self._get_close_on_date(stock_code, today_str)
+                            if close_today is not None:
+                                current_price = close_today
+                            else:
+                                current_price = buy_price
+                        # else: 扫描日期是历史日期，current_price = buy_price（已经是扫描日期的价格）
+                        
+                        # ✅ 调试：确认最终价格（并行版本）
+                        if idx % 100 == 0:
+                            print(f"[调试-价格-并行] [{idx}/{total_stocks}] {stock_code} 最佳买点日期: {buy_date}, 最佳买点价格: {buy_price:.2f}, 当前价格: {current_price:.2f}, 扫描日期: {limit_date}")
+                        # 买点当天为大阴线则排除（不加入候选）
+                        if self._is_big_bearish_candle_on_date(stock_code, limit_date):
+                            if idx % 100 == 0:
+                                print(f"[过滤-并行] [{idx}/{total_stocks}] {stock_code} {stock_name} 买点当日({limit_date})为大阴线，已排除")
+                            continue
                         # 如果没有获取到市值，market_cap 保持为 None
                         if not market_cap_checked:
                             market_cap = None
-                        
                         candidates.append({
                             '股票代码': stock_code,
                             '股票名称': stock_name,
@@ -3418,6 +4721,12 @@ class BullStockAnalyzer:
                         })
                         
                         self.progress['found'] = len(candidates)
+                        # 【不可变】找到一只显示一只：写入 progress['candidates'] 供前端轮询。见 扫描显示不可变逻辑.md
+                        try:
+                            candidates.sort(key=lambda x: x.get('匹配度', 0), reverse=True)
+                        except Exception:
+                            pass
+                        self.progress['candidates'] = candidates[:50] if len(candidates) > 50 else candidates
                         market_cap_info = f" 市值: {market_cap:.2f}亿" if market_cap_valid else " 市值: 未知"
                         print(f"\n✅ 找到候选: {stock_code} {stock_name} (匹配度: {match_score['总匹配度']:.3f}{market_cap_info})")
                     except Exception as e:
@@ -3457,6 +4766,73 @@ class BullStockAnalyzer:
         # 按匹配度排序
         candidates.sort(key=lambda x: x['匹配度'], reverse=True)
         
+        # ✅ 关键：市值检查必须在扫描完成后进行二次过滤
+        # 因为扫描过程中市值获取可能失败或超时，导致不符合条件的股票被包含进来
+        # 优化：如果扫描过程中已经获取到了市值，直接使用，只对没有市值的股票重新获取
+        if max_market_cap > 0 and len(candidates) > 0:
+            print(f"\n📊 进行市值二次过滤（阈值: ≤ {max_market_cap} 亿元）...")
+            original_count = len(candidates)
+            
+            # 统计已有市值和没有市值的股票数量
+            has_market_cap_count = sum(1 for c in candidates if c.get('市值') is not None and c.get('市值', 0) > 0)
+            no_market_cap_count = len(candidates) - has_market_cap_count
+            print(f"  📊 统计: {has_market_cap_count} 只股票已有市值，{no_market_cap_count} 只股票需要重新获取市值")
+            
+            filtered_candidates = []
+            
+            # 添加进度更新
+            total_candidates = len(candidates)
+            for idx, candidate in enumerate(candidates, 1):
+                stock_code = candidate.get('股票代码')
+                if stock_code is None:
+                    continue
+                
+                # 每100只股票更新一次进度
+                if idx % 100 == 0 or idx == total_candidates:
+                    pct = (idx / total_candidates) * 100
+                    filtered_so_far = original_count - len(filtered_candidates)
+                    print(f"  [市值过滤进度] {idx}/{total_candidates} ({pct:.1f}%) - 已处理: {idx} 只，已过滤: {filtered_so_far} 只")
+                    # 更新进度状态
+                    if hasattr(self, 'progress'):
+                        self.progress['detail'] = f'市值二次过滤中: {idx}/{total_candidates} ({pct:.1f}%)'
+                        self.progress['last_update_time'] = time_module.time()
+                
+                # 检查已有市值（优先使用扫描过程中获取的市值）
+                existing_market_cap = candidate.get('市值')
+                if existing_market_cap is not None and existing_market_cap > 0:
+                    # ✅ 如果扫描过程中已经获取到了市值，直接使用，不需要重新获取
+                    if existing_market_cap > max_market_cap:
+                        if idx % 500 == 0:  # 减少日志输出
+                            print(f"  ❌ {stock_code} {candidate.get('股票名称', '')} 市值 {existing_market_cap:.2f}亿超过限制 {max_market_cap:.2f}亿，已过滤")
+                        continue
+                    filtered_candidates.append(candidate)
+                    continue
+                
+                # 如果没有市值，尝试获取（使用更短的超时，避免卡住）
+                try:
+                    market_cap = self.fetcher.get_market_cap(stock_code, timeout=2)  # 减少超时时间从3秒到2秒
+                    if market_cap is not None and market_cap > 0:
+                        candidate['市值'] = round(market_cap, 2)
+                        # ✅ 关键：如果市值超过限制，过滤掉
+                        if market_cap > max_market_cap:
+                            if idx % 500 == 0:  # 减少日志输出
+                                print(f"  ❌ {stock_code} {candidate.get('股票名称', '')} 市值 {market_cap:.2f}亿超过限制 {max_market_cap:.2f}亿，已过滤")
+                            continue
+                        filtered_candidates.append(candidate)
+                    else:
+                        # 市值获取失败，保留该股票（不因市值获取失败而丢失）
+                        filtered_candidates.append(candidate)
+                except Exception:
+                    # 市值获取异常，保留该股票（不因市值获取失败而丢失）
+                    filtered_candidates.append(candidate)
+            
+            candidates = filtered_candidates
+            filtered_count = original_count - len(candidates)
+            if filtered_count > 0:
+                print(f"   ✅ 市值过滤完成：过滤掉 {filtered_count} 只（市值 > {max_market_cap} 亿元），剩余 {len(candidates)} 只")
+            else:
+                print(f"   ✅ 市值过滤完成：所有候选股票均符合市值要求，剩余 {len(candidates)} 只")
+        
         # 完成进度
         batch_info = f" [第 {batch_num}/{total_batches} 批]" if total_batches > 1 else ""
         # 如果被停止，状态已经是'已停止'，否则设置为完成或进行中
@@ -3468,6 +4844,12 @@ class BullStockAnalyzer:
                 self.progress['detail'] = f'所有批次扫描完成: 找到 {len(candidates)} 只符合条件的股票'
                 # 使用总股票数
                 self.progress['current'] = total_all_stocks
+                # 确保进度中的found和candidates与最终结果一致
+                self.progress['found'] = len(candidates)
+                self.progress['candidates'] = candidates[:50] if len(candidates) > 50 else candidates
+                # 确保进度中的found和candidates与最终结果一致
+                self.progress['found'] = len(candidates)
+                self.progress['candidates'] = candidates[:50] if len(candidates) > 50 else candidates
             else:
                 # 还有下一批，继续扫描
                 self.progress['status'] = '进行中'
@@ -3499,7 +4881,7 @@ class BullStockAnalyzer:
                 'stopped': True  # 标记为已停止
             }
         
-        return {
+        result = {
             'success': True,
             'message': f'本批扫描完成，找到 {len(candidates)} 只符合条件的股票',
             'candidates': candidates[:50] if len(candidates) > 50 else candidates,  # 只返回前50个最佳候选
@@ -3508,6 +4890,16 @@ class BullStockAnalyzer:
             'batch': batch_num,
             'total_batches': total_batches
         }
+        
+        # 保存扫描结果到 analyzer.scan_results（供前端获取）
+        # 如果是最后一批，保存完整结果
+        if batch_num == total_batches:
+            self.scan_results = result.copy()
+            # 确保保存完整的候选列表（不仅仅是前50个）
+            self.scan_results['candidates'] = candidates  # 保存全部候选，不限制为50个
+            self.scan_results['found_count'] = len(candidates)  # 确保found_count与实际数量一致
+        
+        return result
     
     def get_trained_features(self) -> Optional[Dict]:
         """
@@ -3549,6 +4941,13 @@ class BullStockAnalyzer:
                 if 'trained_at' in sell_features and hasattr(sell_features['trained_at'], 'isoformat'):
                     sell_features['trained_at'] = sell_features['trained_at'].isoformat()
                 model_data['sell_features'] = sell_features
+
+            # 保存“8条件”选股大模型
+            if getattr(self, 'trained_screener_model', None):
+                screener_model = self.trained_screener_model.copy()
+                if 'trained_at' in screener_model and hasattr(screener_model['trained_at'], 'isoformat'):
+                    screener_model['trained_at'] = screener_model['trained_at'].isoformat()
+                model_data['screener_model'] = screener_model
             
             # 保存分析结果（只保存关键信息）
             for stock_code, result in self.analysis_results.items():
@@ -3650,6 +5049,20 @@ class BullStockAnalyzer:
                 if 'trained_at' in sell_features and isinstance(sell_features['trained_at'], str):
                     sell_features['trained_at'] = datetime.fromisoformat(sell_features['trained_at'])
                 self.trained_sell_features = sell_features
+
+            # 加载“8条件”选股大模型（不触发网络）
+            if model_data.get('screener_model'):
+                screener_model = model_data['screener_model']
+                try:
+                    if 'trained_at' in screener_model and isinstance(screener_model['trained_at'], str):
+                        screener_model['trained_at'] = datetime.fromisoformat(screener_model['trained_at'])
+                except Exception:
+                    pass
+                self.trained_screener_model = screener_model
+            
+            # 加载 analysis_results（训练买点、起点索引/日期等，find_buy_points 按日期匹配训练买点用）
+            if model_data.get('analysis_results'):
+                self.analysis_results = dict(model_data['analysis_results'])
             
             # 加载大牛股列表（仅加载元数据，不获取股票数据，避免网络请求）
             # 即使 skip_network=True，也应该加载股票列表的元数据（不触发网络请求）

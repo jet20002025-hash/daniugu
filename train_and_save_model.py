@@ -18,6 +18,7 @@ def save_model(analyzer, filename='trained_model.json'):
             'trained_at': datetime.now().isoformat(),
             'buy_features': None,
             'sell_features': None,
+            'screener_model': None,
             'analysis_results': {},
             'bull_stocks': []
         }
@@ -37,6 +38,13 @@ def save_model(analyzer, filename='trained_model.json'):
             if 'trained_at' in sell_features and hasattr(sell_features['trained_at'], 'isoformat'):
                 sell_features['trained_at'] = sell_features['trained_at'].isoformat()
             model_data['sell_features'] = sell_features
+
+        # 保存“8条件”选股大模型
+        if getattr(analyzer, 'trained_screener_model', None):
+            screener_model = analyzer.trained_screener_model.copy()
+            if 'trained_at' in screener_model and hasattr(screener_model['trained_at'], 'isoformat'):
+                screener_model['trained_at'] = screener_model['trained_at'].isoformat()
+            model_data['screener_model'] = screener_model
         
         # 保存分析结果（只保存关键信息）
         for stock_code, result in analyzer.analysis_results.items():
@@ -168,6 +176,10 @@ def main():
         print(f"\n✅ 买点特征模型训练完成")
         print(f"   - 特征数量: {feature_count}")
         print(f"   - 样本数量: {sample_count}")
+        # 如果包含“8条件”选股大模型，也打印摘要
+        if getattr(analyzer, 'trained_screener_model', None):
+            cond_stats = analyzer.trained_screener_model.get('condition_stats', {})
+            print(f"   - 选股大模型(8条件)统计项: {len(cond_stats)}")
     else:
         print(f"\n❌ 买点特征模型训练失败: {train_result.get('message', '')}")
         return
@@ -197,25 +209,45 @@ def main():
     print(f"   - 最高匹配度: {max_score:.3f}")
     print(f"   - 是否达标 (>=0.95): {'✅ 是' if is_ready else '❌ 否'}")
     
-    # 测试每只股票的买点匹配度
+    # 测试每只股票的买点匹配度，并收集结果用于最后展示
+    name_by_code = {s['代码']: s['名称'] for s in analyzer.bull_stocks}
+    match_results = []
     print(f"\n测试每只股票的买点匹配度:")
     for stock_code in analyzer.default_bull_stocks:
+        name = name_by_code.get(stock_code, '-')
         if stock_code not in analyzer.analysis_results:
+            match_results.append((stock_code, name, None, False))
             continue
         
         print(f"\n  {stock_code}:")
         result = analyzer.find_buy_points(stock_code, tolerance=0.3, search_years=5, match_threshold=0.95)
-        if result.get('success'):
-            buy_points = result.get('buy_points', [])
-            if buy_points:
-                best_bp = buy_points[0]  # 匹配度最高的买点
-                match_score = best_bp.get('匹配度', 0)
-                is_best = best_bp.get('是否最佳买点', False)
-                print(f"    最高匹配度: {match_score:.3f}, 是否最佳买点: {'✅' if is_best else '❌'}")
-            else:
-                print(f"    ⚠️ 未找到买点（匹配度阈值0.95）")
-        else:
+        if not result.get('success'):
+            match_results.append((stock_code, name, None, False))
             print(f"    ❌ 查找失败: {result.get('message', '')}")
+        elif not result.get('buy_points', []):
+            match_results.append((stock_code, name, None, False))
+            print(f"    ⚠️ 未找到买点（匹配度阈值0.95）")
+        else:
+            best_bp = result['buy_points'][0]
+            ms = best_bp.get('匹配度', 0)
+            ib = best_bp.get('是否最佳买点', False)
+            match_results.append((stock_code, name, ms, ib))
+            print(f"    最高匹配度: {ms:.3f}, 是否最佳买点: {'✅' if ib else '❌'}")
+    
+    def _print_match_table(rows, title="大牛股匹配度一览", threshold=0.95):
+        print(f"\n{'='*80}")
+        print(f"📋 {title}")
+        print(f"{'='*80}")
+        print(f"{'代码':<10} {'名称':<12} {'匹配度':<10} {'最佳买点':<10} {'达标(≥%.2f)' % threshold:<12}")
+        print("-" * 60)
+        for code, name, ms, ib in rows:
+            ms_str = f"{ms:.3f}" if ms is not None else "-"
+            ok = "✅" if (ms is not None and ms >= threshold) else "❌"
+            ib_str = "✅" if ib else "❌"
+            print(f"{code:<10} {name:<12} {ms_str:<10} {ib_str:<10} {ok:<12}")
+        print(f"{'='*80}\n")
+    
+    _print_match_table(match_results, "大牛股匹配度一览", 0.95)
     
     # 步骤5: 保存模型
     print("\n" + "=" * 80)
@@ -228,6 +260,7 @@ def main():
         print("📝 模型文件: trained_model.json")
         print("📝 Web应用启动时会自动加载此模型")
         print("=" * 80)
+        _print_match_table(match_results, "模型已更新 · 大牛股匹配度一览", 0.95)
     else:
         print("\n❌ 保存模型失败")
 

@@ -15,12 +15,13 @@ class StockScreener:
         self.tech_analysis = TechnicalAnalysis()
         self.results = []
     
-    def screen_stock(self, stock_code, stock_name, conditions=None):
+    def screen_stock(self, stock_code, stock_name, conditions=None, as_of_date=None):
         """
         对单只股票进行选股条件判断
         :param stock_code: 股票代码
         :param stock_name: 股票名称
         :param conditions: 选股条件字典，包含各条件的参数
+        :param as_of_date: 截止日期（用于历史回测/训练）。为 None 时使用最新数据。
         :return: 是否满足条件, 详细信息字典
         """
         # 默认条件参数
@@ -40,20 +41,17 @@ class StockScreener:
             'condition3_small_positive_max': 10,  # 小阳线最大涨幅
             'condition3_large_positive_min': 20,  # 大阳线最小涨幅
             
-            'condition4_enabled': True,  # 回到启动价附近
-            'condition4_threshold': 0.03, # 启动价阈值（3%）
+            'condition4_enabled': True,  # 近期涨停
+            'condition4_days': 10,       # 涨停查询天数
             
-            'condition5_enabled': True,  # 近期大量成交
-            'condition5_multiplier': 2.0, # 成交量倍数
+            'condition5_enabled': True,  # 月成交量最大
+            'condition5_months': 12,     # 月成交量查询月数
             
-            'condition6_enabled': True,  # 近期涨停
-            'condition6_days': 10,       # 涨停查询天数
+            'condition6_enabled': True,  # 月线稳步上升
+            'condition6_months': 6,      # 月线趋势检查月数
             
-            'condition7_enabled': True,  # 月成交量最大
-            'condition7_months': 12,     # 月成交量查询月数
-            
-            'condition8_enabled': True,  # 月线稳步上升
-            'condition8_months': 6,      # 月线趋势检查月数
+            'condition7_enabled': True,  # 股价突破月线最大量最高价
+            'condition7_months': 12,     # 查询月数
         }
         
         # 合并用户自定义条件
@@ -69,10 +67,25 @@ class StockScreener:
             monthly_df = self.data_fetcher.get_monthly_kline(stock_code)
             if monthly_df is None or monthly_df.empty:
                 return False, None
+
+            # 如果指定截止日期，裁剪到该日期（用于历史回测/训练）
+            if as_of_date is not None:
+                try:
+                    as_of_ts = pd.to_datetime(as_of_date, errors='coerce')
+                    if pd.notna(as_of_ts):
+                        daily_df = daily_df[daily_df['日期'] <= as_of_ts].copy()
+                        monthly_df = monthly_df[monthly_df['日期'] <= as_of_ts].copy()
+                except Exception:
+                    pass
+                if daily_df is None or daily_df.empty or monthly_df is None or monthly_df.empty:
+                    return False, None
             
             # 获取涨停信息（如果条件6启用）
+            # 训练/回测场景下（as_of_date 不为空）不走网络接口，直接基于 daily_df 计算
             if cond['condition6_enabled']:
-                has_limit_up, limit_up_days = self.data_fetcher.get_limit_up_info(stock_code, days=cond['condition6_days'])
+                has_limit_up, limit_up_days = self._get_limit_up_info_from_daily_df(
+                    daily_df, days=cond['condition6_days']
+                )
             else:
                 has_limit_up, limit_up_days = True, []  # 如果条件6禁用，默认满足
             
@@ -93,16 +106,17 @@ class StockScreener:
             if cond['condition2_enabled']:
                 ma = self.tech_analysis.calculate_ma(daily_df, period=cond['condition2_ma_period'])
                 if ma is None:
-                    return False, None
-                current_above_ma, recent_above_ma = self.tech_analysis.check_price_above_ma(daily_df, ma)
-                center_rising = self.tech_analysis.check_center_rising(daily_df, ma, days=cond['condition2_recent_days'])
-                condition2 = current_above_ma and recent_above_ma and center_rising
+                    # 数据不足（例如历史不足250日），视为不满足，但不直接中断（训练/回测也需要拿到detail）
+                    condition2 = False
+                else:
+                    current_above_ma, recent_above_ma = self.tech_analysis.check_price_above_ma(daily_df, ma)
+                    center_rising = self.tech_analysis.check_center_rising(daily_df, ma, days=cond['condition2_recent_days'])
+                    condition2 = current_above_ma and recent_above_ma and center_rising
             else:
                 ma = None
             
             # 条件3: 启动价识别
             condition3 = True
-            condition4 = True
             found_startup = False
             startup_price = None
             reversal_date = None
@@ -112,59 +126,51 @@ class StockScreener:
             if cond['condition3_enabled']:
                 ma_monthly = self.tech_analysis.calculate_monthly_ma(monthly_df, period=cond['condition3_ma_monthly_period'])
                 if ma_monthly is None:
-                    return False, None
-                
-                found_startup, startup_price, reversal_date, reversal_low, reversal_close = \
-                    self.tech_analysis.find_startup_price(monthly_df, ma_monthly)
-                condition3 = found_startup
-                
-                # 条件4: 回到启动价附近
-                if cond['condition4_enabled']:
-                    if found_startup:
-                        condition4 = self.tech_analysis.check_near_startup_price(
-                            current_price, startup_price, reversal_low, threshold=cond['condition4_threshold']
-                        )
-                    else:
-                        condition4 = False
+                    # 月线数据不足，无法识别启动价：视为不满足，但不直接中断
+                    found_startup, startup_price, reversal_date, reversal_low, reversal_close = False, None, None, None, None
+                    condition3 = False
+                    ma_monthly = None
                 else:
-                    condition4 = True  # 如果条件4禁用，默认满足
+                    found_startup, startup_price, reversal_date, reversal_low, reversal_close = \
+                        self.tech_analysis.find_startup_price(monthly_df, ma_monthly)
+                    condition3 = found_startup
             else:
                 condition3 = True  # 如果条件3禁用，默认满足
-                if cond['condition4_enabled']:
-                    condition4 = False  # 如果条件3禁用但条件4启用，则条件4无法满足
-                else:
-                    condition4 = True
             
-            # 条件5: 近期大量成交
+            # 条件4: 近期涨停
+            if cond['condition4_enabled']:
+                condition4 = has_limit_up
+            else:
+                condition4 = True  # 如果条件4禁用，默认满足
+            
+            # 条件5: 月成交量最大
             if cond['condition5_enabled']:
-                condition5 = self.tech_analysis.check_large_volume_recent(daily_df, multiplier=cond['condition5_multiplier'])
+                max_monthly_volume, max_monthly_volume_date = \
+                    self.tech_analysis.find_max_monthly_volume(monthly_df, months=cond['condition5_months'])
+                condition5 = max_monthly_volume is not None
             else:
                 condition5 = True  # 如果条件5禁用，默认满足
+                max_monthly_volume, max_monthly_volume_date = None, None
             
-            # 条件6: 近期涨停
+            # 条件6: 月线稳步上升
             if cond['condition6_enabled']:
-                condition6 = has_limit_up
+                condition6 = self.tech_analysis.check_monthly_trend_rising(monthly_df, months=cond['condition6_months'])
             else:
                 condition6 = True  # 如果条件6禁用，默认满足
             
-            # 条件7: 月成交量最大
+            # 条件7: 股价突破月线最大量最高价
+            max_volume_high = None
             if cond['condition7_enabled']:
-                max_monthly_volume, max_monthly_volume_date = \
-                    self.tech_analysis.find_max_monthly_volume(monthly_df, months=cond['condition7_months'])
-                condition7 = max_monthly_volume is not None
+                _, _, max_volume_high = self.tech_analysis.find_max_monthly_volume_high(
+                    monthly_df, months=cond['condition7_months'])
+                condition7 = self.tech_analysis.check_price_above_max_volume_high(
+                    current_price, max_volume_high)
             else:
                 condition7 = True  # 如果条件7禁用，默认满足
-                max_monthly_volume, max_monthly_volume_date = None, None
-            
-            # 条件8: 月线稳步上升
-            if cond['condition8_enabled']:
-                condition8 = self.tech_analysis.check_monthly_trend_rising(monthly_df, months=cond['condition8_months'])
-            else:
-                condition8 = True  # 如果条件8禁用，默认满足
             
             # 综合判断：所有条件都满足
-            all_conditions_met = (condition1 and condition2 and condition3 and condition4 and 
-                                 condition5 and condition6 and condition7 and condition8)
+            all_conditions_met = (condition1 and condition2 and condition3 and 
+                                 condition4 and condition5 and condition6 and condition7)
             
             # 构建详细信息
             detail = {
@@ -174,15 +180,15 @@ class StockScreener:
                 '条件1_历史最大量': condition1,
                 '条件2_年线之上': condition2,
                 '条件3_找到启动价': condition3,
-                '条件4_回到启动价附近': condition4,
-                '条件5_近期大量成交': condition5,
-                '条件6_近期涨停': condition6,
-                '条件7_月成交量最大': condition7,
-                '条件8_月线稳步上升': condition8,
+                '条件4_近期涨停': condition4,
+                '条件5_月成交量最大': condition5,
+                '条件6_月线稳步上升': condition6,
+                '条件7_突破月线最大量最高价': condition7,
                 '启动价': startup_price if found_startup else None,
                 '反转日期': reversal_date if found_startup else None,
                 '历史最大量日期': max_volume_date,
                 '月成交量最大日期': max_monthly_volume_date,
+                '月线最大量最高价': max_volume_high,
                 '涨停日期': limit_up_days if has_limit_up else []
             }
             
@@ -191,6 +197,33 @@ class StockScreener:
         except Exception as e:
             print(f"分析 {stock_code} ({stock_name}) 时出错: {e}")
             return False, None
+
+    @staticmethod
+    def _get_limit_up_info_from_daily_df(daily_df, days=10):
+        """
+        基于已有日线数据计算最近N个交易日是否出现涨停（避免训练/回测时额外网络请求）
+        :return: (has_limit_up: bool, limit_up_days: list[Timestamp])
+        """
+        try:
+            if daily_df is None or daily_df.empty:
+                return False, []
+            df = daily_df.sort_values('日期').reset_index(drop=True).copy()
+            if len(df) < 2:
+                return False, []
+
+            # 只取最近 N 个交易日窗口
+            recent = df.tail(days).copy()
+            # 使用收盘价计算涨跌幅（%），避免依赖 akshare 列名/位置
+            recent['__pct'] = recent['收盘'].pct_change() * 100
+            # 第一行pct为NaN，填充为0避免误判
+            recent['__pct'] = recent['__pct'].fillna(0)
+
+            # 简化：以 >= 9.5% 作为涨停判定（与原 DataFetcher.get_limit_up_info 一致）
+            limit_up_mask = recent['__pct'] >= 9.5
+            limit_up_days = recent.loc[limit_up_mask, '日期'].tolist()
+            return len(limit_up_days) > 0, limit_up_days
+        except Exception:
+            return False, []
     
     def screen_all_stocks(self, limit=None, exclude_st=True, save_interval=100):
         """

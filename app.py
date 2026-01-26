@@ -325,5 +325,14 @@ if __name__ == '__main__':
     print("=" * 80)
     print("访问地址: http://localhost:5000")
     print("=" * 80)
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True, allow_unsafe_werkzeug=True)
+    # macOS 上 Werkzeug reloader 可能触发 selectors.kevent 相关异常，导致服务不稳定
+    # 为了本地测试稳定性，关闭 reloader（保留 debug 日志也不再 fork 子进程）
+    socketio.run(
+        app,
+        host='0.0.0.0',
+        port=5000,
+        debug=True,
+        use_reloader=False,
+        allow_unsafe_werkzeug=True
+    )
 
