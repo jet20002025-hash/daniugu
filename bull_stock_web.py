@@ -106,9 +106,17 @@ def _log_login_attempt(username, success, duration_ms, timestamp, message):
     except Exception as e:
         # 记录失败不应该影响登录流程
         print(f"记录登录日志失败: {e}")
-# 每次重启服务器生成新的 SECRET_KEY，使所有旧 session 失效，用户需要重新登录
+# SECRET_KEY 配置：优先使用环境变量（生产环境），否则生成随机值（开发环境）
+# 注意：在 Render 等生产环境中，应该设置固定的 SECRET_KEY 环境变量，避免服务器重启后 session 失效
 import uuid
-app.config['SECRET_KEY'] = f'bull-stock-{uuid.uuid4().hex}'
+app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', f'bull-stock-{uuid.uuid4().hex}')
+if is_render or is_vercel:
+    # 在生产环境中，如果没有设置环境变量，使用一个固定的默认值（不推荐，但比每次重启失效好）
+    if not os.environ.get('FLASK_SECRET_KEY'):
+        print("⚠️ 警告：未设置 FLASK_SECRET_KEY 环境变量，使用默认值（不推荐生产环境）")
+        app.config['SECRET_KEY'] = 'bull-stock-render-default-secret-key-2024-please-change'
+    else:
+        print("✅ 使用环境变量 FLASK_SECRET_KEY")
 
 # 添加全局错误处理器，确保所有错误都返回 JSON 格式（而不是 HTML）
 # 注意：必须使用 app.errorhandler 注册，不能使用 register_error_handler
@@ -204,6 +212,76 @@ try:
         traceback.print_exc()
 except Exception as e:
     print(f"⚠️ 无法导入测试用户初始化函数: {e}")
+
+# 应用启动时确保 super/superzwj 账户存在（自动恢复机制）
+def ensure_super_user_exists():
+    """确保 super/superzwj 账户存在，如果不存在或密码错误则自动创建/修复"""
+    try:
+        if is_vercel or is_render or has_redis:
+            from user_auth_vercel import load_users, save_users, hash_password
+        else:
+            from user_auth import load_users, save_users, hash_password
+        
+        users = load_users()
+        username = 'super'
+        expected_password = 'superzwj'
+        expected_password_hash = hash_password(expected_password)
+        
+        if username not in users:
+            # 用户不存在，创建新用户
+            users[username] = {
+                'username': username,
+                'email': 'super@admin.com',
+                'password': expected_password_hash,
+                'created_at': datetime.now().isoformat(),
+                'last_login': None,
+                'invite_code': 'AUTO_CREATED_ON_STARTUP',
+                'is_active': True,
+                'is_vip': True,
+                'is_super': True,
+                'is_test_user': True
+            }
+            save_users(users)
+            print(f"✅ 启动时自动创建 super 用户（密码: {expected_password}）")
+        else:
+            # 用户存在，检查密码是否正确
+            user = users[username]
+            current_password_hash = user.get('password', '')
+            
+            if current_password_hash != expected_password_hash:
+                # 密码不正确，修复为 superzwj
+                user['password'] = expected_password_hash
+                user['is_vip'] = True
+                user['is_super'] = True
+                user['is_active'] = True
+                user['updated_at'] = datetime.now().isoformat()
+                save_users(users)
+                print(f"✅ 启动时自动修复 super 用户密码为 {expected_password}")
+            else:
+                # 确保权限正确
+                needs_update = False
+                if not user.get('is_vip', False):
+                    user['is_vip'] = True
+                    needs_update = True
+                if not user.get('is_super', False):
+                    user['is_super'] = True
+                    needs_update = True
+                if not user.get('is_active', True):
+                    user['is_active'] = True
+                    needs_update = True
+                if needs_update:
+                    save_users(users)
+                    print(f"✅ 启动时自动修复 super 用户权限")
+    except Exception as e:
+        print(f"⚠️ 启动时确保 super 用户存在失败: {e}")
+        import traceback
+        traceback.print_exc()
+
+# 在应用启动时执行
+try:
+    ensure_super_user_exists()
+except Exception as e:
+    print(f"⚠️ 启动时执行 super 用户检查失败: {e}")
 
 # 创建全局分析器实例（延迟初始化，先启动Flask服务）
 # 使用延迟初始化，避免阻塞Flask启动
@@ -584,7 +662,52 @@ def api_login():
             response.headers['Expires'] = '0'
             return response
         else:
-            _log_login_attempt(username, False, login_duration, login_start_datetime, result.get('message', '登录失败'))
+            # 详细记录登录失败原因
+            error_msg = result.get('message', '登录失败')
+            print(f"❌ 登录失败 - 用户名: {username}, 原因: {error_msg}, 耗时: {login_duration:.2f}ms")
+            
+            # 对于 super 用户登录失败，尝试自动恢复
+            if username == 'super':
+                print(f"⚠️ super 用户登录失败，尝试自动恢复账户...")
+                try:
+                    if is_vercel or is_render or has_redis:
+                        from user_auth_vercel import load_users, save_users, hash_password
+                    else:
+                        from user_auth import load_users, save_users, hash_password
+                    
+                    users = load_users()
+                    if 'super' not in users:
+                        # 创建 super 用户
+                        users['super'] = {
+                            'username': 'super',
+                            'email': 'super@admin.com',
+                            'password': hash_password('superzwj'),
+                            'created_at': datetime.now().isoformat(),
+                            'last_login': None,
+                            'invite_code': 'AUTO_RECOVERED',
+                            'is_active': True,
+                            'is_vip': True,
+                            'is_super': True,
+                            'is_test_user': True
+                        }
+                        save_users(users)
+                        print(f"✅ 已自动恢复 super 用户账户")
+                        # 重新尝试登录
+                        result = login_user(username, password)
+                        if result['success']:
+                            session['username'] = username
+                            _log_login_attempt(username, True, login_duration, login_start_datetime, '登录成功（账户已自动恢复）')
+                            response = jsonify(result)
+                            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+                            response.headers['Pragma'] = 'no-cache'
+                            response.headers['Expires'] = '0'
+                            return response
+                except Exception as e:
+                    print(f"❌ 自动恢复 super 用户失败: {e}")
+                    import traceback
+                    traceback.print_exc()
+            
+            _log_login_attempt(username, False, login_duration, login_start_datetime, error_msg)
             response = jsonify(result)
             # 禁止缓存错误响应
             response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
@@ -631,6 +754,20 @@ data_update_stop_flag = False
 # 数据更新时间戳文件路径
 DATA_UPDATE_TIMESTAMP_FILE = 'cache/data_update_timestamp.json'
 
+def _format_time(seconds):
+    """格式化时间为可读格式（例如：1分30秒、2小时15分）"""
+    if seconds < 60:
+        return f'{int(seconds)}秒'
+    elif seconds < 3600:
+        minutes = int(seconds // 60)
+        secs = int(seconds % 60)
+        return f'{minutes}分{secs}秒'
+    else:
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+        return f'{hours}小时{minutes}分{secs}秒'
+
 def _load_data_update_timestamp():
     """加载数据更新时间戳"""
     import json as json_module
@@ -658,8 +795,11 @@ def _save_data_update_timestamp(timestamp_str):
         print(f"[_save_data_update_timestamp] 保存时间戳失败: {e}")
 
 def _should_skip_update_after_trading_hours():
-    """检查是否应该跳过更新（交易日15:00后已更新过）"""
+    """检查是否应该跳过更新（交易日15:00后已更新过）
+    重要：不仅检查时间戳，还要检查实际数据是否真的更新到今天"""
     from datetime import datetime, timezone, timedelta
+    import os
+    import pandas as pd
     
     # 获取北京时间（UTC+8）
     utc_now = datetime.now(timezone.utc)
@@ -682,6 +822,30 @@ def _should_skip_update_after_trading_hours():
         
         # 如果今天已经更新过
         if last_update_date == today_str:
+            # ✅ 关键修复：检查实际数据是否真的更新到今天
+            # 检查几个样本股票的最新数据日期
+            sample_codes = ['000001', '000002', '600000', '600519']
+            actual_latest_date = None
+            for code in sample_codes:
+                csv_path = os.path.join('cache', 'daily_kline', f'{code}.csv')
+                if os.path.exists(csv_path):
+                    try:
+                        df = pd.read_csv(csv_path, usecols=['日期'], encoding='utf-8')
+                        if len(df) > 0:
+                            df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
+                            df = df.dropna(subset=['日期'])
+                            if len(df) > 0:
+                                latest = df['日期'].max()
+                                latest_str = latest.strftime('%Y-%m-%d')
+                                if actual_latest_date is None or latest_str > actual_latest_date:
+                                    actual_latest_date = latest_str
+                    except:
+                        pass
+            
+            # 如果实际数据最新日期不是今天，说明数据没有真正更新
+            if actual_latest_date and actual_latest_date < today_str:
+                return False, f'时间戳显示已更新，但实际数据最新日期是 {actual_latest_date}，需要重新更新'
+            
             # 检查更新时间是否在15:00之后
             if last_update_time_str:
                 try:
@@ -689,11 +853,15 @@ def _should_skip_update_after_trading_hours():
                     update_time = datetime.strptime(last_update_time_str, '%Y-%m-%d %H:%M:%S')
                     update_hour = update_time.hour
                     if update_hour >= 15:
-                        return True, f'今日 {last_update_time_str} 已更新，交易已结束，无需再次更新'
+                        # ✅ 只有实际数据也更新到今天，才跳过更新
+                        if actual_latest_date == today_str:
+                            return True, f'今日 {last_update_time_str} 已更新，交易已结束，无需再次更新'
+                        else:
+                            return False, f'时间戳显示已更新，但实际数据最新日期是 {actual_latest_date}，需要重新更新'
                 except:
                     pass
         
-        # 如果昨天15:00后更新过，今天15:00后也认为不需要更新
+        # 如果昨天15:00后更新过，今天15:00后也认为不需要更新（但也要检查实际数据）
         if last_update_date:
             try:
                 last_date = datetime.strptime(last_update_date, '%Y-%m-%d')
@@ -703,26 +871,33 @@ def _should_skip_update_after_trading_hours():
                         try:
                             update_time = datetime.strptime(last_update_time_str, '%Y-%m-%d %H:%M:%S')
                             if update_time.hour >= 15:
-                                return True, f'{last_update_date} {last_update_time_str.split()[1] if " " in last_update_time_str else ""} 已更新，今日交易已结束'
+                                # ✅ 检查实际数据是否更新到今天
+                                sample_codes = ['000001', '000002', '600000', '600519']
+                                actual_latest_date = None
+                                for code in sample_codes:
+                                    csv_path = os.path.join('cache', 'daily_kline', f'{code}.csv')
+                                    if os.path.exists(csv_path):
+                                        try:
+                                            df = pd.read_csv(csv_path, usecols=['日期'], encoding='utf-8')
+                                            if len(df) > 0:
+                                                df['日期'] = pd.to_datetime(df['日期'], errors='coerce')
+                                                df = df.dropna(subset=['日期'])
+                                                if len(df) > 0:
+                                                    latest = df['日期'].max()
+                                                    latest_str = latest.strftime('%Y-%m-%d')
+                                                    if actual_latest_date is None or latest_str > actual_latest_date:
+                                                        actual_latest_date = latest_str
+                                        except:
+                                            pass
+                                
+                                if actual_latest_date == today_str:
+                                    return True, f'{last_update_date} {last_update_time_str.split()[1] if " " in last_update_time_str else ""} 已更新，今日交易已结束'
+                                else:
+                                    return False, f'时间戳显示已更新，但实际数据最新日期是 {actual_latest_date}，需要重新更新'
                         except:
                             pass
             except:
                 pass
-    
-    # ✅ 关键修复：如果时间戳文件不存在，但当前时间已经是15:00后，也阻止更新
-    # 因为交易已结束，即使没有时间戳记录，也不应该自动更新（避免在非交易时间浪费资源）
-    # 注意：这个逻辑只适用于自动更新，手动点击"更新数据"按钮仍然允许更新
-    # 但这里我们统一处理：15:00后如果没有今天的时间戳，也阻止更新
-    # 用户如果确实需要更新，可以手动点击按钮（手动更新会绕过这个检查，或者我们可以在手动更新时也检查）
-    
-    # 实际上，如果时间戳文件不存在，说明可能是第一次运行或刚部署
-    # 在这种情况下，15:00后不应该自动更新（因为交易已结束）
-    # 但如果是手动点击"更新数据"，应该允许（因为用户明确要求）
-    # 所以我们返回 False，让调用方决定（如果是自动更新，应该阻止；如果是手动，可以允许）
-    
-    # 但问题是：前端无法区分是自动还是手动
-    # 解决方案：在 check_data_freshness 中，如果是15:00后且没有时间戳，返回 fresh=True
-    # 在 start_data_update 中，如果是15:00后且没有时间戳，也阻止更新
     
     return False, None  # 暂时允许，但会在 check_data_freshness 和 start_data_update 中再次检查
 
@@ -996,7 +1171,8 @@ def _get_sina_weekly_kline(code, datalen=200):
         return None
 
 def _data_update_worker():
-    """后台数据更新工作线程：调用 update_data_sina.py 批量下载，完成后自动融合"""
+    """后台数据更新工作线程：调用 update_data_sina.py 更新数据，完成后自动融合
+    默认：today-only（只补齐今天日K），历史数据已存在时速度更快。"""
     global data_update_progress, data_update_stop_flag
     import subprocess
     import sys
@@ -1016,12 +1192,12 @@ def _data_update_worker():
             data_update_progress['message'] = f'更新脚本不存在: {script_path}'
             return
         
-        data_update_progress['message'] = '正在批量下载最新数据（使用新浪财经API）...'
+        data_update_progress['message'] = '正在更新今日数据（日K，仅今天；使用新浪财经API）...'
         data_update_progress['data_source'] = 'sina'
         
         # 运行脚本（实时输出进度）
         process = subprocess.Popen(
-            [sys.executable, script_path],
+            [sys.executable, script_path, '--today-only'],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -1042,6 +1218,10 @@ def _data_update_worker():
             line = line.strip()
             if line:
                 output_lines.append(line)
+                # ✅ 实时计算已用时间
+                elapsed = time.time() - data_update_progress['start_time']
+                data_update_progress['elapsed_time'] = elapsed
+                
                 # 解析总股票数（例如：📊 参与更新股票数: 5007（全部））
                 if '参与更新股票数:' in line and '（全部）' in line:
                     try:
@@ -1071,7 +1251,9 @@ def _data_update_worker():
                                     speed_info = f' | 速度: {speed:.1f}只/秒'
                                 except:
                                     pass
-                            data_update_progress['message'] = f'正在批量下载: {current}/{total} ({data_update_progress["percentage"]:.1f}%){speed_info}'
+                            # ✅ 在消息中包含已用时间
+                            elapsed_str = _format_time(elapsed)
+                            data_update_progress['message'] = f'正在批量下载: {current}/{total} ({data_update_progress["percentage"]:.1f}%){speed_info} | 已用时间: {elapsed_str}'
                     except:
                         pass
                 # 解析新增记录数
@@ -1095,14 +1277,48 @@ def _data_update_worker():
         
         if return_code != 0:
             error_msg = '\n'.join(output_lines[-10:])  # 最后10行
+            elapsed = time.time() - data_update_progress['start_time']
+            elapsed_str = _format_time(elapsed)
             data_update_progress['status'] = 'error'
             data_update_progress['message'] = f'下载失败（返回码: {return_code}）: {error_msg[:200]}'
+            data_update_progress['elapsed_time'] = elapsed
+            return
+        
+        # ✅ 检查实际是否有新数据被下载
+        daily_total_new = 0
+        weekly_total_new = 0
+        for line in output_lines:
+            # 解析最终统计：日K线新增记录: XXX
+            if '日K线新增记录:' in line:
+                try:
+                    parts = line.split('日K线新增记录:')[1].strip()
+                    daily_total_new = int(parts.split()[0])
+                except:
+                    pass
+            # 解析最终统计：周K线新增记录: XXX
+            if '周K线新增记录:' in line:
+                try:
+                    parts = line.split('周K线新增记录:')[1].strip()
+                    weekly_total_new = int(parts.split()[0])
+                except:
+                    pass
+        
+        # 如果没有任何新数据，不更新时间戳
+        if daily_total_new == 0 and weekly_total_new == 0:
+            elapsed = time.time() - data_update_progress['start_time']
+            elapsed_str = _format_time(elapsed)
+            data_update_progress['status'] = 'completed'
+            data_update_progress['message'] = f'⚠️ 下载完成，但未发现新数据（可能数据已是最新或API失败）。耗时 {elapsed_str}。'
+            data_update_progress['elapsed_time'] = elapsed
+            print(f"[数据更新] ⚠️ 未发现新数据，不更新时间戳")
             return
         
         elapsed = time.time() - data_update_progress['start_time']
+        data_update_progress['elapsed_time'] = elapsed
         
         # ✅ 下载完成后，自动融合数据（重建 data_markers.json）
-        data_update_progress['message'] = f'下载完成！耗时 {elapsed:.1f}秒。正在融合数据到个股数据...'
+        elapsed_str = _format_time(elapsed)
+        data_update_progress['message'] = f'下载完成！新增日K: {daily_total_new}条，周K: {weekly_total_new}条。耗时 {elapsed_str}。正在融合数据到个股数据...'
         data_update_progress['status'] = 'merging'  # 融合中状态
         
         try:
@@ -1129,8 +1345,12 @@ def _data_update_worker():
                     if 'data_markers 总条数:' in merge_output:
                         total_markers = merge_output.split('data_markers 总条数:')[1].split('\n')[0].strip()
                     
+                    # ✅ 融合完成后，重新计算总时间
+                    elapsed = time.time() - data_update_progress['start_time']
+                    elapsed_str = _format_time(elapsed)
+                    
                     data_update_progress['status'] = 'completed'
-                    summary = f'✅ 更新完成！耗时 {elapsed:.1f}秒。数据已融合到个股数据。'
+                    summary = f'✅ 更新完成！新增日K: {daily_total_new}条，周K: {weekly_total_new}条。耗时 {elapsed_str}。数据已融合到个股数据。'
                     if daily_info:
                         summary += f' {daily_info}'
                     if weekly_info:
@@ -1138,48 +1358,81 @@ def _data_update_worker():
                     if total_markers:
                         summary += f' 总条数: {total_markers}'
                     data_update_progress['message'] = summary
+                    data_update_progress['elapsed_time'] = elapsed
                     
-                    # ✅ 记录更新时间戳
+                    # ✅ 只有真正有新数据时才记录更新时间戳
                     from datetime import datetime
                     timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     _save_data_update_timestamp(timestamp_str)
-                    print(f"[数据更新] ✅ 更新时间戳已记录: {timestamp_str}")
+                    print(f"[数据更新] ✅ 有新数据更新（日K: {daily_total_new}条，周K: {weekly_total_new}条），更新时间戳: {timestamp_str}")
                 else:
+                    # ✅ 融合完成后，重新计算总时间
+                    elapsed = time.time() - data_update_progress['start_time']
+                    elapsed_str = _format_time(elapsed)
+                    
                     data_update_progress['status'] = 'completed'
-                    data_update_progress['message'] = f'✅ 下载完成！耗时 {elapsed:.1f}秒。⚠️ 融合过程有警告: {merge_result.stderr[:200] if merge_result.stderr else "无错误信息"}'
-                    # ✅ 记录更新时间戳（即使融合有警告，数据已下载完成）
-                    from datetime import datetime
-                    timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    _save_data_update_timestamp(timestamp_str)
-                    print(f"[数据更新] ✅ 更新时间戳已记录: {timestamp_str}")
+                    data_update_progress['message'] = f'✅ 下载完成！新增日K: {daily_total_new}条，周K: {weekly_total_new}条。耗时 {elapsed_str}。⚠️ 融合过程有警告: {merge_result.stderr[:200] if merge_result.stderr else "无错误信息"}'
+                    data_update_progress['elapsed_time'] = elapsed
+                    # ✅ 只有真正有新数据时才记录更新时间戳
+                    if daily_total_new > 0 or weekly_total_new > 0:
+                        from datetime import datetime
+                        timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        _save_data_update_timestamp(timestamp_str)
+                        print(f"[数据更新] ✅ 有新数据更新（日K: {daily_total_new}条，周K: {weekly_total_new}条），更新时间戳: {timestamp_str}")
+                    else:
+                        print(f"[数据更新] ⚠️ 融合有警告但无新数据，不更新时间戳")
             else:
                 data_update_progress['status'] = 'completed'
-                data_update_progress['message'] = f'✅ 下载完成！耗时 {elapsed:.1f}秒。⚠️ 融合脚本不存在，跳过融合。'
-                # ✅ 记录更新时间戳（即使融合脚本不存在，数据已下载完成）
+                data_update_progress['message'] = f'✅ 下载完成！新增日K: {daily_total_new}条，周K: {weekly_total_new}条。耗时 {elapsed_str}。⚠️ 融合脚本不存在，跳过融合。'
+                data_update_progress['elapsed_time'] = elapsed
+                # ✅ 只有真正有新数据时才记录更新时间戳
+                if daily_total_new > 0 or weekly_total_new > 0:
+                    from datetime import datetime
+                    timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    _save_data_update_timestamp(timestamp_str)
+                    print(f"[数据更新] ✅ 有新数据更新（日K: {daily_total_new}条，周K: {weekly_total_new}条），更新时间戳: {timestamp_str}")
+                else:
+                    print(f"[数据更新] ⚠️ 融合脚本不存在且无新数据，不更新时间戳")
+        except subprocess.TimeoutExpired:
+            # ✅ 融合超时后，重新计算总时间
+            elapsed = time.time() - data_update_progress['start_time']
+            elapsed_str = _format_time(elapsed)
+            
+            data_update_progress['status'] = 'completed'
+            data_update_progress['message'] = f'✅ 下载完成！新增日K: {daily_total_new}条，周K: {weekly_total_new}条。耗时 {elapsed_str}。⚠️ 融合超时（5分钟），但数据已下载完成。'
+            data_update_progress['elapsed_time'] = elapsed
+            # ✅ 只有真正有新数据时才记录更新时间戳
+            if daily_total_new > 0 or weekly_total_new > 0:
                 from datetime import datetime
                 timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 _save_data_update_timestamp(timestamp_str)
-                print(f"[数据更新] ✅ 更新时间戳已记录: {timestamp_str}")
-        except subprocess.TimeoutExpired:
-            data_update_progress['status'] = 'completed'
-            data_update_progress['message'] = f'✅ 下载完成！耗时 {elapsed:.1f}秒。⚠️ 融合超时（5分钟），但数据已下载完成。'
-            # ✅ 记录更新时间戳（即使融合超时，数据已下载完成）
-            from datetime import datetime
-            timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            _save_data_update_timestamp(timestamp_str)
-            print(f"[数据更新] ✅ 更新时间戳已记录: {timestamp_str}")
+                print(f"[数据更新] ✅ 有新数据更新（日K: {daily_total_new}条，周K: {weekly_total_new}条），更新时间戳: {timestamp_str}")
+            else:
+                print(f"[数据更新] ⚠️ 融合超时且无新数据，不更新时间戳")
         except Exception as merge_error:
+            # ✅ 融合失败后，重新计算总时间
+            elapsed = time.time() - data_update_progress['start_time']
+            elapsed_str = _format_time(elapsed)
+            
             data_update_progress['status'] = 'completed'
-            data_update_progress['message'] = f'✅ 下载完成！耗时 {elapsed:.1f}秒。⚠️ 融合失败: {str(merge_error)[:100]}'
-            # ✅ 记录更新时间戳（即使融合失败，数据已下载完成）
-            from datetime import datetime
-            timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            _save_data_update_timestamp(timestamp_str)
-            print(f"[数据更新] ✅ 更新时间戳已记录: {timestamp_str}")
+            data_update_progress['message'] = f'✅ 下载完成！新增日K: {daily_total_new}条，周K: {weekly_total_new}条。耗时 {elapsed_str}。⚠️ 融合失败: {str(merge_error)[:100]}'
+            data_update_progress['elapsed_time'] = elapsed
+            # ✅ 只有真正有新数据时才记录更新时间戳
+            if daily_total_new > 0 or weekly_total_new > 0:
+                from datetime import datetime
+                timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                _save_data_update_timestamp(timestamp_str)
+                print(f"[数据更新] ✅ 有新数据更新（日K: {daily_total_new}条，周K: {weekly_total_new}条），更新时间戳: {timestamp_str}")
+            else:
+                print(f"[数据更新] ⚠️ 融合失败且无新数据，不更新时间戳")
         
     except Exception as e:
+        elapsed = time.time() - data_update_progress.get('start_time', time.time())
+        elapsed_str = _format_time(elapsed) if 'start_time' in data_update_progress else '未知'
         data_update_progress['status'] = 'error'
         data_update_progress['message'] = f'更新出错: {str(e)}'
+        if 'start_time' in data_update_progress:
+            data_update_progress['elapsed_time'] = elapsed
 
 @app.route('/api/start_data_update', methods=['POST'])
 @require_login
@@ -1191,14 +1444,20 @@ def start_data_update():
     if data_update_progress['status'] == 'running':
         return jsonify({'success': False, 'message': '数据更新正在进行中'})
     
-    # ✅ 检查是否应该跳过更新（交易日15:00后已更新过）
-    should_skip, skip_reason = _should_skip_update_after_trading_hours()
-    if should_skip:
-        return jsonify({
-            'success': False,
-            'message': skip_reason or '交易已结束，今日已更新，无需再次更新',
-            'skip_reason': 'trading_hours_ended'
-        })
+    # ✅ 检查是否强制更新
+    data = request.get_json() or {}
+    force_update = data.get('force', False)  # 强制更新选项
+    
+    # ✅ 检查是否应该跳过更新（交易日15:00后已更新过），除非强制更新
+    if not force_update:
+        should_skip, skip_reason = _should_skip_update_after_trading_hours()
+        if should_skip:
+            return jsonify({
+                'success': False,
+                'message': skip_reason or '交易已结束，今日已更新，无需再次更新',
+                'skip_reason': 'trading_hours_ended',
+                'can_force': True  # 允许强制更新
+            })
     
     # ✅ 额外检查：如果当前时间已经是15:00后，且没有时间戳文件，也阻止更新
     from datetime import datetime, timezone, timedelta
@@ -1300,6 +1559,13 @@ def get_data_update_timestamp():
 def get_data_update_progress():
     """获取数据更新进度"""
     global data_update_progress
+    import time
+    
+    # ✅ 如果正在运行或融合中，实时计算已用时间
+    if data_update_progress.get('status') in ['running', 'merging'] and 'start_time' in data_update_progress:
+        elapsed = time.time() - data_update_progress['start_time']
+        data_update_progress['elapsed_time'] = elapsed
+    
     return jsonify(data_update_progress)
 
 @app.route('/api/stop_data_update', methods=['POST'])
@@ -1670,6 +1936,20 @@ def check_cache_status():
                 print(f"[check_cache_status] ✅ 缓存存在，股票数: {cached_stock_count} 只")
             else:
                 print(f"[check_cache_status] ⚠️ 缓存不存在或为空")
+                # ✅ 如果缓存不存在，尝试从K线文件列表生成
+                if not cache_exists:
+                    print(f"[check_cache_status] 🔄 尝试从K线文件列表生成股票列表...")
+                    try:
+                        from generate_stock_list_from_files import generate_stock_list_from_kline_files
+                        if generate_stock_list_from_kline_files():
+                            # 重新检查缓存
+                            cached_stocks = analyzer.fetcher._get_stock_list_from_cache(check_age=False)
+                            if cached_stocks is not None and len(cached_stocks) > 0:
+                                cache_exists = True
+                                cached_stock_count = len(cached_stocks)
+                                print(f"[check_cache_status] ✅ 已从K线文件生成股票列表，股票数: {cached_stock_count} 只")
+                    except Exception as gen_error:
+                        print(f"[check_cache_status] ⚠️ 生成股票列表失败: {gen_error}")
         except Exception as e:
             import traceback
             error_detail = traceback.format_exc()
@@ -2791,8 +3071,8 @@ def get_progress():
         'Expires': '0'
     }
     
-    # 在 Vercel serverless 环境中，从 Redis 读取进度（Render环境使用本地进度）
-    if is_vercel and not is_render:
+    # 在 Vercel serverless 环境中，从 Redis 读取进度（Render环境也使用 scan_progress_store）
+    if is_vercel or is_render:
         scan_id = request.args.get('scan_id')
         
         # 获取当前用户信息
@@ -2835,31 +3115,44 @@ def get_progress():
                         response.headers[key] = value
                     return response
             except Exception as e:
-                print(f"[get_progress] 从 Redis 读取进度失败: {e}")
+                print(f"[get_progress] 从 scan_progress_store 读取进度失败: {e}")
         
         # 如果没有提供 scan_id，尝试查找当前用户的最新扫描任务
         # scan_id 格式: username_timestamp_uuid
-        # 由于 Redis 不支持模式匹配，我们使用一个键来存储用户的最新 scan_id
         try:
             latest_scan_key = f'latest_scan:{username}'
+            latest_scan_id = None
+            
+            # 尝试从 Redis 获取（如果支持）
             if hasattr(scan_progress_store, '_upstash_redis_get'):
-                latest_scan_id = scan_progress_store._upstash_redis_get(latest_scan_key)
-                if latest_scan_id:
-                    progress = scan_progress_store.get_scan_progress(latest_scan_id)
-                    if progress:
-                        # 验证进度是否属于当前用户
-                        progress_username = progress.get('username', 'anonymous')
-                        if progress_username == username:
-                            # 检查状态是否为活跃（不是"空闲"或"已完成"）
-                            status = progress.get('status', '空闲')
-                            if status not in ['空闲', '已完成', '已停止', '错误']:
-                                response = jsonify({
-                                    'success': True,
-                                    'progress': progress
-                                })
-                                for key, value in response_headers.items():
-                                    response.headers[key] = value
-                                return response
+                try:
+                    latest_scan_id = scan_progress_store._upstash_redis_get(latest_scan_key)
+                except Exception as e:
+                    print(f"[get_progress] 从 Redis 获取最新 scan_id 失败: {e}")
+            
+            # 如果 Redis 获取失败，尝试从内存缓存获取（Render 环境）
+            if not latest_scan_id and hasattr(scan_progress_store, '_memory_cache'):
+                try:
+                    latest_scan_id = scan_progress_store._memory_cache.get(latest_scan_key)
+                except Exception as e:
+                    print(f"[get_progress] 从内存缓存获取最新 scan_id 失败: {e}")
+            
+            if latest_scan_id:
+                progress = scan_progress_store.get_scan_progress(latest_scan_id)
+                if progress:
+                    # 验证进度是否属于当前用户
+                    progress_username = progress.get('username', 'anonymous')
+                    if progress_username == username:
+                        # 检查状态是否为活跃（不是"空闲"或"已完成"）
+                        status = progress.get('status', '空闲')
+                        if status not in ['空闲', '已完成', '已停止', '错误', '失败']:
+                            response = jsonify({
+                                'success': True,
+                                'progress': progress
+                            })
+                            for key, value in response_headers.items():
+                                response.headers[key] = value
+                            return response
         except Exception as e:
             print(f"[get_progress] 查找最新扫描任务失败: {e}")
         
@@ -4145,16 +4438,69 @@ def scan_all_stocks():
                 }), 500
         
         # 本地环境：使用原来的方式（后台线程）
+        # ✅ 为本地环境也创建 scan_id，方便前端检测扫描状态
+        import uuid
+        import time as time_module
+        timestamp = int(time_module.time())
+        unique_id = str(uuid.uuid4())[:8]
+        scan_id = f"{username}_{timestamp}_{unique_id}"
+        
+        print(f"[scan_all_stocks] 生成扫描任务ID: {scan_id} (用户: {username}, 本地环境)")
+        
+        # ✅ 提前创建初始进度（标记为"准备中"），这样即使请求超时，前端也能检测到扫描任务
+        try:
+            import scan_progress_store
+            preparing_progress = {
+                'type': 'scan',
+                'scan_id': scan_id,
+                'username': username,
+                'user_tier': user_tier,
+                'is_auto_scan': False,
+                'current': 0,
+                'total': 0,  # 暂时为0，获取股票列表后更新
+                'status': '准备中',
+                'detail': '正在获取股票列表...',
+                'percentage': 0,
+                'found': 0,
+                'batch': 0,
+                'total_batches': 0,  # 暂时为0，获取股票列表后更新
+                'min_match_score': min_match_score,
+                'max_market_cap': max_market_cap,
+                'candidates': [],
+                'start_time': time_module.time()
+            }
+            scan_progress_store.save_scan_progress(scan_id, preparing_progress)
+            
+            # 保存用户的最新 scan_id（用于后续查找）
+            try:
+                latest_scan_key = f'latest_scan:{username}'
+                if hasattr(scan_progress_store, '_upstash_redis_set'):
+                    scan_progress_store._upstash_redis_set(latest_scan_key, scan_id, ttl=86400)  # 24小时TTL
+            except Exception as e:
+                print(f"[scan_all_stocks] ⚠️ 保存最新 scan_id 失败: {e}")
+            
+            print(f"[scan_all_stocks] ✅ 已创建初始进度（准备中），scan_id: {scan_id}")
+        except Exception as e:
+            print(f"[scan_all_stocks] ⚠️ 创建初始进度失败（继续执行）: {e}")
+        
         # 在后台线程中执行扫描（避免阻塞）
         import threading
         
         def run_scan():
             try:
-                import time as time_module
                 start_time = time_module.time()
                 max_scan_time = 3600 * 2  # 最大扫描时间：2小时
                 
-                print(f"\n🔄 开始扫描，匹配度阈值: {min_match_score:.3f}")
+                print(f"\n🔄 开始扫描，匹配度阈值: {min_match_score:.3f}, scan_id: {scan_id}")
+                
+                # ✅ 更新进度：正在获取股票列表
+                try:
+                    import scan_progress_store
+                    getting_stocks_progress = preparing_progress.copy()
+                    getting_stocks_progress['detail'] = '正在获取股票列表...'
+                    scan_progress_store.save_scan_progress(scan_id, getting_stocks_progress)
+                except Exception as e:
+                    print(f"[scan_all_stocks] ⚠️ 更新进度失败: {e}")
                 
                 # 只执行一次扫描，不再自动调整阈值
                 # 本地环境：默认优先使用缓存（稳定、可复现），需要强制刷新时再由前端传参控制
@@ -4172,6 +4518,27 @@ def scan_all_stocks():
                     force_refresh=force_refresh,
                     strict_local_only=strict_local_only  # ✅ 传递严格本地模式参数
                 )
+                
+                # ✅ 更新进度：扫描完成
+                try:
+                    import scan_progress_store
+                    found_count = result.get('found_count', 0)
+                    if result.get('stopped', False):
+                        final_progress = preparing_progress.copy()
+                        final_progress['status'] = '已停止'
+                        final_progress['detail'] = f'扫描已停止: 找到 {found_count} 只符合条件的股票'
+                        final_progress['found'] = found_count
+                        final_progress['percentage'] = 100.0
+                        scan_progress_store.save_scan_progress(scan_id, final_progress)
+                    else:
+                        final_progress = preparing_progress.copy()
+                        final_progress['status'] = '完成'
+                        final_progress['detail'] = f'扫描完成: 找到 {found_count} 只符合条件的股票'
+                        final_progress['found'] = found_count
+                        final_progress['percentage'] = 100.0
+                        scan_progress_store.save_scan_progress(scan_id, final_progress)
+                except Exception as e:
+                    print(f"[scan_all_stocks] ⚠️ 更新最终进度失败: {e}")
                 
                 # 如果被停止，直接保存结果
                 if result.get('stopped', False):
@@ -4203,6 +4570,17 @@ def scan_all_stocks():
                 import traceback
                 error_detail = traceback.format_exc()
                 print(f"扫描过程出错: {error_detail}")
+                
+                # ✅ 更新进度：扫描失败
+                try:
+                    import scan_progress_store
+                    error_progress = preparing_progress.copy()
+                    error_progress['status'] = '失败'
+                    error_progress['detail'] = f'扫描出错: {str(e)[:100]}'
+                    scan_progress_store.save_scan_progress(scan_id, error_progress)
+                except Exception as update_error:
+                    print(f"[scan_all_stocks] ⚠️ 更新错误进度失败: {update_error}")
+                
                 # 即使出错，也尝试保存当前结果（如果有）
                 if hasattr(analyzer, 'scan_results') and analyzer.scan_results:
                     pass  # 结果已保存
@@ -4219,7 +4597,8 @@ def scan_all_stocks():
         
         return jsonify({
             'success': True,
-            'message': '扫描已开始，请通过进度API查看进度'
+            'message': '扫描已开始，请通过进度API查看进度',
+            'scan_id': scan_id  # ✅ 返回 scan_id，方便前端检测扫描状态
         })
         
     except Exception as e:
@@ -7013,6 +7392,20 @@ if __name__ == '__main__':
                     try:
                         from download_stock_data import main as download_main
                         download_main()
+                        
+                        # ✅ 下载后自动生成股票列表（如果不存在）
+                        stock_list_path = os.path.join('cache', 'stock_list_all.json')
+                        if not os.path.exists(stock_list_path):
+                            print("\n📋 检测到股票列表不存在，正在从K线文件列表生成...")
+                            try:
+                                from generate_stock_list_from_files import generate_stock_list_from_kline_files
+                                if generate_stock_list_from_kline_files():
+                                    print("✅ 股票列表生成成功！")
+                                else:
+                                    print("⚠️  股票列表生成失败，但不影响使用（将从API获取）")
+                            except Exception as e:
+                                print(f"⚠️  生成股票列表时出错: {e}")
+                                print("   不影响使用（将从API获取股票列表）")
                     except Exception as e:
                         print(f"⚠️  下载数据失败: {e}")
                         print("   将使用网络实时获取数据")

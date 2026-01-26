@@ -1,0 +1,7 @@
+[project]
+name = "daniugu"
+version = "1.0.0"
+description = "大牛股分析系统"
+
+[project.scripts]
+app = "index:app"

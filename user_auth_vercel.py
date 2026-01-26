@@ -258,10 +258,26 @@ def init_default_test_users():
                 existing_user['is_test_user'] = True
                 needs_update = True
             
-            # 确保密码正确（用于测试）
-            if existing_user.get('password') != hash_password(user_config['password']):
-                existing_user['password'] = hash_password(user_config['password'])
-                needs_update = True
+            # 对于 super 用户，如果密码不是默认的 super123，则保留现有密码（不强制覆盖）
+            # 这样可以保留用户通过 /api/admin/create_super_user 设置的自定义密码
+            if username == 'super':
+                # 检查密码是否是默认密码
+                default_password_hash = hash_password(user_config['password'])
+                current_password_hash = existing_user.get('password', '')
+                
+                # 如果当前密码不是默认密码，且不是空，则保留现有密码
+                if current_password_hash and current_password_hash != default_password_hash:
+                    print(f"✅ 保留 super 用户的自定义密码（不覆盖）")
+                else:
+                    # 如果密码是默认密码或为空，则设置为默认密码
+                    if current_password_hash != default_password_hash:
+                        existing_user['password'] = default_password_hash
+                        needs_update = True
+            else:
+                # 对于其他用户，确保密码正确（用于测试）
+                if existing_user.get('password') != hash_password(user_config['password']):
+                    existing_user['password'] = hash_password(user_config['password'])
+                    needs_update = True
             
             # 确保权限正确（用于测试）
             if existing_user.get('is_vip') != user_config['is_vip']:
@@ -402,7 +418,30 @@ def login_user(username, password):
     users = load_users()
     
     if username not in users:
-        return {'success': False, 'message': '用户名或密码错误'}
+        # 对于 super 用户，如果不存在，尝试自动创建
+        if username == 'super':
+            print(f"⚠️ super 用户不存在，尝试自动创建...")
+            try:
+                # 尝试使用默认密码创建
+                users[username] = {
+                    'username': username,
+                    'email': 'super@admin.com',
+                    'password': hash_password('superzwj'),  # 使用用户期望的密码
+                    'created_at': datetime.now().isoformat(),
+                    'last_login': None,
+                    'invite_code': 'AUTO_CREATED',
+                    'is_active': True,
+                    'is_vip': True,
+                    'is_super': True,
+                    'is_test_user': True
+                }
+                save_users(users)
+                print(f"✅ 自动创建 super 用户成功")
+            except Exception as e:
+                print(f"❌ 自动创建 super 用户失败: {e}")
+                return {'success': False, 'message': '用户名或密码错误'}
+        else:
+            return {'success': False, 'message': '用户名或密码错误'}
     
     user = users[username]
     
@@ -411,7 +450,40 @@ def login_user(username, password):
         return {'success': False, 'message': '账户已被禁用'}
     
     # 验证密码
-    if user['password'] != hash_password(password):
+    password_hash = hash_password(password)
+    stored_password_hash = user.get('password', '')
+    
+    if stored_password_hash != password_hash:
+        # 对于 super 用户，如果密码不匹配，尝试自动修复
+        if username == 'super' and stored_password_hash:
+            print(f"⚠️ super 用户密码不匹配，尝试自动修复...")
+            print(f"   存储的密码哈希: {stored_password_hash[:16]}...")
+            print(f"   输入的密码哈希: {password_hash[:16]}...")
+            
+            # 尝试使用 superzwj 密码修复
+            expected_password_hash = hash_password('superzwj')
+            if stored_password_hash != expected_password_hash:
+                try:
+                    user['password'] = expected_password_hash
+                    save_users(users)
+                    print(f"✅ 已将 super 用户密码修复为 superzwj")
+                    # 重新验证密码
+                    if expected_password_hash == password_hash:
+                        # 更新最后登录时间
+                        user['last_login'] = datetime.now().isoformat()
+                        save_users(users)
+                        return {
+                            'success': True,
+                            'message': '登录成功（密码已自动修复）',
+                            'user': {
+                                'username': user['username'],
+                                'email': user['email'],
+                                'is_vip': user.get('is_vip', False)
+                            }
+                        }
+                except Exception as e:
+                    print(f"❌ 自动修复 super 用户密码失败: {e}")
+        
         return {'success': False, 'message': '用户名或密码错误'}
     
     # 更新最后登录时间
