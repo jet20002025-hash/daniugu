@@ -6595,6 +6595,11 @@ def scan_kdj():
         data = request.get_json() or {}
         threshold = float(data.get('threshold', 20))  # KDJ阈值，默认20
         limit = int(data.get('limit', 50))  # 返回数量限制
+        max_workers = int(data.get('max_workers', 10))  # 并发线程数，默认10（Render环境建议5-10）
+        
+        # Render环境自动调整线程数
+        if is_render:
+            max_workers = min(max_workers, 10)  # Render免费版限制
         
         # 重置进度和停止标志
         kdj_scan_stop_flag = False
@@ -6613,10 +6618,11 @@ def scan_kdj():
         
         print(f"\n🔍 KDJ模式扫描开始...")
         print(f"   阈值: K,D,J < {threshold}")
+        print(f"   并发线程数: {max_workers}")
         
         # 启动后台线程执行扫描
         import threading
-        scan_thread = threading.Thread(target=_kdj_scan_worker, args=(threshold, limit))
+        scan_thread = threading.Thread(target=_kdj_scan_worker, args=(threshold, limit, max_workers))
         scan_thread.daemon = True
         scan_thread.start()
         
@@ -6716,11 +6722,14 @@ def _generate_monthly_kline_from_daily(daily_df):
         return None
 
 
-def _kdj_scan_worker(threshold, limit):
-    """KDJ扫描工作线程 - 使用本地缓存数据"""
+def _kdj_scan_worker(threshold, limit, max_workers=10):
+    """KDJ扫描工作线程 - 使用本地缓存数据，并行处理"""
     global kdj_scan_progress, kdj_scan_stop_flag
     
     try:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import threading
+        
         # 获取股票列表
         cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache')
         stock_list_path = os.path.join(cache_dir, 'stock_list_all.json')
@@ -6734,79 +6743,115 @@ def _kdj_scan_worker(threshold, limit):
             return
         
         candidates = []
+        candidates_lock = threading.Lock()  # 线程锁
         total = len(stock_list)
         kdj_scan_progress['total'] = total
-        kdj_scan_progress['message'] = '使用本地缓存数据扫描中...'
+        kdj_scan_progress['message'] = f'使用本地缓存数据并行扫描中... ({max_workers} 线程)'
         
-        for i, stock_info in enumerate(stock_list):
-            # 检查停止标志
+        processed_count = 0
+        processed_lock = threading.Lock()  # 进度更新锁
+        
+        def process_single_stock(stock_info):
+            """处理单只股票"""
+            nonlocal processed_count
+            
             if kdj_scan_stop_flag:
-                kdj_scan_progress['status'] = 'stopped'
-                kdj_scan_progress['message'] = '扫描已停止'
-                break
+                return None
             
             if isinstance(stock_info, dict):
                 code = stock_info.get('code', stock_info.get('股票代码', ''))
                 name = stock_info.get('name', stock_info.get('股票名称', ''))
             else:
-                continue
+                return None
             
             # 排除ST和北交所
             if 'ST' in name.upper() or code.startswith('8') or code.startswith('9'):
-                kdj_scan_progress['processed'] = i + 1
-                kdj_scan_progress['percentage'] = round((i + 1) / total * 100, 1)
-                continue
-            
-            # 更新进度
-            kdj_scan_progress['processed'] = i + 1
-            kdj_scan_progress['percentage'] = round((i + 1) / total * 100, 1)
-            kdj_scan_progress['current_stock'] = f"{code} {name}"
-            kdj_scan_progress['message'] = f"正在扫描 {code} {name} (本地数据)"
+                with processed_lock:
+                    processed_count += 1
+                    kdj_scan_progress['processed'] = processed_count
+                    kdj_scan_progress['percentage'] = round(processed_count / total * 100, 1)
+                return None
             
             try:
                 # 从本地缓存获取日K线数据
                 daily_df = _load_daily_kline_from_cache(code, cache_dir)
                 if daily_df is None or len(daily_df) < 30:
-                    continue
+                    with processed_lock:
+                        processed_count += 1
+                        kdj_scan_progress['processed'] = processed_count
+                        kdj_scan_progress['percentage'] = round(processed_count / total * 100, 1)
+                    return None
                 
                 # 计算日KDJ
                 daily_kdj = get_latest_kdj(daily_df, 9, 3, 3)
                 if daily_kdj is None:
-                    continue
+                    with processed_lock:
+                        processed_count += 1
+                        kdj_scan_progress['processed'] = processed_count
+                        kdj_scan_progress['percentage'] = round(processed_count / total * 100, 1)
+                    return None
                 
                 # 快速筛选：如果日KDJ不满足条件，跳过
                 if daily_kdj['K'] >= threshold or daily_kdj['D'] >= threshold or daily_kdj['J'] >= threshold:
-                    continue
+                    with processed_lock:
+                        processed_count += 1
+                        kdj_scan_progress['processed'] = processed_count
+                        kdj_scan_progress['percentage'] = round(processed_count / total * 100, 1)
+                    return None
                 
                 # 从本地缓存获取周K线数据
                 weekly_df = _load_weekly_kline_from_cache(code, cache_dir)
                 if weekly_df is None or len(weekly_df) < 20:
-                    continue
+                    with processed_lock:
+                        processed_count += 1
+                        kdj_scan_progress['processed'] = processed_count
+                        kdj_scan_progress['percentage'] = round(processed_count / total * 100, 1)
+                    return None
                 
                 # 计算周KDJ
                 weekly_kdj = get_latest_kdj(weekly_df, 9, 3, 3)
                 if weekly_kdj is None:
-                    continue
+                    with processed_lock:
+                        processed_count += 1
+                        kdj_scan_progress['processed'] = processed_count
+                        kdj_scan_progress['percentage'] = round(processed_count / total * 100, 1)
+                    return None
                 
                 # 检查周KDJ
                 if weekly_kdj['K'] >= threshold or weekly_kdj['D'] >= threshold or weekly_kdj['J'] >= threshold:
-                    continue
+                    with processed_lock:
+                        processed_count += 1
+                        kdj_scan_progress['processed'] = processed_count
+                        kdj_scan_progress['percentage'] = round(processed_count / total * 100, 1)
+                    return None
                 
                 # 从日K线生成月K线数据
                 monthly_df = _generate_monthly_kline_from_daily(daily_df)
                 if monthly_df is None or len(monthly_df) < 12:
-                    continue
+                    with processed_lock:
+                        processed_count += 1
+                        kdj_scan_progress['processed'] = processed_count
+                        kdj_scan_progress['percentage'] = round(processed_count / total * 100, 1)
+                    return None
                 
                 # 计算月KDJ
                 monthly_kdj = get_latest_kdj(monthly_df, 9, 3, 3)
                 if monthly_kdj is None:
-                    continue
+                    with processed_lock:
+                        processed_count += 1
+                        kdj_scan_progress['processed'] = processed_count
+                        kdj_scan_progress['percentage'] = round(processed_count / total * 100, 1)
+                    return None
                 
                 # 检查月KDJ
                 if monthly_kdj['K'] >= threshold or monthly_kdj['D'] >= threshold or monthly_kdj['J'] >= threshold:
-                    continue
+                    with processed_lock:
+                        processed_count += 1
+                        kdj_scan_progress['processed'] = processed_count
+                        kdj_scan_progress['percentage'] = round(processed_count / total * 100, 1)
+                    return None
                 
-                # 全部通过！添加到候选列表
+                # 全部通过！创建候选对象
                 current_price = float(daily_df.iloc[-1]['收盘'])
                 
                 candidate = {
@@ -6824,16 +6869,47 @@ def _kdj_scan_worker(threshold, limit):
                     '月J': monthly_kdj['J'],
                     'KDJ平均': round((daily_kdj['K'] + daily_kdj['D'] + weekly_kdj['K'] + weekly_kdj['D'] + monthly_kdj['K'] + monthly_kdj['D']) / 6, 2)
                 }
-                candidates.append(candidate)
-                kdj_scan_progress['found'] = len(candidates)
-                kdj_scan_progress['candidates'] = candidates.copy()
+                
+                # 更新进度
+                with processed_lock:
+                    processed_count += 1
+                    kdj_scan_progress['processed'] = processed_count
+                    kdj_scan_progress['percentage'] = round(processed_count / total * 100, 1)
+                    kdj_scan_progress['current_stock'] = f"{code} {name}"
                 
                 print(f"   ✅ {code} {name}: 日KDJ({daily_kdj['K']:.1f},{daily_kdj['D']:.1f},{daily_kdj['J']:.1f}) "
                       f"周KDJ({weekly_kdj['K']:.1f},{weekly_kdj['D']:.1f},{weekly_kdj['J']:.1f}) "
                       f"月KDJ({monthly_kdj['K']:.1f},{monthly_kdj['D']:.1f},{monthly_kdj['J']:.1f})")
                 
+                return candidate
+                
             except Exception as e:
-                continue
+                with processed_lock:
+                    processed_count += 1
+                    kdj_scan_progress['processed'] = processed_count
+                    kdj_scan_progress['percentage'] = round(processed_count / total * 100, 1)
+                return None
+        
+        # 使用线程池并行处理
+        print(f"\n🚀 开始并行KDJ扫描 ({max_workers} 线程)...")
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(process_single_stock, stock_info): stock_info for stock_info in stock_list}
+            
+            for future in as_completed(futures):
+                if kdj_scan_stop_flag:
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    kdj_scan_progress['status'] = 'stopped'
+                    kdj_scan_progress['message'] = '扫描已停止'
+                    break
+                
+                candidate = future.result()
+                if candidate:
+                    with candidates_lock:
+                        candidates.append(candidate)
+                        kdj_scan_progress['found'] = len(candidates)
+                        # 只保留最新的候选列表（避免内存过大）
+                        if len(candidates) <= limit * 2:
+                            kdj_scan_progress['candidates'] = candidates.copy()
         
         # 按KDJ平均值排序（越小越超卖）
         candidates.sort(key=lambda x: x['KDJ平均'])
