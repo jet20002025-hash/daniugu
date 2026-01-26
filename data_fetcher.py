@@ -21,8 +21,17 @@ class DataFetcher:
         self.stock_list = None
         self._market_cap_cache = None  # 缓存市值数据，避免重复获取
         # ✅ 检测是否在 Vercel 环境（优先使用 GitHub 数据包，不连接实时 API）
-        self._is_vercel = os.environ.get('VERCEL') == '1' or os.environ.get('USE_GITHUB_DATA_ONLY') == '1'
-        self._use_github_data_only = self._is_vercel or os.environ.get('USE_GITHUB_DATA_ONLY') == '1'
+        # 检测 Vercel 环境（多种方式）
+        is_vercel_env = (
+            os.environ.get('VERCEL') == '1' or 
+            os.environ.get('VERCEL_ENV') is not None or
+            os.environ.get('VERCEL_URL') is not None
+        )
+        # 检测是否强制使用 GitHub 数据包
+        use_github_only = os.environ.get('USE_GITHUB_DATA_ONLY') == '1'
+        # 在 Vercel 环境中自动启用 GitHub 数据包模式
+        self._is_vercel = is_vercel_env
+        self._use_github_data_only = use_github_only or is_vercel_env
 
     # =========================
     # 本地文件缓存（用于本地环境预下载/预热）

@@ -16,6 +16,9 @@ sys.path.insert(0, parent_dir)
 if not os.environ.get('VERCEL'):
     os.environ['VERCEL'] = '1'
 
+# ✅ 在导入前设置 USE_GITHUB_DATA_ONLY，确保 DataFetcher 能正确检测
+os.environ['USE_GITHUB_DATA_ONLY'] = '1'
+
 # 确保只导入 bull_stock_web，不导入其他 app.py
 try:
     # 明确导入 bull_stock_web，避免导入 app.py
