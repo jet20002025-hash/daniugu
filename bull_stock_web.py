@@ -1955,8 +1955,6 @@ def api_version():
 
 @app.route('/api/health', methods=['GET'])
 def api_health():
-    """健康检查端点，用于验证服务是否正常运行"""
-    try:
     """健康检查API"""
     try:
         return jsonify({
