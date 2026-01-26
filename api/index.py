@@ -66,19 +66,22 @@ try:
     print("✅ 成功导入 bull_stock_web，app 对象已准备就绪")
 except Exception as e:
     # 如果导入失败，创建一个简单的错误处理应用
+    import traceback
+    error_detail = traceback.format_exc()  # ✅ 先定义 error_detail
     from flask import Flask, jsonify
     app = Flask(__name__)
     
     # 保存导入错误信息，以便在函数内部使用（使用闭包）
     import_error = str(e)
     import_error_type = type(e).__name__
+    import_error_detail = error_detail  # ✅ 保存 error_detail
     
     # 添加全局错误处理器，确保所有错误都返回 JSON 格式
     @app.errorhandler(Exception)
     def handle_import_error(error):
         """处理导入失败时的错误"""
         import traceback
-        error_detail = traceback.format_exc()
+        current_error_detail = traceback.format_exc()
         error_type = type(error).__name__
         from flask import request, has_request_context
         
