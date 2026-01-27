@@ -5989,14 +5989,14 @@
             }
             
             try {
-                // ✅ 网络环境使用长超时（60秒），本地环境使用短超时（3秒）
-                const timeout = isNetworkEnvironment() ? 60000 : 3000;
+                // ✅ 网络环境使用长超时（60秒），本地环境使用短超时（3秒）- 仅声明一次
+                const userInfoTimeout = isNetworkEnvironment() ? 60000 : 3000;
                 const isLoggedIn = await Promise.race([
                     checkLoginStatus(),
                     new Promise((resolve) => setTimeout(() => {
-                        console.warn(`[displayUserInfo] 检查登录状态超时（${timeout/1000}秒）`);
+                        console.warn(`[displayUserInfo] 检查登录状态超时（${userInfoTimeout/1000}秒）`);
                         resolve(false);
-                    }, timeout))
+                    }, userInfoTimeout))
                 ]);
                 
                 if (!isLoggedIn) {
@@ -6028,9 +6028,7 @@
                 let loginCheckResponse;
                 try {
                     const controller = new AbortController();
-                    // ✅ 网络环境使用长超时（60秒），本地环境使用短超时（3秒）
-                    const timeout = isNetworkEnvironment() ? 60000 : 3000;
-                    const timeoutId = setTimeout(() => controller.abort(), timeout);
+                    const timeoutId = setTimeout(() => controller.abort(), userInfoTimeout);
                     
                     loginCheckResponse = await fetch('/api/check_login', {
                         method: 'GET',
@@ -6102,14 +6100,13 @@
                     return;
                 }
                 
-                // ✅ 获取用户信息（网络环境使用长超时）
-                const timeout = isNetworkEnvironment() ? 60000 : 3000;
+                // ✅ 获取用户信息（复用上方超时设置）
                 const user = await Promise.race([
                     getUserInfo(),
                     new Promise((resolve) => setTimeout(() => {
-                        console.warn(`[displayUserInfo] 获取用户信息超时（${timeout/1000}秒）`);
+                        console.warn(`[displayUserInfo] 获取用户信息超时（${userInfoTimeout/1000}秒）`);
                         resolve(null);
-                    }, timeout))
+                    }, userInfoTimeout))
                 ]);
                 if (!user) {
                     // ✅ 如果获取用户信息失败，显示错误信息
