@@ -262,6 +262,7 @@ def main():
     parser.add_argument('--years-only', action='store_true', help='只打包 2024-2025 两年的数据（大幅减小包体积）')
     parser.add_argument('--start-date', default='2024-01-01', help='开始日期（YYYY-MM-DD），仅在 --years-only 时生效')
     parser.add_argument('--end-date', default='2025-12-31', help='结束日期（YYYY-MM-DD），仅在 --years-only 时生效')
+    parser.add_argument('--skip-upload', action='store_true', help='跳过上传选项，直接完成（用于非交互模式）')
     args = parser.parse_args()
     
     print("\n" + "=" * 60)
@@ -283,15 +284,20 @@ def main():
     # 保存上传信息
     save_upload_info(package_name)
     
-    # 询问上传方式
-    print("\n" + "=" * 60)
-    print("📤 上传选项")
-    print("=" * 60)
-    print("1. GitHub Releases（需要 GITHUB_TOKEN）")
-    print("2. 手动上传（稍后手动上传压缩包）")
-    print("3. 跳过上传（仅创建压缩包）")
-    
-    choice = input("\n请选择上传方式 (1/2/3，默认3): ").strip() or '3'
+    # 询问上传方式（如果未指定 --skip-upload）
+    if args.skip_upload:
+        choice = '3'
+        print(f"\n✅ 压缩包已创建: {package_name}")
+        print("   可以稍后手动上传")
+    else:
+        print("\n" + "=" * 60)
+        print("📤 上传选项")
+        print("=" * 60)
+        print("1. GitHub Releases（需要 GITHUB_TOKEN）")
+        print("2. 手动上传（稍后手动上传压缩包）")
+        print("3. 跳过上传（仅创建压缩包）")
+        
+        choice = input("\n请选择上传方式 (1/2/3，默认3): ").strip() or '3'
     
     if choice == '1':
         # 上传到 GitHub Releases
