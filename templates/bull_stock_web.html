@@ -3089,6 +3089,7 @@
                         
                         // 其他 400 错误（如缓存不存在）
                         const errorMsg = errorResult.message || '请求错误';
+                        let autoRefreshed = false;
                         console.error('[scanAllStocks] 缓存不存在错误:', {
                             cache_exists: errorResult.cache_exists,
                             is_in_trading_time: errorResult.is_in_trading_time,
@@ -3097,11 +3098,37 @@
                             suggestion: errorResult.suggestion
                         });
                         
-                        // 显示完整的错误消息（包含解决方案）
-                        showMessage(errorMsg, 'error');
+                        // 如果建议手动刷新缓存：先自动尝试刷新一次，成功则提示用户重试扫描；失败再显示手动按钮
+                        if (errorResult.suggestion === '手动刷新缓存' || errorResult.message.includes('手动触发缓存刷新') || (errorResult.cache_exists === false && errorResult.is_vercel)) {
+                            showMessage('正在自动刷新缓存，请稍候...', 'info');
+                            updateProgress(0, '刷新缓存', '正在自动刷新缓存...');
+                            try {
+                                const refreshUrl = (typeof isNetworkEnvironment === 'function' && isNetworkEnvironment())
+                                    ? 'https://www.daniugu.online/api/refresh_stock_cache?force=true'
+                                    : '/api/refresh_stock_cache?force=true';
+                                const r = await fetch(refreshUrl, { method: 'GET', cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
+                                const rr = await r.json();
+                                if (rr && rr.success) {
+                                    autoRefreshed = true;
+                                    showMessage('✅ 缓存已刷新！请再次点击扫描按钮。', 'success');
+                                    stopProgressPolling();
+                                    hideProgress();
+                                    if (stopBtn) stopBtn.disabled = true;
+                                    isScanning = false;
+                                    return;
+                                }
+                            } catch (e) {
+                                console.warn('[scanAllStocks] 自动刷新缓存失败:', e);
+                            }
+                            if (!autoRefreshed) {
+                                showMessage(errorMsg, 'error');
+                            }
+                        } else {
+                            showMessage(errorMsg, 'error');
+                        }
                         
-                        // 如果建议手动刷新缓存，提供快速操作按钮
-                        if (errorResult.suggestion === '手动刷新缓存' || errorResult.message.includes('手动触发缓存刷新')) {
+                        // 若自动刷新未成功，显示手动刷新缓存按钮（仅当刚尝试过自动刷新且失败时）
+                        if (!autoRefreshed && (errorResult.suggestion === '手动刷新缓存' || errorResult.message.includes('手动触发缓存刷新') || (errorResult.cache_exists === false && errorResult.is_vercel))) {
                             // 显示一个带有刷新缓存按钮的提示
                             const refreshCacheDiv = document.createElement('div');
                             refreshCacheDiv.id = 'refreshCachePrompt';
