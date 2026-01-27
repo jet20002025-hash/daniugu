@@ -5433,6 +5433,13 @@ def stocks_near_previous_high():
             idx_high = int(past[high_col].idxmax())
             week_high = past.loc[idx_high, '日期']
             weeks_ago = len(w) - 1 - idx_high
+            # 中间无破前高：从前高当周之后到当前周，中间任一最高价不得高于前高（如 000859 前高 11.56、中间曾到 14.08 则不符合）
+            no_higher_in_between = True
+            mid = w.iloc[idx_high + 1:]
+            mid_high_col = '最高' if '最高' in w.columns else ('high' if 'high' in w.columns else None)
+            if len(mid) > 0 and mid_high_col:
+                mid_max = float(mid[mid_high_col].max())
+                no_higher_in_between = mid_max <= prev_high * 1.0001
             # 当前价：优先用 scan_date 的日收盘
             current_price = None
             daily_df = analyzer.fetcher.get_daily_kline_range(
@@ -5449,7 +5456,7 @@ def stocks_near_previous_high():
                 current_price = float(w['收盘'].iloc[-1]) if '收盘' in w.columns else float(w['close'].iloc[-1])
             low_bound = prev_high * (1 - pct_range / 100)
             high_bound = prev_high * (1 + pct_range / 100)
-            near = low_bound <= current_price <= high_bound
+            near = (low_bound <= current_price <= high_bound) and no_higher_in_between
             return {
                 '股票代码': stock_code,
                 '股票名称': stock_name,
@@ -5460,6 +5467,7 @@ def stocks_near_previous_high():
                 '区间下限': round(low_bound, 2),
                 '区间上限': round(high_bound, 2),
                 '在前高附近': near,
+                '中间无破前高': no_higher_in_between,
             }
         
         # 单只查询
