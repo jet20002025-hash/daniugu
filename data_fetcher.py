@@ -1283,10 +1283,55 @@ class DataFetcher:
         :param use_cache: 是否优先从本地缓存读取
         :param local_only: 是否仅用本地；若 True 且本地无数据则返回 None
         """
-        # ✅ 如果设置了 USE_GITHUB_DATA_ONLY，强制使用本地缓存
+        # ✅ 如果设置了 USE_GITHUB_DATA_ONLY，强制使用本地缓存（除非是盘中扫描今天）
         if self._use_github_data_only:
+            # 检查是否是盘中扫描今天的数据
+            from datetime import datetime, timezone, timedelta
+            beijing_now = datetime.now(timezone.utc) + timedelta(hours=8)
+            today_str = beijing_now.strftime('%Y%m%d')
+            end_d = str(end_date).replace("-", "")[:8]
+            
+            # 判断是否在交易时间段（9:30-11:30, 13:00-15:00）
+            current_hour = beijing_now.hour
+            current_minute = beijing_now.minute
+            is_trading_time = (
+                (current_hour == 9 and current_minute >= 30) or
+                (current_hour == 10) or
+                (current_hour == 11 and current_minute <= 30) or
+                (current_hour == 13) or
+                (current_hour == 14) or
+                (current_hour == 15 and current_minute == 0)
+            )
+            
+            # 如果是盘中扫描今天的数据，从腾讯获取实时数据
+            if end_d == today_str and is_trading_time and not use_cache:
+                try:
+                    from tencent_realtime import get_tencent_today_kline
+                    print(f"[get_daily_kline_range] 盘中扫描今天数据，从腾讯获取实时 K 线: {stock_code}")
+                    today_df = get_tencent_today_kline(stock_code, timeout=3)
+                    if today_df is not None and len(today_df) > 0:
+                        # 合并缓存的历史数据（如果需要）
+                        cached = self._get_daily_kline_from_cache(stock_code)
+                        if cached is not None and len(cached) > 0:
+                            cached = cached.copy()
+                            cached["日期"] = pd.to_datetime(cached["日期"], errors="coerce")
+                            cached = cached.dropna(subset=["日期"])
+                            # 移除今天的数据（如果存在），用腾讯的实时数据替换
+                            today_date = pd.to_datetime(today_str[:4] + '-' + today_str[4:6] + '-' + today_str[6:8])
+                            cached = cached[cached["日期"] < today_date]
+                            # 合并
+                            today_df["日期"] = pd.to_datetime(today_df["日期"], errors="coerce")
+                            combined = pd.concat([cached, today_df], ignore_index=True).sort_values("日期").reset_index(drop=True)
+                            return combined
+                        return today_df
+                except Exception as e:
+                    print(f"[get_daily_kline_range] 从腾讯获取实时数据失败: {e}，回退到缓存")
+                    # 回退到使用缓存
+            
+            # 非盘中或非今天，强制使用本地缓存
             local_only = True
             use_cache = True
+        
         if os.environ.get("TRAIN_LOCAL_ONLY") == "1":
             local_only = True
         if use_cache or local_only:

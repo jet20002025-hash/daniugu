@@ -6617,6 +6617,41 @@ def search_stock():
         }), 500
 
 
+@app.route('/api/update_data_from_sina', methods=['GET', 'POST'])
+def update_data_from_sina():
+    """
+    午盘/尾盘后从新浪更新 K 线数据的 API
+    支持分批处理（适配 Vercel 10 秒限制）
+    
+    使用方式：
+    - 手动触发：GET /api/update_data_from_sina?force=true
+    - 分批处理：GET /api/update_data_from_sina?batch=0&batch_size=50
+    - Cron 自动：由 vercel.json 配置的 cron job 调用（注意：Vercel Hobby 每天只能运行 1 次 cron，建议使用外部服务）
+    """
+    try:
+        from api.update_data_from_sina import handler
+        # 将 Flask request 对象传递给 handler
+        return handler(request)
+    except ImportError as e:
+        # 如果导入失败，返回错误
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"[update_data_from_sina] ❌ 导入失败: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'更新模块导入失败: {str(e)}',
+            'error_detail': error_detail[:500] if len(error_detail) > 500 else error_detail
+        }), 500
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"[update_data_from_sina] ❌ 错误: {error_detail}")
+        return jsonify({
+            'success': False,
+            'message': f'更新数据失败: {str(e)}',
+            'error_detail': error_detail[:500] if len(error_detail) > 500 else error_detail
+        }), 500
+
 @app.route('/api/refresh_stock_cache', methods=['GET', 'POST'])
 def refresh_stock_cache():
     """
