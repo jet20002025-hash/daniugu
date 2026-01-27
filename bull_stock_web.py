@@ -5569,8 +5569,8 @@ def scan_v2():
         print(f"   底部蓄势得分阈值: {min_bottom_score}")
         print(f"   启动信号得分阈值: {min_launch_score}")
         
-        # 加载股票列表
-        cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache')
+        # 加载股票列表（Vercel 下从 LOCAL_CACHE_DIR 读 /tmp/cache）
+        cache_dir = os.environ.get('LOCAL_CACHE_DIR') or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache')
         stock_list_path = os.path.join(cache_dir, 'stock_list_all.json')
         
         if not os.path.exists(stock_list_path):
@@ -6749,8 +6749,8 @@ def refresh_stock_cache():
             # 先确保数据包已下载（在 Vercel 环境中，首次请求时可能还未下载）
             _ensure_stock_data_downloaded()
             
-            # 检查 K 线文件目录是否存在
-            cache_dir = 'cache'
+            # 检查 K 线文件目录是否存在（Vercel 下从 LOCAL_CACHE_DIR 读 /tmp/cache）
+            cache_dir = os.environ.get('LOCAL_CACHE_DIR') or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache')
             weekly_dir = os.path.join(cache_dir, 'weekly_kline')
             daily_dir = os.path.join(cache_dir, 'daily_kline')
             
@@ -7373,8 +7373,8 @@ def _kdj_scan_worker(threshold, limit, max_workers=10):
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import threading
         
-        # 获取股票列表
-        cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache')
+        # 获取股票列表（Vercel 下从 LOCAL_CACHE_DIR 读 /tmp/cache）
+        cache_dir = os.environ.get('LOCAL_CACHE_DIR') or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache')
         stock_list_path = os.path.join(cache_dir, 'stock_list_all.json')
         
         if os.path.exists(stock_list_path):
@@ -7658,8 +7658,14 @@ def _ensure_stock_data_downloaded():
     # ✅ 在 Render/Vercel 环境中，检查并下载股票数据（如果配置了 STOCK_DATA_URL）
     if is_render or is_vercel or os.environ.get('STOCK_DATA_URL'):
         try:
-            cache_dir = 'cache'
-            stock_data_dir = 'stock_data'
+            # Vercel 仅 /tmp 可写，api/index 已解压到 /tmp 并设置 LOCAL_CACHE_DIR
+            _base = os.environ.get('LOCAL_CACHE_DIR')
+            if _base:
+                cache_dir = _base
+                stock_data_dir = os.path.join(os.path.dirname(_base), 'stock_data')
+            else:
+                cache_dir = 'cache'
+                stock_data_dir = 'stock_data'
             
             # 检查数据是否存在
             cache_exists = os.path.exists(cache_dir) and os.listdir(cache_dir) if os.path.exists(cache_dir) else False
@@ -7674,11 +7680,16 @@ def _ensure_stock_data_downloaded():
                     print(f"   数据包 URL: {data_url}")
                     print("=" * 80)
                     try:
-                        from download_stock_data import main as download_main
-                        download_main()
+                        # Vercel 仅 /tmp 可写，用 fetch_github_cache 解压到 /tmp；否则用 download_stock_data
+                        if is_vercel and os.environ.get('LOCAL_CACHE_DIR'):
+                            from fetch_github_cache import fetch_github_cache
+                            fetch_github_cache(skip_if_exists=False, root_dir='/tmp')
+                        else:
+                            from download_stock_data import main as download_main
+                            download_main()
                         
                         # ✅ 下载后自动生成股票列表（如果不存在）
-                        stock_list_path = os.path.join('cache', 'stock_list_all.json')
+                        stock_list_path = os.path.join(cache_dir, 'stock_list_all.json')
                         if not os.path.exists(stock_list_path):
                             print("\n📋 检测到股票列表不存在，正在从K线文件列表生成...")
                             try:
