@@ -18,3 +18,13 @@ pkill -f 'python.*bull_stock_web' 2>/dev/null; pkill -f 'waitress' 2>/dev/null; 
 ```
 
 或等價的「先停止再啟動」序列。執行後可檢查 `lsof -i :5002` 或 `tail bull_stock_web.log` 確認服務已啟動。
+
+## 修改完成後自動推送到 GitHub
+
+**修改完成後，一律自動推送到 GitHub，不要再詢問。**
+
+當你修改了項目中的代碼或配置並完成修改後，必須執行：
+```bash
+cd /Users/zwj/股票分析 && git add <修改的文件> && git commit -m "<簡要說明>" && git push origin main
+```
+只 `git add` 本次修改的文件，提交訊息簡要說明改動內容。執行後無需再詢問用戶是否推送。
