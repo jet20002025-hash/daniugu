@@ -73,8 +73,8 @@ def hash_password(password):
     """加密密码"""
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
-def _upstash_redis_get(key):
-    """从 Upstash Redis 获取数据"""
+def _upstash_redis_get(key, timeout=3):
+    """从 Upstash Redis 获取数据（带超时控制）"""
     try:
         redis_url = os.environ.get('UPSTASH_REDIS_REST_URL')
         redis_token = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
@@ -82,20 +82,25 @@ def _upstash_redis_get(key):
             return None
         
         import requests
+        # ✅ 添加超时控制（Vercel 10秒限制，Redis 请求最多3秒）
         response = requests.get(
             f"{redis_url}/get/{key}",
-            headers={"Authorization": f"Bearer {redis_token}"}
+            headers={"Authorization": f"Bearer {redis_token}"},
+            timeout=timeout  # 3秒超时
         )
         if response.status_code == 200:
             result = response.json()
             return result.get('result')
         return None
+    except requests.exceptions.Timeout:
+        print(f"⚠️ Upstash Redis GET 超时（{timeout}秒）: {key}")
+        return None
     except Exception as e:
         print(f"⚠️ Upstash Redis GET 失败: {e}")
         return None
 
-def _upstash_redis_set(key, value):
-    """保存数据到 Upstash Redis"""
+def _upstash_redis_set(key, value, timeout=3):
+    """保存数据到 Upstash Redis（带超时控制）"""
     try:
         redis_url = os.environ.get('UPSTASH_REDIS_REST_URL')
         redis_token = os.environ.get('UPSTASH_REDIS_REST_TOKEN')
@@ -103,31 +108,36 @@ def _upstash_redis_set(key, value):
             return False
         
         import requests
+        # ✅ 添加超时控制（Vercel 10秒限制，Redis 请求最多3秒）
         response = requests.post(
             f"{redis_url}/set/{key}",
             headers={
                 "Authorization": f"Bearer {redis_token}",
                 "Content-Type": "application/json"
             },
-            json=value
+            json=value,
+            timeout=timeout  # 3秒超时
         )
         return response.status_code == 200
+    except requests.exceptions.Timeout:
+        print(f"⚠️ Upstash Redis SET 超时（{timeout}秒）: {key}")
+        return False
     except Exception as e:
         print(f"⚠️ Upstash Redis SET 失败: {e}")
         return False
 
 def load_users():
-    """加载用户数据（从持久化存储）"""
+    """加载用户数据（从持久化存储，带快速失败机制）"""
     global _users_cache
     
-    # 如果缓存存在且非空，且是字典类型，直接返回
+    # 如果缓存存在且非空，且是字典类型，直接返回（快速路径）
     if _users_cache and isinstance(_users_cache, dict):
         return _users_cache.copy()
     
     try:
         if _storage_type == 'upstash_redis':
-            # 从 Upstash Redis 加载
-            data = _upstash_redis_get('users')
+            # 从 Upstash Redis 加载（带超时控制）
+            data = _upstash_redis_get('users', timeout=3)  # 最多3秒
             if data:
                 if isinstance(data, str):
                     try:
@@ -143,6 +153,11 @@ def load_users():
                 # 确保 _users_cache 是字典类型
                 if isinstance(_users_cache, dict):
                     return _users_cache.copy()
+            else:
+                # ✅ Redis 返回 None 或超时，使用空字典（避免卡住）
+                print(f"⚠️ Redis 未返回用户数据，使用空字典")
+                _users_cache = {}
+                return _users_cache.copy()
         elif _storage_type == 'vercel_kv':
             # 从 Vercel KV 加载
             from vercel_kv import kv
