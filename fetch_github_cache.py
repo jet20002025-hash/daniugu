@@ -5,9 +5,9 @@
 只做一件事：下载 STOCK_DATA_URL 指向的 tar.gz，解压到项目目录。
 可被 Vercel/Render 启动时或单独流程「先获取」缓存，再跑主应用。
 """
+import gzip
 import os
 import tarfile
-import tempfile
 
 try:
     import requests
@@ -54,27 +54,18 @@ def fetch_github_cache(
     if requests is None:
         return False
 
-    tmp_path = None
+    # 流式解压：边下载边解压到 root，不落盘整份 .tar.gz，避免 Vercel /tmp 磁盘满
     try:
-        with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as f:
-            tmp_path = f.name
         resp = requests.get(data_url, stream=True, timeout=timeout)
         resp.raise_for_status()
-        with open(tmp_path, "wb") as f:
-            for chunk in resp.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
-        with tarfile.open(tmp_path, "r:gz") as tar:
-            tar.extractall(root)
+        resp.raw.decode_content = False  # 保留 gzip 原始字节，由下方 gzip.GzipFile 解压
+        gzip_stream = gzip.GzipFile(fileobj=resp.raw)
+        with tarfile.open(fileobj=gzip_stream, mode="r|") as tar:
+            for member in tar:
+                tar.extract(member, root)
     except Exception as e:
         _last_error = str(e)
         return False
-    finally:
-        if tmp_path and os.path.exists(tmp_path):
-            try:
-                os.unlink(tmp_path)
-            except Exception:
-                pass
 
     if generate_stock_list:
         stock_list_path = os.path.join(cache_dir, "stock_list_all.json")
