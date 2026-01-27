@@ -5,9 +5,10 @@
 提供添加大牛股的功能
 """
 from flask import Flask, render_template, jsonify, request, session, redirect, url_for, send_file
-from bull_stock_analyzer import BullStockAnalyzer
-from technical_analysis import TechnicalAnalysis
-from bull_stock_v2_model import BullStockV2Model
+# 重型模块延后到 init_analyzer/init_v2_model 内导入，避免免费版 10s 冷启动超时
+# from bull_stock_analyzer import BullStockAnalyzer
+# from technical_analysis import TechnicalAnalysis
+# from bull_stock_v2_model import BullStockV2Model
 from datetime import datetime
 # 根据环境选择使用哪个认证模块
 import os
@@ -306,6 +307,7 @@ def init_v2_model():
     """初始化V2模型"""
     global v2_model
     if v2_model is None:
+        from bull_stock_v2_model import BullStockV2Model
         try:
             v2_model = BullStockV2Model()
             model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bull_stock_v2.json')
@@ -414,6 +416,7 @@ def init_analyzer():
         analyzer = None
         print(f"[init_analyzer] 检测到 {_current_model_file} 已更新，自动重新加载模型")
     if analyzer is None:
+        from bull_stock_analyzer import BullStockAnalyzer
         try:
             # 在 Vercel 环境中，完全禁用自动加载和训练
             if is_vercel:
@@ -2105,9 +2108,26 @@ def cache_debug():
 @app.route('/api/check_cache_status', methods=['GET'])
 @require_login
 def check_cache_status():
-    """检查股票列表缓存状态API"""
+    """检查股票列表缓存状态API。免费版优先走轻量路径（仅查文件），避免 init_analyzer 冷启动导致 504。"""
     try:
-        # 确保分析器已初始化（在 try 块内，以便捕获异常）
+        # 轻量快速路径：仅根据 stock_list_all.json 是否存在且非空判断，不调用 init_analyzer，降低免费版 10s 超时概率
+        cache_dir = os.environ.get('LOCAL_CACHE_DIR') or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache')
+        stock_list_path = os.path.join(cache_dir, 'stock_list_all.json')
+        if os.path.exists(stock_list_path):
+            try:
+                with open(stock_list_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                if isinstance(data, list) and len(data) > 0:
+                    return jsonify({
+                        'success': True,
+                        'cache_exists': True,
+                        'cached_stock_count': len(data),
+                        'message': f'缓存存在，股票数: {len(data)} 只',
+                        'source': 'fast_path'
+                    }), 200
+            except Exception:
+                pass  # 解析失败则走下面的完整逻辑
+        # 完整路径：需要分析器与 fetcher（可能触发 init_analyzer 冷启动）
         try:
             init_analyzer()
         except Exception as init_error:
@@ -5745,6 +5765,7 @@ def scan_reversal_stocks():
         import threading
         
         def run_reversal_scan():
+            from technical_analysis import TechnicalAnalysis
             try:
                 print(f"\n🔍 开始搜索：上周阴线+本周阳线的反转个股（市值 < {market_cap_max}亿元）...")
                 
@@ -7174,7 +7195,8 @@ def get_weekly_kline_for_stock():
         if weekly_df is None or len(weekly_df) == 0:
             return jsonify({'error': '无法获取周K线数据'}), 500
         
-        # 计算技术指标
+        # 计算技术指标（按需导入，减轻冷启动）
+        from technical_analysis import TechnicalAnalysis
         ma5 = TechnicalAnalysis.calculate_ma(weekly_df, period=5) if len(weekly_df) >= 5 else None
         ma10 = TechnicalAnalysis.calculate_ma(weekly_df, period=10) if len(weekly_df) >= 10 else None
         ma20 = TechnicalAnalysis.calculate_ma(weekly_df, period=20) if len(weekly_df) >= 20 else None
