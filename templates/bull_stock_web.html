@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>大牛股分析器 - 添加大牛股</title>
+    <!-- 使用 data URI 避免单独请求 favicon，减少完成用时被拖长 -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%23667eea' width='32' height='32'/%3E%3C/svg%3E" type="image/svg+xml">
     <!-- ECharts CDN - 使用多个备用源 -->
     <script>
         // 加载ECharts的多个CDN源（按优先级，国内优先）
@@ -335,6 +337,12 @@
             display: block;
         }
         
+        /* 扫描完成时先淡出再收起，减少“跳动”感 */
+        .progress-container.hiding {
+            opacity: 0;
+            transition: opacity 0.25s ease-out;
+        }
+        
         .progress-bar-wrapper {
             width: 100%;
             height: 30px;
@@ -453,6 +461,9 @@
                                         <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">指定扫描日期（可选）</label>
                                         <input type="date" id="localScanDate" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
                                         <small style="color: #999; font-size: 11px;">留空=使用最新数据</small>
+                                        <div style="margin-top: 6px; padding: 8px; background: #f0f8ff; border-radius: 4px; font-size: 11px; color: #555; border-left: 3px solid #3498db;">
+                                            <strong>周内融合说明：</strong>若扫描日期在本周内（如<strong>周二</strong>），会将<strong>本周一至该日</strong>的日K融合成当前周的周线使用。例：周二扫描 = 用周一+周二数据聚合成一根周K；周四扫描 = 用周一～周四数据聚合成一根周K。
+                                        </div>
                                     </div>
                                     <div class="form-group" style="margin-bottom: 0;">
                                         <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">时间段（标签）</label>
@@ -681,6 +692,38 @@
                     <div id="buyPointsResult" style="margin-top: 15px;"></div>
                 </div>
                 
+                <!-- 股价在前高附近 -->
+                <div style="margin-top: 20px; padding: 20px; background: #f0f8f5; border-radius: 8px; border: 1px solid #d4edda;">
+                    <h3 style="margin-bottom: 15px; color: #333;">📐 股价在前高附近</h3>
+                    <p style="margin-bottom: 15px; color: #666; font-size: 13px;">今日价格在「至少 N 周前的前高」的正负 pct% 区间内。例：6周前前高 5.1 元，今日在 4.9～5.2 元（±5%）即命中。</p>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">前高距今至少（周）</label>
+                            <input type="number" id="nearHighMinWeeks" placeholder="6" value="6" min="1" max="52" step="1" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                            <small style="color: #999; font-size: 11px;">默认 6 周</small>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">正负百分比（%）</label>
+                            <input type="number" id="nearHighPct" placeholder="5" value="5" min="1" max="50" step="0.5" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                            <small style="color: #999; font-size: 11px;">默认 5%</small>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">股票代码（选填）</label>
+                            <input type="text" id="nearHighCode" placeholder="留空=扫描全市场" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                            <small style="color: #999; font-size: 11px;">单只查询或留空扫描</small>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="display: block; margin-bottom: 5px; color: #555; font-size: 12px; font-weight: 500;">市值上限（亿）</label>
+                            <input type="number" id="nearHighMaxMarketCap" placeholder="不填=不限制" min="0" step="1" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 4px; font-size: 13px;">
+                            <small style="color: #999; font-size: 11px;">总市值不超过此值，仅全市场扫描时生效</small>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button class="btn btn-primary" onclick="scanNearPreviousHigh()" style="background: #28a745;">查询 / 扫描股价在前高附近</button>
+                    </div>
+                    <div id="nearPreviousHighResult" style="margin-top: 15px;"></div>
+                </div>
+                
             </div>
             
             <!-- 股票列表 -->
@@ -698,14 +741,16 @@
     </div>
     
     <script>
-        // 显示消息
-        function showMessage(text, type = 'success') {
+        // 显示消息（duration 毫秒后自动隐藏，默认 3 秒）
+        function showMessage(text, type = 'success', duration = 3000) {
             const messageEl = document.getElementById('message');
+            if (!messageEl) return;
             messageEl.textContent = text;
             messageEl.className = `message ${type} show`;
-            setTimeout(() => {
+            clearTimeout(messageEl._hideTimer);
+            messageEl._hideTimer = setTimeout(() => {
                 messageEl.classList.remove('show');
-            }, 3000);
+            }, duration);
         }
         
         // 添加股票
@@ -1150,7 +1195,12 @@
         }
         
         function hideProgress() {
-            document.getElementById('progressContainer').classList.remove('show');
+            const el = document.getElementById('progressContainer');
+            if (!el || !el.classList.contains('show')) return;
+            el.classList.add('hiding');
+            setTimeout(() => {
+                el.classList.remove('show', 'hiding');
+            }, 280);
         }
         
         function updateProgress(percentage, status, detail) {
@@ -1165,7 +1215,7 @@
         
         function startProgressPolling() {
             console.log('[实时显示] startProgressPolling 开始, currentScanId=' + (window.currentScanId || 'null'));
-            // 不在此处设 _scanJustCleared=false，避免在拿到新 scan_id 前用旧 progress 覆盖清空结果；见 scanAllStocks 内 result.success / 继续扫描 / 后台已启动 等分支
+            window._scanCompletionHandled = false;  // 每次新扫描允许完成逻辑执行一次，避免重复触发导致跳动
             if (progressInterval) {
                 clearInterval(progressInterval);
                 console.log('[startProgressPolling] 清除旧的进度轮询');
@@ -1279,23 +1329,27 @@
                                 return;
                             }
                             
+                            // ✅ 完成/失败只处理一次，避免重复执行导致屏幕反复跳动
+                            if (progress.status === '完成' && window._scanCompletionHandled) {
+                                clearInterval(progressInterval);
+                                progressInterval = null;
+                                return;
+                            }
+                            if (progress.status === '完成') window._scanCompletionHandled = true;
+                            
                             // ✅ 关键：在停止轮询前，最后一次更新显示结果（仅限扫描任务）
                             if (isScanProgress && progress.status === '完成') {
-                                // 确保显示最终结果（即使candidates为空，也要从缓存中获取）
                                 updateLiveScanResults(progress);
-                                
-                                // ✅ 如果扫描完成但结果还没显示，尝试从后端获取
+                                // ✅ 已有 candidates 时不再请求 get_scan_results，避免二次渲染导致跳动
                                 const foundCount = progress.found || 0;
+                                const hasCandidates = Array.isArray(progress.candidates) && progress.candidates.length > 0;
                                 const cachedCount = window._liveScanCandidateMap ? Object.keys(window._liveScanCandidateMap).length : 0;
-                                
-                                if (foundCount > 0 && cachedCount === 0) {
-                                    // 扫描完成，找到了股票，但缓存为空，从后端获取
+                                if (foundCount > 0 && cachedCount === 0 && !hasCandidates) {
                                     console.log('[扫描完成] 发现结果未同步，从后端获取最终结果...');
                                     fetch('/api/get_scan_results')
                                         .then(response => response.json())
                                         .then(resultsResult => {
                                             if (resultsResult.success && resultsResult.candidates && resultsResult.candidates.length > 0) {
-                                                // 将结果同步到缓存并显示
                                                 if (!window._liveScanCandidateMap) window._liveScanCandidateMap = {};
                                                 for (const c of resultsResult.candidates) {
                                                     const code = c.股票代码 || c.code || '';
@@ -1304,16 +1358,10 @@
                                                     const key = `${code}__${date}`;
                                                     window._liveScanCandidateMap[key] = c;
                                                 }
-                                                // 更新显示
-                                                updateLiveScanResults({
-                                                    ...progress,
-                                                    candidates: resultsResult.candidates
-                                                });
+                                                updateLiveScanResults({ ...progress, candidates: resultsResult.candidates });
                                             }
                                         })
-                                        .catch(error => {
-                                            console.error('[扫描完成] 获取最终结果失败:', error);
-                                        });
+                                        .catch(error => { console.error('[扫描完成] 获取最终结果失败:', error); });
                                 }
                             }
                             
@@ -1321,34 +1369,23 @@
                             progressInterval = null;
                             
                             if (progress.status === '完成') {
-                                // ✅ 关键：扫描完成后重置 isScanning 标志，允许重新扫描
                                 isScanning = false;
                                 console.log('[startProgressPolling] 扫描完成，重置 isScanning = false');
-                                
-                                // ✅ 如果扫描完成，保存scan_id（用于下次比较）
                                 if (progress.scan_id) {
                                     const lastParams = getLastScanParams();
-                                    if (lastParams) {
-                                        lastParams.scan_id = progress.scan_id;
-                                        saveLastScanParams(lastParams);
-                                        console.log('[startProgressPolling] ✅ 扫描完成，已保存scan_id:', progress.scan_id);
-                                    }
+                                    if (lastParams) { lastParams.scan_id = progress.scan_id; saveLastScanParams(lastParams); }
                                 }
-                                
-                                // 【不可变】过程与最后一致：不调用 displayScanResults，不覆盖 updateLiveScanResults 的实时结果。见 扫描显示不可变逻辑.md
                                 setTimeout(() => {
                                     hideProgress();
-                                    // 显示完成消息，但不覆盖已显示的结果
                                     const foundCount = progress.found || (progress.candidates ? progress.candidates.length : 0) || (window._liveScanCandidateMap ? Object.keys(window._liveScanCandidateMap).length : 0);
                                     const totalScanned = progress.current || progress.total || 0;
                                     if (foundCount > 0) {
-                                        showMessage(`扫描完成！共扫描 ${totalScanned} 只股票，找到 ${foundCount} 只符合条件的股票`, 'success');
+                                        showMessage(`扫描完成！共扫描 ${totalScanned} 只股票，找到 ${foundCount} 只符合条件的股票`, 'success', 2000);
                                     } else {
-                                        showMessage(`扫描完成！共扫描 ${totalScanned} 只股票，未找到符合条件的股票`, 'warning');
+                                        showMessage(`扫描完成！共扫描 ${totalScanned} 只股票，未找到符合条件的股票`, 'warning', 2000);
                                     }
-                                }, 1000);  // 1秒后隐藏进度条
+                                }, 800);  // 0.8秒后淡出进度条，完成提示 2 秒后自动消失，减轻跳动
                             } else if (progress.status === '失败' || progress.status === '空闲') {
-                                // ✅ 关键：扫描失败或空闲时也重置 isScanning 标志
                                 isScanning = false;
                                 console.log(`[startProgressPolling] 扫描${progress.status}，重置 isScanning = false`);
                             }
@@ -1930,6 +1967,104 @@
                 }
             } catch (error) {
                 showMessage('查找买点失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 股价在前高附近：查询/扫描
+        async function scanNearPreviousHigh() {
+            const minWeeksEl = document.getElementById('nearHighMinWeeks');
+            const pctEl = document.getElementById('nearHighPct');
+            const codeEl = document.getElementById('nearHighCode');
+            const resultEl = document.getElementById('nearPreviousHighResult');
+            const minWeeks = minWeeksEl ? parseInt(minWeeksEl.value) || 6 : 6;
+            const pct = pctEl ? parseFloat(pctEl.value) || 5 : 5;
+            const code = codeEl ? codeEl.value.trim() : '';
+            const maxCapEl = document.getElementById('nearHighMaxMarketCap');
+            const maxMarketCap = (maxCapEl && maxCapEl.value && parseFloat(maxCapEl.value) > 0) ? parseFloat(maxCapEl.value) : undefined;
+            if (code && (code.length !== 6 || !/^\d+$/.test(code))) {
+                showMessage('股票代码必须是6位数字或留空', 'error');
+                return;
+            }
+            if (resultEl) resultEl.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">正在查询 / 扫描，请稍候...</div>';
+            showMessage(code ? '正在查询单只股票…' : '正在扫描全市场，请稍候…', 'success');
+            try {
+                const body = { min_weeks_ago: minWeeks, pct_range: pct, code: code || undefined };
+                if (maxMarketCap != null) body.max_market_cap = maxMarketCap;
+                const response = await fetch('/api/stocks_near_previous_high', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const res = await response.json();
+                if (!response.ok) {
+                    showMessage(res.message || '请求失败', 'error');
+                    if (resultEl) resultEl.innerHTML = '<div style="padding: 15px; color: #c00;">' + (res.message || '请求失败') + '</div>';
+                    return;
+                }
+                if (code && res.single) {
+                    const s = res.single;
+                    let html = '<div style="padding: 15px; background: #fff; border-radius: 8px; border: 1px solid #ddd;">';
+                    html += '<div><strong>' + (s['股票名称'] || '') + ' ' + (s['股票代码'] || '') + '</strong></div>';
+                    html += '<div style="margin-top: 8px;">前高: ' + (s['前高']) + ' 元，前高日期: ' + (s['前高日期']) + '，距今 ' + (s['距今周数']) + ' 周</div>';
+                    html += '<div>当前价: ' + (s['当前价']) + ' 元，区间 [ ' + (s['区间下限']) + ' ~ ' + (s['区间上限']) + ' ]</div>';
+                    html += '<div style="margin-top: 8px; color: ' + (s['在前高附近'] ? '#28a745' : '#666') + ';">' + (s['在前高附近'] ? '✅ 在前高附近' : '❌ 不在前高附近') + '</div></div>';
+                    if (resultEl) resultEl.innerHTML = html;
+                    showMessage(s['在前高附近'] ? '该股在前高附近' : '该股不在前高附近', s['在前高附近'] ? 'success' : 'warning');
+                } else if (res.started !== undefined && (res.started === true || res.started === false)) {
+                    // 全市场：已触发后台扫描或已有扫描在进行，轮询进度并显示进度条
+                    if (window.nearHighPollTimer) { clearInterval(window.nearHighPollTimer); window.nearHighPollTimer = null; }
+                    if (res.started === false) showMessage(res.message || '已有扫描在进行', 'warning');
+                    else showMessage(res.message || '全市场扫描已启动', 'success');
+                    if (resultEl) {
+                        resultEl.innerHTML = '<div style="margin-top:10px;"><p class="near-high-progress-msg" style="margin-bottom:8px;font-weight:500;">已扫描 0 / ? 只</p><div style="height:20px;background:#eee;border-radius:4px;overflow:hidden;"><div class="near-high-progress-bar" style="height:100%;width:0%;background:#28a745;transition:width 0.2s"></div></div></div>';
+                    }
+                    window.nearHighPollTimer = setInterval(async function() {
+                        try {
+                            var pr = await fetch('/api/get_near_high_scan_progress');
+                            var prog = await pr.json();
+                            var msgEl = resultEl && resultEl.querySelector('.near-high-progress-msg');
+                            var barEl = resultEl && resultEl.querySelector('.near-high-progress-bar');
+                            if (msgEl) msgEl.textContent = prog.message || ('已扫描 ' + (prog.current||0) + ' / ' + (prog.total||0) + ' 只');
+                            if (barEl) barEl.style.width = (prog.percentage || 0) + '%';
+                            if (prog.status === 'completed') {
+                                if (window.nearHighPollTimer) { clearInterval(window.nearHighPollTimer); window.nearHighPollTimer = null; }
+                                var list = prog.list || [];
+                                var totalScanned = prog.total_scanned || list.length;
+                                var tbl = '<div style="margin-top: 10px;"><p><strong>共 ' + list.length + ' 只</strong>（已扫描 ' + totalScanned + ' 只）</p><div style="overflow-x: auto;"><table style="width: 100%; border-collapse: collapse; font-size: 13px;"><thead><tr style="background: #f5f5f5;">';
+                                tbl += '<th style="padding: 8px; border: 1px solid #ddd;">股票代码</th><th style="padding: 8px; border: 1px solid #ddd;">股票名称</th><th style="padding: 8px; border: 1px solid #ddd;">前高</th><th style="padding: 8px; border: 1px solid #ddd;">前高日期</th><th style="padding: 8px; border: 1px solid #ddd;">距今周数</th><th style="padding: 8px; border: 1px solid #ddd;">当前价</th><th style="padding: 8px; border: 1px solid #ddd;">区间</th><th style="padding: 8px; border: 1px solid #ddd;">市值(亿)</th></tr></thead><tbody>';
+                                list.forEach(function(r) {
+                                    var cap = (r['市值亿'] != null && r['市值亿'] !== '') ? r['市值亿'] : '—';
+                                    tbl += '<tr><td style="padding: 8px; border: 1px solid #ddd;">' + (r['股票代码'] || '') + '</td><td style="padding: 8px; border: 1px solid #ddd;">' + (r['股票名称'] || '') + '</td><td style="padding: 8px; border: 1px solid #ddd;">' + (r['前高']) + '</td><td style="padding: 8px; border: 1px solid #ddd;">' + (r['前高日期'] || '') + '</td><td style="padding: 8px; border: 1px solid #ddd;">' + (r['距今周数']) + '</td><td style="padding: 8px; border: 1px solid #ddd;">' + (r['当前价']) + '</td><td style="padding: 8px; border: 1px solid #ddd;">' + (r['区间下限']) + '~' + (r['区间上限']) + '</td><td style="padding: 8px; border: 1px solid #ddd;">' + cap + '</td></tr>';
+                                });
+                                tbl += '</tbody></table></div></div>';
+                                if (resultEl) resultEl.innerHTML = tbl;
+                                showMessage('找到 ' + list.length + ' 只股价在前高附近的股票', 'success');
+                            } else if (prog.status === 'error') {
+                                if (window.nearHighPollTimer) { clearInterval(window.nearHighPollTimer); window.nearHighPollTimer = null; }
+                                if (resultEl) resultEl.innerHTML = '<div style="padding: 15px; color: #c00;">' + (prog.message || '扫描出错') + '</div>';
+                                showMessage(prog.message || '扫描出错', 'error');
+                            }
+                        } catch (e) { /* 继续轮询 */ }
+                    }, 500);
+                } else if (res.list && res.list.length > 0) {
+                    let html = '<div style="margin-top: 10px;"><p><strong>共 ' + res.list.length + ' 只</strong>';
+                    if (res.total_scanned != null) html += '（已扫描 ' + res.total_scanned + ' 只）';
+                    html += '</p><div style="overflow-x: auto;"><table style="width: 100%; border-collapse: collapse; font-size: 13px;"><thead><tr style="background: #f5f5f5;">';
+                    html += '<th style="padding: 8px; border: 1px solid #ddd;">股票代码</th><th style="padding: 8px; border: 1px solid #ddd;">股票名称</th><th style="padding: 8px; border: 1px solid #ddd;">前高</th><th style="padding: 8px; border: 1px solid #ddd;">前高日期</th><th style="padding: 8px; border: 1px solid #ddd;">距今周数</th><th style="padding: 8px; border: 1px solid #ddd;">当前价</th><th style="padding: 8px; border: 1px solid #ddd;">区间</th><th style="padding: 8px; border: 1px solid #ddd;">市值(亿)</th></tr></thead><tbody>';
+                    res.list.forEach(function(r) {
+                        var cap = (r['市值亿'] != null && r['市值亿'] !== '') ? r['市值亿'] : '—';
+                        html += '<tr><td style="padding: 8px; border: 1px solid #ddd;">' + (r['股票代码'] || '') + '</td><td style="padding: 8px; border: 1px solid #ddd;">' + (r['股票名称'] || '') + '</td><td style="padding: 8px; border: 1px solid #ddd;">' + (r['前高']) + '</td><td style="padding: 8px; border: 1px solid #ddd;">' + (r['前高日期'] || '') + '</td><td style="padding: 8px; border: 1px solid #ddd;">' + (r['距今周数']) + '</td><td style="padding: 8px; border: 1px solid #ddd;">' + (r['当前价']) + '</td><td style="padding: 8px; border: 1px solid #ddd;">' + (r['区间下限']) + '~' + (r['区间上限']) + '</td><td style="padding: 8px; border: 1px solid #ddd;">' + cap + '</td></tr>';
+                    });
+                    html += '</tbody></table></div></div>';
+                    if (resultEl) resultEl.innerHTML = html;
+                    showMessage('找到 ' + res.list.length + ' 只股价在前高附近的股票', 'success');
+                } else {
+                    if (resultEl) resultEl.innerHTML = '<div style="padding: 15px; color: #666;">' + (res.message || '未命中') + (res.total_scanned != null ? '（已扫描 ' + res.total_scanned + ' 只）' : '') + '</div>';
+                    showMessage(res.message || '未找到符合条件的股票', 'warning');
+                }
+            } catch (err) {
+                showMessage('请求失败: ' + err.message, 'error');
+                if (resultEl) resultEl.innerHTML = '<div style="padding: 15px; color: #c00;">' + err.message + '</div>';
             }
         }
         
@@ -2745,18 +2880,20 @@
             // 先检测缓存状态，然后显示相应的提示
             updateProgress(0, '检测中', '正在检测缓存状态...');
             
-            // 先检查缓存状态（通过一个轻量级的 API 调用）
+            // 先检查缓存状态（轻量 API，8 秒超时，避免长时间阻塞扫描）
             let cacheStatus = '未知';
             let cachedStockCount = 0;
             try {
                 console.log('[scanAllStocks] 检测缓存状态...');
+                const cacheAbort = new AbortController();
+                const cacheTimeout = setTimeout(() => cacheAbort.abort(), 8000);
                 const cacheCheckResponse = await fetch('/api/check_cache_status', {
                     method: 'GET',
                     cache: 'no-store',
-                    headers: {
-                        'Cache-Control': 'no-cache'
-                    }
+                    headers: { 'Cache-Control': 'no-cache' },
+                    signal: cacheAbort.signal
                 });
+                clearTimeout(cacheTimeout);
                 
                 if (cacheCheckResponse.ok) {
                     const cacheResult = await cacheCheckResponse.json();
@@ -4682,10 +4819,11 @@
                     return;
                 }
                 
-                // 启动数据更新
+                // 启动数据更新（必须带 body，否则部分环境会 400）
                 const startResp = await fetch('/api/start_data_update', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
                 });
                 const result = await startResp.json();
                 

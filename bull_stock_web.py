@@ -84,6 +84,7 @@ import pandas as pd
 import numpy as np
 import time
 import os
+import threading
 
 # ✅ 确保模板文件夹路径正确（Vercel 环境中可能需要绝对路径）
 import os
@@ -582,11 +583,12 @@ def index():
 
 @app.route('/favicon.ico')
 def favicon():
-    """处理favicon请求，返回204 No Content"""
+    """处理favicon请求，返回204 No Content；加短缓存减轻重复请求"""
     try:
-        return '', 204
+        r = app.make_response(('', 204))
+        r.headers['Cache-Control'] = 'public, max-age=3600'
+        return r
     except Exception as e:
-        # 如果出错，返回空响应
         return '', 204
 
 @app.route('/login')
@@ -683,13 +685,26 @@ def register_page():
         print(f"注册页面错误: {error_detail}")
         return f"<h1>服务器错误</h1><pre>{error_detail}</pre>", 500
 
+
+@app.route('/near_new_high')
+def near_new_high_page():
+    """新高附近选股页面：前高间隔≥5周、附近±5%。"""
+    try:
+        if not is_logged_in():
+            return redirect(url_for('login_page'))
+        return render_template('near_new_high.html')
+    except Exception as e:
+        import traceback
+        return f"<h1>页面错误</h1><pre>{traceback.format_exc()}</pre>", 500
+
+
 # ==================== 认证相关 API ====================
 
 @app.route('/api/register', methods=['POST'])
 def api_register():
     """用户注册API（邮箱注册，无需邀请码）"""
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         username = data.get('username', '').strip()
         email = data.get('email', '').strip()
         password = data.get('password', '')
@@ -734,7 +749,7 @@ def api_login():
     login_start_datetime = datetime.now()
     
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         username = data.get('username', '').strip()
         password = data.get('password', '')
         
@@ -888,6 +903,18 @@ data_update_progress = {
     'start_time': None
 }
 data_update_stop_flag = False
+
+# 过前高全市场扫描进度（仅本地/Render 单进程有效）
+near_high_scan_progress = {
+    'status': 'idle',   # idle, running, completed, error
+    'current': 0,
+    'total': 0,
+    'percentage': 0,
+    'message': '',
+    'list': [],
+    'scan_date': None,
+    'total_scanned': 0,
+}
 
 # 数据更新时间戳文件路径
 DATA_UPDATE_TIMESTAMP_FILE = 'cache/data_update_timestamp.json'
@@ -1582,9 +1609,11 @@ def start_data_update():
     if data_update_progress['status'] == 'running':
         return jsonify({'success': False, 'message': '数据更新正在进行中'})
     
-    # ✅ 检查是否强制更新
-    data = request.get_json() or {}
+    # ✅ 检查是否强制更新（silent=True 避免空 body 导致 400）
+    data = request.get_json(silent=True) or {}
     force_update = data.get('force', False)  # 强制更新选项
+    # ✅ 最早加载 markers，避免任意分支使用未定义变量导致 500
+    markers = _load_data_markers()
     
     # ✅ 检查是否应该跳过更新（交易日15:00后已更新过），除非强制更新
     if not force_update:
@@ -1718,8 +1747,11 @@ def stop_data_update():
 @require_login
 def api_check_data_freshness():
     """检查数据新鲜度"""
-    data = request.get_json() or {}
+    # silent=True：允许空/非JSON body，避免直接抛 400 Bad Request
+    data = request.get_json(silent=True) or {}
     target_date = data.get('scan_date', None)
+    # ✅ 最早加载 markers，避免任意分支使用未定义变量导致 500
+    markers = _load_data_markers()
     
     # ✅ 先检查是否应该跳过更新（交易日15:00后已更新过）
     should_skip, skip_reason = _should_skip_update_after_trading_hours()
@@ -1761,6 +1793,8 @@ def api_check_data_freshness():
     from datetime import datetime
     today = datetime.now()
     today_str = today.strftime('%Y-%m-%d')
+    # ✅ 必须先加载 markers，否则会 NameError
+    markers = _load_data_markers()
     
     if markers:
         # 统计已是最新的股票数量
@@ -1855,7 +1889,7 @@ def api_update_and_scan():
     """先更新数据再扫描（如果需要）"""
     global data_update_progress, data_update_stop_flag
     
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     scan_date = data.get('scan_date', None)
     
     # 检查数据新鲜度
@@ -2210,7 +2244,7 @@ def add_stock():
     """添加大牛股API"""
     try:
         init_analyzer()  # 确保分析器已初始化
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({
                 'success': False,
@@ -2375,7 +2409,7 @@ def admin_get_users():
 def admin_create_super_user():
     """创建或更新超级用户（需要密钥验证）"""
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         
         # 验证密钥（从环境变量获取，如果没有设置则使用默认密钥）
         secret = os.environ.get('SUPER_USER_SECRET', 'create_super_user_2024')
@@ -2463,7 +2497,7 @@ def admin_set_vip():
                 'message': '未登录'
             }), 401
         
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         target_username = data.get('username')
         is_vip = data.get('is_vip', False)
         
@@ -2535,7 +2569,7 @@ def vip_apply():
                 'message': '您已经是VIP会员，无需再次申请'
             }), 400
         
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         plan = data.get('plan', 'monthly')  # 'monthly' 或 'yearly'
         contact = data.get('contact', '').strip()
         note = data.get('note', '').strip()
@@ -2698,7 +2732,7 @@ def admin_update_application_status(application_id):
                 'message': '未登录'
             }), 401
         
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         status = data.get('status')  # 'pending', 'approved', 'rejected', 'completed'
         
         if status not in ['pending', 'approved', 'rejected', 'completed']:
@@ -2862,7 +2896,7 @@ def remove_stock():
     init_analyzer()  # 确保分析器已初始化
     """移除大牛股API"""
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({
                 'success': False,
@@ -2919,7 +2953,7 @@ def clear_stocks():
 def analyze_stock():
     """分析单只大牛股API"""
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({
                 'success': False,
@@ -3031,7 +3065,7 @@ def analyze_stock_detail():
                     'message': '个股深度分析功能仅限VIP用户使用，请升级为VIP会员'
                 }), 403
         
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         stock_code = (data.get('stock_code') or '').strip()
         stock_name = data.get('stock_name', '').strip()
         buy_date = data.get('buy_date', '')
@@ -3459,6 +3493,17 @@ def get_progress():
                 if isinstance(raw, dict) and raw.get('candidates'):
                     progress['candidates'] = list(raw['candidates'])
             
+            # ✅ 若本轮扫描指定了 scan_date，实时结果也只展示「最佳买点日期」= 该日的候选（搜哪一天就只出那一天）
+            if progress.get('scan_date') and progress.get('candidates'):
+                sd = (str(progress.get('scan_date')).strip() or '')[:10]
+                if sd:
+                    orig = progress['candidates']
+                    progress['candidates'] = [
+                        c for c in orig
+                        if (str((c.get('最佳买点日期') or c.get('buy_date') or ''))[:10] == sd)
+                    ]
+                    progress['found'] = len(progress['candidates'])
+            
             import json
             import math
             import numpy as np
@@ -3693,7 +3738,7 @@ def switch_model():
     """切换使用的模型文件"""
     global analyzer, _current_model_file, _model_last_loaded_mtime
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         model_filename = data.get('model_filename', '').strip()
         
         if not model_filename:
@@ -3750,7 +3795,7 @@ def delete_model():
     """删除模型文件"""
     global analyzer, _current_model_file, _model_last_loaded_mtime
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         model_filename = data.get('model_filename', '').strip()
         
         if not model_filename:
@@ -3943,7 +3988,7 @@ def find_sell_points():
     init_analyzer()  # 确保分析器已初始化
     """查找卖点API"""
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({
                 'success': False,
@@ -4029,6 +4074,55 @@ def find_sell_points():
         }), 500
 
 
+@app.route('/api/scan_near_new_high', methods=['GET', 'POST'])
+@require_login
+def api_scan_near_new_high():
+    """新高附近选股：前高间隔≥5周、附近±5%。返回符合条件的个股列表。"""
+    try:
+        max_stocks = None
+        max_market_cap = None
+        if request.method == 'GET':
+            max_stocks = request.args.get('max', type=int)
+            try:
+                mc = request.args.get('max_market_cap', type=float)
+                if mc is not None and mc > 0:
+                    max_market_cap = mc
+            except (TypeError, ValueError):
+                pass
+        else:
+            data = request.get_json(silent=True) or {}
+            max_stocks = data.get('max')
+            mc = data.get('max_market_cap')
+            if mc is not None and (isinstance(mc, (int, float)) and mc > 0):
+                max_market_cap = float(mc)
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        import scan_near_new_high as snh
+        rows = snh.run_step2_batch(
+            lookback_weeks=snh.DEFAULT_LOOKBACK_WEEKS,
+            min_gap_weeks=snh.DEFAULT_MIN_GAP_WEEKS,
+            max_gap_weeks=snh.DEFAULT_MAX_GAP_WEEKS,
+            pct_range=snh.DEFAULT_PCT_RANGE,
+            max_stocks=max_stocks,
+            out_path=None,
+            csv_path=None,
+            require_today_yang=True,
+            require_above_ma10=True,
+            max_market_cap=max_market_cap
+        )
+        out = [
+            {'code': c, 'name': n, 'curr_close': r['curr_close'], 'prev_high': r['prev_high'],
+             'pct_diff': r['pct_diff'], 'gap_weeks': r['gap_weeks'],
+             'curr_date': str(r.get('curr_date')), 'prev_high_date': str(r.get('prev_high_date')),
+             '当天阳线': r.get('当天阳线'), 'no_higher_in_between': r.get('no_higher_in_between'), '市值亿': r.get('市值亿')}
+            for c, n, r in rows
+        ]
+        return jsonify({'ok': True, 'list': out, 'count': len(out)})
+    except Exception as e:
+        import traceback
+        print(f"[api_scan_near_new_high] 错误: {traceback.format_exc()}")
+        return jsonify({'ok': False, 'message': str(e), 'list': [], 'count': 0}), 500
+
+
 @app.route('/api/scan_all_stocks', methods=['POST'])
 @require_login
 def scan_all_stocks():
@@ -4080,7 +4174,7 @@ def scan_all_stocks():
         # VIP用户和超级用户：无扫描限制（无限次扫描）
         # VIP用户已经移除了每日扫描次数限制，可以无限次手动扫描
         
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         min_match_score = float(data.get('min_match_score', 0.93))  # 默认0.93，更严格；若过少可调低
         max_market_cap = float(data.get('max_market_cap', 100.0))
         # ✅ 关键：打印接收到的市值参数，确保正确传递
@@ -4743,6 +4837,22 @@ def scan_all_stocks():
                     strict_local_only=strict_local_only  # ✅ 传递严格本地模式参数
                 )
                 
+                # ✅ 若指定了扫描日期，只保留「最佳买点日期」= 该日的候选（搜哪一天就只出那一天的数据）
+                if scan_date:
+                    scan_date_str = (scan_date if isinstance(scan_date, str) else str(scan_date)).strip()[:10]
+                    if scan_date_str:
+                        orig = result.get('candidates', [])
+                        filtered = [
+                            c for c in orig
+                            if (str((c.get('最佳买点日期') or c.get('buy_date') or ''))[:10] == scan_date_str)
+                        ]
+                        result['candidates'] = filtered
+                        result['found_count'] = len(filtered)
+                        if hasattr(analyzer, 'progress') and isinstance(analyzer.progress, dict):
+                            analyzer.progress['candidates'] = filtered
+                            analyzer.progress['found'] = len(filtered)
+                        print(f"[scan_all_stocks] 已按扫描日期 {scan_date_str} 过滤：{len(orig)} → {len(filtered)} 只")
+                
                 # ✅ 更新进度：扫描完成
                 try:
                     import scan_progress_store
@@ -4841,7 +4951,7 @@ def continue_scan():
     """继续扫描下一批次（Vercel 环境）"""
     try:
         # 记录请求信息（用于调试）
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         scan_id = data.get('scan_id')
         print(f"[continue_scan] 收到请求: scan_id={scan_id}, 用户={get_current_user().get('username') if get_current_user() else 'None'}")
         
@@ -5056,7 +5166,7 @@ def stop_scan():
     try:
         # 在 Vercel 环境中，更新 Redis 中的进度状态
         if is_vercel:
-            data = request.get_json() or {}
+            data = request.get_json(silent=True) or {}
             scan_id = data.get('scan_id')
             
             print(f"[stop_scan] Vercel 环境，收到停止请求，scan_id: {scan_id}")
@@ -5154,7 +5264,7 @@ def find_buy_points():
     init_analyzer()  # 确保分析器已初始化
     """查找买点API"""
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({
                 'success': False,
@@ -5266,6 +5376,221 @@ def find_buy_points():
             'message': f'服务器错误: {str(e)}',
             'buy_points': []
         }), 500
+
+
+@app.route('/api/stocks_near_previous_high', methods=['POST'])
+@require_login
+def stocks_near_previous_high():
+    """股价在前高附近：今日价格在「至少 N 周前的前高」的正负 pct% 之间"""
+    init_analyzer()
+    try:
+        data = request.get_json(silent=True) or {}
+        min_weeks_ago = int(data.get('min_weeks_ago', 6))   # 前高距今至少几周，默认 6
+        pct_range = float(data.get('pct_range', 5))         # 正负百分比，默认 5
+        stock_code = (data.get('code') or '').strip()
+        scan_date = (data.get('scan_date') or '').strip()
+        max_market_cap = None
+        if data.get('max_market_cap') is not None:
+            try:
+                mc = float(data.get('max_market_cap'))
+                if mc > 0:
+                    max_market_cap = mc
+            except (TypeError, ValueError):
+                pass
+        
+        if min_weeks_ago < 1:
+            min_weeks_ago = 1
+        if pct_range <= 0 or pct_range > 50:
+            pct_range = 5
+        
+        import pandas as pd
+        from datetime import datetime as dt_now
+        
+        as_of = scan_date if scan_date else dt_now.now().strftime('%Y-%m-%d')
+        as_of_ts = pd.to_datetime(as_of, errors='coerce')
+        as_of_ymd = as_of_ts.strftime('%Y%m%d') if pd.notna(as_of_ts) else dt_now.now().strftime('%Y%m%d')
+        
+        def check_one(stock_code: str, stock_name: str):
+            w = analyzer.fetcher.get_weekly_kline(stock_code, period='2y', use_cache=True, local_only=True)
+            if w is None or len(w) < min_weeks_ago + 1:
+                return None
+            w = w.copy()
+            w['日期'] = pd.to_datetime(w['日期'], errors='coerce')
+            w = w.dropna(subset=['日期']).sort_values('日期').reset_index(drop=True)
+            w = w[w['日期'] <= as_of_ts].reset_index(drop=True)
+            if len(w) < min_weeks_ago + 1:
+                return None
+            # 前高区间：至少 min_weeks_ago 周以前（索引 0 到 len-1-min_weeks）
+            past = w.iloc[: len(w) - min_weeks_ago]
+            if '最高' in past.columns:
+                high_col = '最高'
+            elif 'high' in past.columns:
+                high_col = 'high'
+            else:
+                past['_close'] = past['收盘'] if '收盘' in past.columns else past['close']
+                high_col = '_close'
+            prev_high = float(past[high_col].max())
+            idx_high = int(past[high_col].idxmax())
+            week_high = past.loc[idx_high, '日期']
+            weeks_ago = len(w) - 1 - idx_high
+            # 当前价：优先用 scan_date 的日收盘
+            current_price = None
+            daily_df = analyzer.fetcher.get_daily_kline_range(
+                stock_code, start_date=(as_of_ts - pd.Timedelta(days=30)).strftime('%Y%m%d'),
+                end_date=as_of_ymd, use_cache=True, local_only=True
+            )
+            if daily_df is not None and len(daily_df) > 0 and '收盘' in daily_df.columns:
+                daily_df = daily_df.copy()
+                daily_df['日期'] = pd.to_datetime(daily_df['日期'], errors='coerce')
+                daily_df = daily_df[daily_df['日期'] <= as_of_ts].sort_values('日期').reset_index(drop=True)
+                if len(daily_df) > 0:
+                    current_price = float(daily_df['收盘'].iloc[-1])
+            if current_price is None:
+                current_price = float(w['收盘'].iloc[-1]) if '收盘' in w.columns else float(w['close'].iloc[-1])
+            low_bound = prev_high * (1 - pct_range / 100)
+            high_bound = prev_high * (1 + pct_range / 100)
+            near = low_bound <= current_price <= high_bound
+            return {
+                '股票代码': stock_code,
+                '股票名称': stock_name,
+                '前高': round(prev_high, 2),
+                '前高日期': week_high.strftime('%Y-%m-%d') if hasattr(week_high, 'strftime') else str(week_high)[:10],
+                '距今周数': weeks_ago,
+                '当前价': round(current_price, 2),
+                '区间下限': round(low_bound, 2),
+                '区间上限': round(high_bound, 2),
+                '在前高附近': near,
+            }
+        
+        # 单只查询
+        if stock_code:
+            if len(stock_code) != 6 or not stock_code.isdigit():
+                return jsonify({'success': False, 'message': '股票代码必须是6位数字', 'list': []}), 400
+            name = getattr(analyzer, '_get_stock_name', lambda c: c)(stock_code) or stock_code
+            row = check_one(stock_code, name)
+            if row is None:
+                return jsonify({
+                    'success': True,
+                    'message': '数据不足或区间内无前高',
+                    'single': None,
+                    'list': [],
+                })
+            return jsonify({
+                'success': True,
+                'single': row,
+                'list': [row] if row['在前高附近'] else [],
+            })
+        
+        # 全市场扫描：从 cache 取列表，限制数量避免超时
+        cache_dir = os.environ.get('LOCAL_CACHE_DIR') or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cache')
+        stock_list_path = os.path.join(cache_dir, 'stock_list_all.json')
+        stocks = []
+        if os.path.exists(stock_list_path):
+            try:
+                with open(stock_list_path, 'r', encoding='utf-8') as f:
+                    raw = json.load(f)
+                if isinstance(raw, list):
+                    for s in raw[:6000]:
+                        code = (s.get('code') or s.get('代码') or '').strip()
+                        name = (s.get('name') or s.get('名称') or code)
+                        if code and len(code) == 6 and code.isdigit():
+                            stocks.append((code, str(name)))
+                elif isinstance(raw, dict) and 'data' in raw:
+                    for s in raw['data'][:6000]:
+                        code = (s.get('code') or s.get('代码') or '').strip()
+                        name = (s.get('name') or s.get('名称') or code)
+                        if code and len(code) == 6 and code.isdigit():
+                            stocks.append((code, str(name)))
+            except Exception:
+                pass
+        if not stocks:
+            return jsonify({
+                'success': False,
+                'message': '未找到股票列表，请先下载或生成 stock_list_all.json',
+                'list': [],
+            }), 400
+        
+        # 全市场扫描：若已有任务在跑则拒绝；否则在后台线程跑并写进度
+        global near_high_scan_progress
+        if near_high_scan_progress.get('status') == 'running':
+            return jsonify({
+                'success': True,
+                'started': False,
+                'message': '已有过前高扫描在进行，请等待完成或稍后再试',
+                'list': [],
+            })
+        total = len(stocks)
+        near_high_scan_progress['status'] = 'running'
+        near_high_scan_progress['total'] = total
+        near_high_scan_progress['current'] = 0
+        near_high_scan_progress['percentage'] = 0
+        near_high_scan_progress['message'] = f'已扫描 0 / {total} 只'
+        near_high_scan_progress['list'] = []
+        near_high_scan_progress['scan_date'] = as_of
+        near_high_scan_progress['total_scanned'] = 0
+
+        def run_scan():
+            out = []
+            try:
+                for i, (code, name) in enumerate(stocks):
+                    near_high_scan_progress['current'] = i + 1
+                    near_high_scan_progress['percentage'] = round((i + 1) / total * 100, 1)
+                    near_high_scan_progress['message'] = f'已扫描 {i + 1} / {total} 只'
+                    row = check_one(code, name)
+                    if row and row.get('在前高附近'):
+                        if max_market_cap is not None:
+                            try:
+                                cap = analyzer.fetcher.get_market_cap(code, timeout=2)
+                                if cap is None or cap > max_market_cap:
+                                    continue
+                                row['市值亿'] = round(cap, 2)
+                            except Exception:
+                                continue
+                        out.append(row)
+                near_high_scan_progress['status'] = 'completed'
+                near_high_scan_progress['message'] = f'扫描完成，共 {len(out)} 只（已扫描 {total} 只）'
+                near_high_scan_progress['list'] = out
+                near_high_scan_progress['total_scanned'] = total
+            except Exception as e:
+                near_high_scan_progress['status'] = 'error'
+                near_high_scan_progress['message'] = str(e)[:200]
+                near_high_scan_progress['list'] = []
+
+        t = threading.Thread(target=run_scan, daemon=True)
+        t.start()
+        return jsonify({
+            'success': True,
+            'started': True,
+            'message': '全市场扫描已启动，请查看下方进度',
+            'list': [],
+        })
+    except Exception as e:
+        import traceback
+        print(f"[stocks_near_previous_high] {traceback.format_exc()}")
+        return jsonify({'success': False, 'message': str(e), 'list': []}), 500
+
+
+@app.route('/api/get_near_high_scan_progress', methods=['GET'])
+@require_login
+def get_near_high_scan_progress():
+    """过前高全市场扫描进度：返回 status/current/total/percentage/message/list（完成时含 list）"""
+    try:
+        global near_high_scan_progress
+        # 返回副本，避免前端持有引用时被并发修改
+        p = dict(near_high_scan_progress)
+        if p.get('list') is not None and isinstance(p['list'], list):
+            p['list'] = list(p['list'])
+        return jsonify(p)
+    except Exception as e:
+        return jsonify({
+            'status': 'idle',
+            'current': 0,
+            'total': 0,
+            'percentage': 0,
+            'message': '',
+            'list': [],
+            'total_scanned': 0,
+        })
 
 
 @app.route('/api/get_scan_progress', methods=['GET'])
@@ -5652,7 +5977,7 @@ def scan_v2():
                 'message': 'V2模型未初始化或未训练'
             }), 500
         
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         min_match_score = float(data.get('min_match_score', 0.90))
         min_bottom_score = int(data.get('min_bottom_score', 2))
         min_launch_score = int(data.get('min_launch_score', 2))
@@ -5758,7 +6083,7 @@ def scan_reversal_stocks():
     init_analyzer()  # 确保分析器已初始化
     try:
         # 获取请求参数
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         market_cap_max = float(data.get('market_cap_max', 100.0))  # 默认100亿
         
         # 在后台线程中执行扫描（避免阻塞）
@@ -6031,7 +6356,7 @@ def export_scan_results():
                     'message': '导出功能仅限VIP用户使用，请升级为VIP会员'
                 }), 403
         
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         
         # 获取参数
         export_format = data.get('format', 'excel').lower()  # excel, csv, json
@@ -6303,7 +6628,7 @@ def add_to_watchlist():
                     'message': '关注列表功能仅限VIP用户使用，请升级为VIP会员'
                 }), 403
         
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         stock_info = data.get('stock_info', {})
         
         if not stock_info:
@@ -6371,7 +6696,7 @@ def remove_from_watchlist():
                     'message': '关注列表功能仅限VIP用户使用，请升级为VIP会员'
                 }), 403
         
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         stock_code = (data.get('stock_code') or '').strip()
         
         if not stock_code:
@@ -6483,7 +6808,7 @@ def set_price_alert():
                     'message': '价格预警功能仅限VIP用户使用，请升级为VIP会员'
                 }), 403
         
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         stock_code = (data.get('stock_code') or '').strip()
         stock_name = data.get('stock_name', '').strip()
         price_high = data.get('price_high')  # 价格上限（可选）
@@ -6608,7 +6933,7 @@ def remove_price_alert():
                     'message': '价格预警功能仅限VIP用户使用，请升级为VIP会员'
                 }), 403
         
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         stock_code = (data.get('stock_code') or '').strip()
         
         if not stock_code:
@@ -6646,7 +6971,7 @@ def remove_price_alert():
 def search_stock():
     """个股检索API - 根据代码或名称搜索股票"""
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({
                 'success': False,
@@ -6809,7 +7134,8 @@ def refresh_stock_cache():
         
         # 检查是否在交易时间或盘后时间（如果不是，仍然允许手动触发，但给出警告）
         is_in_trading_time = is_trading_time(beijing_now)
-        force_refresh = request.args.get('force', '').lower() == 'true' or request.get_json(silent=True) and request.get_json().get('force', False)
+        _j = request.get_json(silent=True)
+        force_refresh = request.args.get('force', '').lower() == 'true' or (_j and _j.get('force', False))
         
         if not is_in_trading_time and not force_refresh:
             return jsonify({
@@ -7341,7 +7667,7 @@ def scan_kdj():
     global kdj_scan_progress, kdj_scan_stop_flag
     
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         threshold = float(data.get('threshold', 20))  # KDJ阈值，默认20
         limit = int(data.get('limit', 50))  # 返回数量限制
         max_workers = int(data.get('max_workers', 10))  # 并发线程数，默认10（Render环境建议5-10）
