@@ -56,9 +56,32 @@ def fetch_github_cache(
 
     # 流式解压：边下载边解压到 root，不落盘整份 .tar.gz，避免 Vercel /tmp 磁盘满
     try:
-        resp = requests.get(data_url, stream=True, timeout=timeout)
+        resp = requests.get(data_url, stream=True, timeout=timeout, allow_redirects=True)
         resp.raise_for_status()
         resp.raw.decode_content = False  # 保留 gzip 原始字节，由下方 gzip.GzipFile 解压
+        # 若返回的是网页（如 /releases/tag/xxx 页面），会得到 "invalid header"
+        peek = resp.raw.read(2)
+        if peek and peek[:1] in (b'<', b'%'):
+            _last_error = (
+                "URL 返回的是网页而非文件。请将 STOCK_DATA_URL 改为「直接下载链接」，"
+                "格式：https://github.com/.../releases/download/<tag名>/<文件名>.tar.gz "
+                "不要用 /releases/tag/ 开头的页面链接。"
+            )
+            return False
+        # 把已读的 2 字节拼回，供后续 gzip 使用
+        class _Prepend:
+            def __init__(self, head, rest):
+                self._head = head
+                self._rest = rest
+            def read(self, n=-1):
+                if self._head:
+                    if n <= 0 or n >= len(self._head):
+                        out, self._head = self._head, b""
+                        return out + self._rest.read(n - len(out) if n > 0 else -1)
+                    out, self._head = self._head[:n], self._head[n:]
+                    return out
+                return self._rest.read(n)
+        resp.raw = _Prepend(peek, resp.raw)
         gzip_stream = gzip.GzipFile(fileobj=resp.raw)
         with tarfile.open(fileobj=gzip_stream, mode="r|") as tar:
             for member in tar:
