@@ -7815,6 +7815,22 @@ def _ensure_stock_data_downloaded():
 def ensure_data_downloaded():
     """在每次请求前检查并下载数据包（仅在 Vercel 环境中，且仅执行一次）"""
     global _data_download_checked
+    # 避免在“页面初始化/轻量接口”上触发长耗时拉包，导致 504/超时
+    # 仅在明确需要本地数据的接口上尝试拉包（扫描/预热/手动刷新）
+    try:
+        from flask import request as _req
+        _path = _req.path or ""
+    except Exception:
+        _path = ""
+    _download_allow_paths = {
+        "/api/cache_debug",
+        "/api/refresh_stock_cache",
+        "/api/scan_all_stocks",
+        "/api/continue_scan",
+    }
+    if _path and _path.startswith("/api/") and (_path not in _download_allow_paths):
+        return
+
     if (is_vercel or is_render or os.environ.get('STOCK_DATA_URL')) and not _data_download_checked:
         try:
             _ensure_stock_data_downloaded()
