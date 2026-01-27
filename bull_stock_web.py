@@ -2039,17 +2039,25 @@ def cache_debug():
         tmp_ok = os.path.exists(tmp_cache)
         fetch_attempted = False
         fetch_ok = None
+        fetch_error = None
         # 若在 Vercel、有 URL、且 /tmp/cache 不存在，则在本请求内拉取（可能耗时 1–2 分钟）
         if is_vercel and has_url and not tmp_ok:
             try:
-                from fetch_github_cache import fetch_github_cache
+                import fetch_github_cache as _fetch_mod
                 fetch_attempted = True
-                fetch_ok = fetch_github_cache(skip_if_exists=False, root_dir='/tmp', timeout=120)
+                fetch_ok = _fetch_mod.fetch_github_cache(skip_if_exists=False, root_dir='/tmp', timeout=120)
                 tmp_ok = os.path.exists(tmp_cache)
+                if not fetch_ok:
+                    fetch_error = getattr(_fetch_mod, '_last_error', None)
+                    if not fetch_error:
+                        fetch_error = 'fetch_github_cache 返回 False（可能为请求超时、网络错误或解压失败）'
             except Exception as fe:
+                import traceback
                 fetch_attempted = True
                 fetch_ok = False
-                print("[cache_debug] fetch_github_cache 失败:", fe)
+                fetch_error = str(fe)
+                print("[cache_debug] fetch_github_cache 失败:", fetch_error)
+                traceback.print_exc()
         entries = []
         stock_list_ok = False
         weekly_ok = False
@@ -2074,6 +2082,7 @@ def cache_debug():
             'tmp_has_daily_kline': daily_ok,
             'fetch_attempted': fetch_attempted,
             'fetch_ok': fetch_ok,
+            'fetch_error': fetch_error,
         })
     except Exception as e:
         import traceback

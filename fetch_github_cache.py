@@ -14,6 +14,9 @@ try:
 except ImportError:
     requests = None
 
+# 最近一次失败时的错误信息，供 cache_debug 等展示
+_last_error = None
+
 
 def fetch_github_cache(
     skip_if_exists=True,
@@ -37,6 +40,8 @@ def fetch_github_cache(
     stock_data_dir = os.path.join(root, "stock_data")
     data_url = url or os.environ.get("STOCK_DATA_URL")
 
+    global _last_error
+    _last_error = None
     if not data_url:
         return False
 
@@ -61,7 +66,8 @@ def fetch_github_cache(
                     f.write(chunk)
         with tarfile.open(tmp_path, "r:gz") as tar:
             tar.extractall(root)
-    except Exception:
+    except Exception as e:
+        _last_error = str(e)
         return False
     finally:
         if tmp_path and os.path.exists(tmp_path):
