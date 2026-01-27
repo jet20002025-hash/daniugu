@@ -2028,6 +2028,47 @@ def api_health():
         }), 500
 
 
+@app.route('/api/cache_debug', methods=['GET'])
+def cache_debug():
+    """免登录：查看 Vercel 上缓存路径与实际目录状态，便于排查 cache_exists 为 false"""
+    try:
+        import os
+        has_url = bool(os.environ.get('STOCK_DATA_URL'))
+        local_dir = os.environ.get('LOCAL_CACHE_DIR') or '(not set)'
+        tmp_cache = '/tmp/cache'
+        tmp_ok = os.path.exists(tmp_cache)
+        entries = []
+        stock_list_ok = False
+        weekly_ok = False
+        daily_ok = False
+        if tmp_ok:
+            try:
+                entries = os.listdir(tmp_cache)[:30]
+            except Exception:
+                entries = ['(listdir failed)']
+            stock_list_ok = os.path.exists(os.path.join(tmp_cache, 'stock_list_all.json'))
+            weekly_ok = os.path.exists(os.path.join(tmp_cache, 'weekly_kline'))
+            daily_ok = os.path.exists(os.path.join(tmp_cache, 'daily_kline'))
+        return jsonify({
+            'success': True,
+            'vercel': is_vercel,
+            'has_stock_data_url': has_url,
+            'local_cache_dir': local_dir,
+            'tmp_cache_exists': tmp_ok,
+            'tmp_cache_entries_sample': entries,
+            'tmp_has_stock_list': stock_list_ok,
+            'tmp_has_weekly_kline': weekly_ok,
+            'tmp_has_daily_kline': daily_ok,
+        })
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+
 @app.route('/api/check_cache_status', methods=['GET'])
 @require_login
 def check_cache_status():
