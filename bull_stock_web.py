@@ -6832,24 +6832,34 @@ def refresh_stock_cache():
             daily_exists = os.path.exists(daily_dir) and os.listdir(daily_dir) if os.path.exists(daily_dir) else False
             
             if not weekly_exists and not daily_exists:
-                # K 线文件目录不存在或为空，说明数据包可能未下载（返回 200 以便前端解析 JSON 并展示提示）
-                error_msg = '⚠️ **K 线数据尚未就绪**\n\n'
-                error_msg += '首次访问或冷启动时，数据包下载约需 1–2 分钟。\n\n'
-                error_msg += '**请 2 分钟后再点击「手动刷新缓存」或再次扫描。**\n\n'
-                error_msg += '若仍失败，请检查：\n'
-                error_msg += '1. Vercel 环境变量 `STOCK_DATA_URL` 已设置\n'
-                error_msg += '2. Vercel 部署日志中是否有「✅ 数据下载并解压成功」\n'
-                
-                print(f"[refresh_stock_cache] ❌ K 线数据文件不存在: weekly_dir={weekly_dir}, daily_dir={daily_dir}")
-                return jsonify({
-                    'success': False,
-                    'message': error_msg,
-                    'current_time': current_time_str,
-                    'is_vercel': True,
-                    'weekly_dir_exists': weekly_exists,
-                    'daily_dir_exists': daily_exists,
-                    'suggestion': '2 分钟后再试刷新'
-                }), 200
+                # K 线目录不存在时，先尝试在本请求内拉取数据包（解决多实例 / 冷启动未拉取到的情况）
+                if os.environ.get('STOCK_DATA_URL') and is_vercel:
+                    print("[refresh_stock_cache] K 线缺失，先在本请求内拉取数据包...")
+                    try:
+                        from fetch_github_cache import fetch_github_cache
+                        fetch_github_cache(skip_if_exists=False, root_dir='/tmp', timeout=120)
+                    except Exception as fe:
+                        print(f"[refresh_stock_cache] 拉取数据包异常: {fe}")
+                    weekly_exists = os.path.exists(weekly_dir) and os.listdir(weekly_dir) if os.path.exists(weekly_dir) else False
+                    daily_exists = os.path.exists(daily_dir) and os.listdir(daily_dir) if os.path.exists(daily_dir) else False
+                if not weekly_exists and not daily_exists:
+                    error_msg = '⚠️ **K 线数据尚未就绪**\n\n'
+                    error_msg += '首次访问或冷启动时，数据包下载约需 1–2 分钟。\n\n'
+                    error_msg += '**请先点击「打开预热页」，等待 1–2 分钟完成后关闭，再立即扫描；**\n'
+                    error_msg += '或 2 分钟后再点击「手动刷新缓存」重试。\n\n'
+                    error_msg += '若仍失败，请检查：\n'
+                    error_msg += '1. Vercel 环境变量 `STOCK_DATA_URL` 已设置\n'
+                    error_msg += '2. Vercel 部署日志中是否有「✅ 数据下载并解压成功」\n'
+                    print(f"[refresh_stock_cache] ❌ K 线数据文件不存在: weekly_dir={weekly_dir}, daily_dir={daily_dir}")
+                    return jsonify({
+                        'success': False,
+                        'message': error_msg,
+                        'current_time': current_time_str,
+                        'is_vercel': True,
+                        'weekly_dir_exists': weekly_exists,
+                        'daily_dir_exists': daily_exists,
+                        'suggestion': '打开预热页或 2 分钟后再试刷新'
+                    }), 200
             
             # K 线文件存在，尝试生成股票列表
             try:

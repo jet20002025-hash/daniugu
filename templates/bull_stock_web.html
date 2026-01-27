@@ -3160,11 +3160,14 @@
                                 z-index: 10000;
                                 box-shadow: 0 4px 6px rgba(0,0,0,0.3);
                             `;
+                            const cacheDebugUrl = (window.location.origin || '') + '/api/cache_debug';
                             refreshCacheDiv.innerHTML = `
                                 <h3 style="margin-top: 0; color: #856404;">⚠️ 缓存未生成</h3>
-                                <p style="color: #856404; margin-bottom: 15px;">需要先刷新股票列表缓存才能继续扫描。</p>
-                                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                                <p style="color: #856404; margin-bottom: 10px;">需要先刷新股票列表缓存才能继续扫描。</p>
+                                <p style="color: #856404; font-size: 13px; margin-bottom: 15px;">若手动刷新仍失败，请点击「打开预热页」，等待 1–2 分钟完成后关闭，再立即扫描。</p>
+                                <div style="display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
                                     <button id="cancelRefreshBtn" style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">取消</button>
+                                    <a id="warmupPageLink" href="${cacheDebugUrl}" target="_blank" rel="noopener" style="padding: 8px 16px; background: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; font-size: 14px;">打开预热页</a>
                                     <button id="refreshCacheBtn" style="padding: 8px 16px; background: #ffc107; color: #856404; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">手动刷新缓存</button>
                                 </div>
                             `;
@@ -3217,9 +3220,9 @@
                                         const errorMsg = refreshResult.message || '缓存刷新失败';
                                         showMessage(`❌ ${errorMsg}`, 'error');
                                         
-                                        // 如果是数据包未下载的错误，提供更详细的提示
-                                        if (errorMsg.includes('K 线数据文件不存在') || errorMsg.includes('数据包')) {
-                                            showMessage('💡 提示：请检查 Vercel 部署日志，确认 GitHub 数据包是否已下载。', 'info');
+                                        // 如果是数据包未下载的错误，提示可打开预热页
+                                        if (errorMsg.includes('K 线') || errorMsg.includes('数据包') || errorMsg.includes('尚未就绪')) {
+                                            showMessage('💡 可新开标签页访问 /api/cache_debug 预热，等待 1–2 分钟完成后再扫描。', 'info');
                                         }
                                     }
                                 } catch (error) {
