@@ -6758,19 +6758,13 @@ def refresh_stock_cache():
             daily_exists = os.path.exists(daily_dir) and os.listdir(daily_dir) if os.path.exists(daily_dir) else False
             
             if not weekly_exists and not daily_exists:
-                # K 线文件目录不存在或为空，说明数据包可能未下载
-                error_msg = '⚠️ **K 线数据文件不存在**\n\n'
-                error_msg += '**问题分析：**\n'
-                error_msg += 'GitHub 数据包可能未下载或解压失败。\n\n'
-                error_msg += '**解决方案：**\n'
-                error_msg += '1. 检查 Vercel 部署日志，确认数据包下载是否成功\n'
-                error_msg += '2. 确认 `STOCK_DATA_URL` 环境变量已正确设置\n'
-                error_msg += '3. 确认 GitHub Releases 中的数据包可以正常下载\n'
-                error_msg += '4. 等待 Vercel 重新部署，系统会自动下载数据包\n\n'
-                error_msg += '**检查步骤：**\n'
-                error_msg += '- 访问 Vercel Dashboard → Deployments → 查看最新部署的日志\n'
-                error_msg += '- 查找 "📥 检测到 Vercel 环境，开始从 GitHub 下载股票数据..." 的日志\n'
-                error_msg += '- 确认是否显示 "✅ 数据下载并解压成功！"\n'
+                # K 线文件目录不存在或为空，说明数据包可能未下载（返回 200 以便前端解析 JSON 并展示提示）
+                error_msg = '⚠️ **K 线数据尚未就绪**\n\n'
+                error_msg += '首次访问或冷启动时，数据包下载约需 1–2 分钟。\n\n'
+                error_msg += '**请 2 分钟后再点击「手动刷新缓存」或再次扫描。**\n\n'
+                error_msg += '若仍失败，请检查：\n'
+                error_msg += '1. Vercel 环境变量 `STOCK_DATA_URL` 已设置\n'
+                error_msg += '2. Vercel 部署日志中是否有「✅ 数据下载并解压成功」\n'
                 
                 print(f"[refresh_stock_cache] ❌ K 线数据文件不存在: weekly_dir={weekly_dir}, daily_dir={daily_dir}")
                 return jsonify({
@@ -6780,8 +6774,8 @@ def refresh_stock_cache():
                     'is_vercel': True,
                     'weekly_dir_exists': weekly_exists,
                     'daily_dir_exists': daily_exists,
-                    'suggestion': '检查数据包下载状态'
-                }), 500
+                    'suggestion': '2 分钟后再试刷新'
+                }), 200
             
             # K 线文件存在，尝试生成股票列表
             try:
@@ -6802,53 +6796,31 @@ def refresh_stock_cache():
                         }), 200
                     else:
                         print("[refresh_stock_cache] ⚠️ 生成股票列表后，缓存仍为空")
-                        error_msg = '⚠️ **生成股票列表失败**\n\n'
-                        error_msg += '虽然 K 线文件存在，但生成股票列表后缓存仍为空。\n\n'
-                        error_msg += '**可能的原因：**\n'
-                        error_msg += '1. K 线文件格式不正确\n'
-                        error_msg += '2. 文件权限问题\n'
-                        error_msg += '3. 磁盘空间不足\n\n'
-                        error_msg += '**解决方案：**\n'
-                        error_msg += '请检查 Vercel 部署日志，查看详细的错误信息。'
+                        error_msg = '⚠️ **生成股票列表失败**\n\n虽然 K 线文件存在，但缓存仍为空。请 2 分钟后再试刷新。'
                         return jsonify({
                             'success': False,
                             'message': error_msg,
                             'current_time': current_time_str,
                             'is_vercel': True,
-                            'suggestion': '检查生成日志'
-                        }), 500
+                            'suggestion': '2 分钟后再试刷新'
+                        }), 200
                 else:
                     print("[refresh_stock_cache] ⚠️ 从 K 线文件生成股票列表失败（函数返回 False）")
-                    error_msg = '⚠️ **生成股票列表失败**\n\n'
-                    error_msg += '`generate_stock_list_from_kline_files()` 函数返回 False。\n\n'
-                    error_msg += '**可能的原因：**\n'
-                    error_msg += '1. K 线文件目录为空\n'
-                    error_msg += '2. 文件格式不正确\n'
-                    error_msg += '3. 保存文件时出错\n\n'
-                    error_msg += '**解决方案：**\n'
-                    error_msg += '请检查 Vercel 部署日志，查看详细的错误信息。'
+                    error_msg = '⚠️ **生成股票列表失败**\n\n请 2 分钟后再试刷新。'
                     return jsonify({
                         'success': False,
                         'message': error_msg,
                         'current_time': current_time_str,
                         'is_vercel': True,
-                        'suggestion': '检查生成日志'
-                    }), 500
+                        'suggestion': '2 分钟后再试刷新'
+                    }), 200
             except Exception as gen_error:
                 import traceback
                 error_detail = traceback.format_exc()
                 print(f"[refresh_stock_cache] ⚠️ 从 K 线文件生成股票列表时出错: {gen_error}")
                 print(f"[refresh_stock_cache] 错误详情: {error_detail}")
                 
-                error_msg = f'⚠️ **生成股票列表时出错**\n\n'
-                error_msg += f'错误信息: {str(gen_error)}\n\n'
-                error_msg += '**可能的原因：**\n'
-                error_msg += '1. 导入模块失败\n'
-                error_msg += '2. 文件读取错误\n'
-                error_msg += '3. 其他运行时错误\n\n'
-                error_msg += '**解决方案：**\n'
-                error_msg += '请检查 Vercel 部署日志，查看详细的错误堆栈信息。'
-                
+                error_msg = f'⚠️ **生成股票列表时出错**\n\n{str(gen_error)}\n\n请 2 分钟后再试刷新。'
                 return jsonify({
                     'success': False,
                     'message': error_msg,
@@ -6856,8 +6828,8 @@ def refresh_stock_cache():
                     'is_vercel': True,
                     'error': str(gen_error),
                     'error_type': type(gen_error).__name__,
-                    'suggestion': '检查错误日志'
-                }), 500
+                    'suggestion': '2 分钟后再试刷新'
+                }), 200
         
         # 非 Vercel 环境：从 akshare API 获取股票列表（后台任务可以使用更长的超时）
         print("[refresh_stock_cache] 从 akshare API 获取股票列表...")

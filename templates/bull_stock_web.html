@@ -3102,12 +3102,13 @@
                         if (errorResult.suggestion === '手动刷新缓存' || errorResult.message.includes('手动触发缓存刷新') || (errorResult.cache_exists === false && errorResult.is_vercel)) {
                             showMessage('正在自动刷新缓存，请稍候...', 'info');
                             updateProgress(0, '刷新缓存', '正在自动刷新缓存...');
+                            let refreshMsgShown = false;
                             try {
                                 const refreshUrl = (typeof isNetworkEnvironment === 'function' && isNetworkEnvironment())
                                     ? 'https://www.daniugu.online/api/refresh_stock_cache?force=true'
                                     : '/api/refresh_stock_cache?force=true';
                                 const r = await fetch(refreshUrl, { method: 'GET', cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
-                                const rr = await r.json();
+                                const rr = await r.json().catch(() => ({}));
                                 if (rr && rr.success) {
                                     autoRefreshed = true;
                                     showMessage('✅ 缓存已刷新！请再次点击扫描按钮。', 'success');
@@ -3117,10 +3118,19 @@
                                     isScanning = false;
                                     return;
                                 }
+                                if (rr && typeof rr.message === 'string') {
+                                    const brief = rr.message.replace(/\*\*/g, '').split('\n')[0].trim() || '刷新失败，请 2 分钟后再试。';
+                                    showMessage(brief, 'warning');
+                                } else {
+                                    showMessage(errorMsg, 'error');
+                                }
+                                refreshMsgShown = true;
                             } catch (e) {
                                 console.warn('[scanAllStocks] 自动刷新缓存失败:', e);
+                                showMessage('刷新请求失败，请 2 分钟后再试或手动刷新缓存。', 'warning');
+                                refreshMsgShown = true;
                             }
-                            if (!autoRefreshed) {
+                            if (!autoRefreshed && !refreshMsgShown) {
                                 showMessage(errorMsg, 'error');
                             }
                         } else {
