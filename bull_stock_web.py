@@ -2070,7 +2070,10 @@ def cache_debug():
             stock_list_ok = os.path.exists(os.path.join(tmp_cache, 'stock_list_all.json'))
             weekly_ok = os.path.exists(os.path.join(tmp_cache, 'weekly_kline'))
             daily_ok = os.path.exists(os.path.join(tmp_cache, 'daily_kline'))
-        return jsonify({
+        # 若 /tmp/cache 已存在但本次未拉取（例如 before_request 已拉取），推断 fetch_ok=True
+        if tmp_ok and not fetch_attempted and fetch_ok is None:
+            fetch_ok = True
+        resp = {
             'success': True,
             'vercel': is_vercel,
             'has_stock_data_url': has_url,
@@ -2083,7 +2086,13 @@ def cache_debug():
             'fetch_attempted': fetch_attempted,
             'fetch_ok': fetch_ok,
             'fetch_error': fetch_error,
-        })
+        }
+        if is_vercel and tmp_ok:
+            resp['instance_note'] = (
+                'Vercel 每个实例有独立 /tmp。若扫描仍报缓存不存在，多为命中其他实例；'
+                '请先访问 /api/cache_debug 完成后再扫描，或重试扫描。'
+            )
+        return jsonify(resp)
     except Exception as e:
         import traceback
         return jsonify({

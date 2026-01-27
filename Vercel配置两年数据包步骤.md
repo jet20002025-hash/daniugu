@@ -79,6 +79,8 @@ https://www.daniugu.online/api/cache_debug
 
 如果 `fetch_ok: true` 且 `tmp_cache_exists: true`，说明数据包已成功下载并解压到 `/tmp/cache`！
 
+**说明：** 若 `fetch_attempted: false` 但 `tmp_cache_exists: true`，则 `fetch_ok` 会推断为 `true`（本实例的缓存由首次请求的 before_request 拉取）。属正常情况。
+
 ---
 
 ### 5. 测试扫描功能
@@ -88,6 +90,10 @@ https://www.daniugu.online/api/cache_debug
 1. 登录网站：https://www.daniugu.online/
 2. 点击「扫描」按钮
 3. 应该不再出现「缓存不存在」的错误
+
+**若扫描仍报「缓存不存在」：** Vercel 每个实例有独立的 `/tmp`。有可能 cache_debug 命中了实例 A（已有缓存），扫描命中了实例 B（尚未拉取或拉取超时）。建议：
+- 先访问 `/api/cache_debug` 等待完成（必要时 1–2 分钟），再**立即**进行扫描；
+- 或重试扫描几次（有机会命中已有缓存的实例）。
 
 ---
 
