@@ -15,11 +15,5 @@
       "path": "/api/cron?scan_type=afternoon",
       "schedule": "0 15 * * 1-5"
     }
-    // 注意：Vercel Hobby 账户每天只能运行 1 次 cron job
-    // 因此无法同时配置 11:35 和 15:05 的数据更新 cron
-    // 建议使用外部服务（GitHub Actions 或 UptimeRobot）调用：
-    // - 11:35: GET /api/update_data_from_sina?batch=0&batch_size=50
-    // - 15:05: GET /api/update_data_from_sina?batch=0&batch_size=50
-    // 详见：数据更新方案_午盘尾盘新浪_盘中腾讯.md
   ]
 }
