@@ -3104,10 +3104,11 @@
                             updateProgress(0, '刷新缓存', '正在自动刷新缓存...');
                             let refreshMsgShown = false;
                             try {
-                                const refreshUrl = (typeof isNetworkEnvironment === 'function' && isNetworkEnvironment())
-                                    ? 'https://www.daniugu.online/api/refresh_stock_cache?force=true'
-                                    : '/api/refresh_stock_cache?force=true';
-                                const r = await fetch(refreshUrl, { method: 'GET', cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
+                                const refreshUrl = (window.location.origin || '') + '/api/refresh_stock_cache?force=true';
+                                const ctrl = new AbortController();
+                                const t = setTimeout(() => ctrl.abort(), 90000);
+                                const r = await fetch(refreshUrl, { method: 'GET', cache: 'no-store', headers: { 'Cache-Control': 'no-cache' }, signal: ctrl.signal });
+                                clearTimeout(t);
                                 const rr = await r.json().catch(() => ({}));
                                 if (rr && rr.success) {
                                     autoRefreshed = true;
@@ -3126,8 +3127,12 @@
                                 }
                                 refreshMsgShown = true;
                             } catch (e) {
-                                console.warn('[scanAllStocks] 自动刷新缓存失败:', e);
-                                showMessage('刷新请求失败，请 2 分钟后再试或手动刷新缓存。', 'warning');
+                                if (e && e.name === 'AbortError') {
+                                    showMessage('刷新超时，请 2 分钟后再试或点击「手动刷新缓存」。', 'warning');
+                                } else {
+                                    console.warn('[scanAllStocks] 自动刷新缓存失败:', e);
+                                    showMessage('刷新请求失败，请 2 分钟后再试或手动刷新缓存。', 'warning');
+                                }
                                 refreshMsgShown = true;
                             }
                             if (!autoRefreshed && !refreshMsgShown) {
@@ -3174,18 +3179,16 @@
                                 showMessage('正在手动刷新缓存，请稍候...', 'info');
                                 
                                 try {
-                                    // 使用 fetch 调用刷新 API，而不是打开新窗口
-                                    const refreshUrl = isNetworkEnvironment() 
-                                        ? 'https://www.daniugu.online/api/refresh_stock_cache?force=true'
-                                        : '/api/refresh_stock_cache?force=true';
-                                    
+                                    const refreshUrl = (window.location.origin || '') + '/api/refresh_stock_cache?force=true';
+                                    const ctrl = new AbortController();
+                                    const t = setTimeout(() => ctrl.abort(), 90000);
                                     const refreshResponse = await fetch(refreshUrl, {
                                         method: 'GET',
                                         cache: 'no-store',
-                                        headers: {
-                                            'Cache-Control': 'no-cache'
-                                        }
+                                        headers: { 'Cache-Control': 'no-cache' },
+                                        signal: ctrl.signal
                                     });
+                                    clearTimeout(t);
                                     
                                     const refreshResult = await refreshResponse.json();
                                     
@@ -3220,9 +3223,14 @@
                                         }
                                     }
                                 } catch (error) {
-                                    console.error('[refreshCache] 刷新缓存失败:', error);
-                                    showMessage(`❌ 刷新缓存失败: ${error.message || '网络错误'}`, 'error');
-                                    showMessage('💡 提示：可以手动访问 https://www.daniugu.online/api/refresh_stock_cache?force=true 刷新缓存', 'info');
+                                    if (error && error.name === 'AbortError') {
+                                        showMessage('❌ 刷新超时，请 2 分钟后再试。', 'error');
+                                    } else {
+                                        console.warn('[refreshCache] 刷新缓存失败:', error);
+                                        showMessage(`❌ 刷新缓存失败: ${error.message || '网络错误'}`, 'error');
+                                    }
+                                    const tipUrl = (window.location.origin || '') + '/api/refresh_stock_cache?force=true';
+                                    showMessage('💡 提示：可复制链接在浏览器中打开以刷新: ' + tipUrl, 'info');
                                 }
                             };
                         }
