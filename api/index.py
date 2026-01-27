@@ -19,20 +19,21 @@ if not os.environ.get('VERCEL'):
 # ✅ 在导入前设置 USE_GITHUB_DATA_ONLY，确保 DataFetcher 能正确检测
 os.environ['USE_GITHUB_DATA_ONLY'] = '1'
 
-# ✅ 先获取 GitHub 缓存（最小模型：仅下载并解压，不依赖 Flask/akshare）
-# Vercel 仅 /tmp 可写，解压到 /tmp，并用 LOCAL_CACHE_DIR 让 data_fetcher 等从 /tmp/cache 读
+# ✅ Vercel 仅 /tmp 可写，统一用 LOCAL_CACHE_DIR=/tmp/cache；不在导入时拉缓存（易超时被杀）
+# 改为在首次请求时由 before_request / cache_debug 内拉取
 if os.environ.get('STOCK_DATA_URL'):
     _vercel = os.environ.get('VERCEL') == '1'
-    _cache_root = '/tmp' if _vercel else parent_dir
     if _vercel:
         os.environ['LOCAL_CACHE_DIR'] = '/tmp/cache'
-    try:
-        from fetch_github_cache import fetch_github_cache
-        fetch_github_cache(skip_if_exists=True, root_dir=_cache_root)
-    except Exception as _e:
-        import traceback
-        print("[api/index] fetch_github_cache 跳过或失败:", _e)
-        traceback.print_exc()
+    # 非 Vercel（如本地）仍可在导入时预拉
+    if not _vercel:
+        try:
+            from fetch_github_cache import fetch_github_cache
+            fetch_github_cache(skip_if_exists=True, root_dir=parent_dir)
+        except Exception as _e:
+            import traceback
+            print("[api/index] fetch_github_cache 跳过或失败:", _e)
+            traceback.print_exc()
 
 # 确保只导入 bull_stock_web，不导入其他 app.py
 try:

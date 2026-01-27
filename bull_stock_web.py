@@ -2030,13 +2030,26 @@ def api_health():
 
 @app.route('/api/cache_debug', methods=['GET'])
 def cache_debug():
-    """免登录：查看 Vercel 上缓存路径与实际目录状态，便于排查 cache_exists 为 false"""
+    """免登录：查看 Vercel 上缓存路径与实际目录状态；若 /tmp/cache 不存在则在此请求内拉取一次"""
     try:
         import os
         has_url = bool(os.environ.get('STOCK_DATA_URL'))
         local_dir = os.environ.get('LOCAL_CACHE_DIR') or '(not set)'
         tmp_cache = '/tmp/cache'
         tmp_ok = os.path.exists(tmp_cache)
+        fetch_attempted = False
+        fetch_ok = None
+        # 若在 Vercel、有 URL、且 /tmp/cache 不存在，则在本请求内拉取（可能耗时 1–2 分钟）
+        if is_vercel and has_url and not tmp_ok:
+            try:
+                from fetch_github_cache import fetch_github_cache
+                fetch_attempted = True
+                fetch_ok = fetch_github_cache(skip_if_exists=False, root_dir='/tmp', timeout=120)
+                tmp_ok = os.path.exists(tmp_cache)
+            except Exception as fe:
+                fetch_attempted = True
+                fetch_ok = False
+                print("[cache_debug] fetch_github_cache 失败:", fe)
         entries = []
         stock_list_ok = False
         weekly_ok = False
@@ -2059,6 +2072,8 @@ def cache_debug():
             'tmp_has_stock_list': stock_list_ok,
             'tmp_has_weekly_kline': weekly_ok,
             'tmp_has_daily_kline': daily_ok,
+            'fetch_attempted': fetch_attempted,
+            'fetch_ok': fetch_ok,
         })
     except Exception as e:
         import traceback
