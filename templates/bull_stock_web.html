@@ -1217,6 +1217,21 @@
                         
                         updateProgress(progress.percentage, progress.status, detailText);
 
+                        // ✅ Vercel 分批：若轮询发现第1批已完成且还有后续批，自动触发 continue（含超时后仅轮询的场景）
+                        try {
+                            const sid = (typeof window.currentScanId !== 'undefined') ? window.currentScanId : '';
+                            const tb = progress.total_batches || 0;
+                            const cb = progress.batch || 0;
+                            if (sid && tb > 1 && cb >= 1 && cb < tb && !window._autoContinueScanRunning) {
+                                const st = (progress.status || '');
+                                if (st !== '完成' && st !== '失败' && st !== '空闲' && st !== '已停止' && st !== '错误') {
+                                    console.log(`[实时显示] 轮询检测到 batch ${cb}/${tb}，启动 continue 剩余批次`);
+                                    window._autoContinueScanRunning = true;
+                                    autoContinueScan(sid, cb, tb);
+                                }
+                            }
+                        } catch (e) { console.warn('[实时显示] 触发 autoContinueScan 异常:', e); }
+
                         // ✅ 扫描过程中：实时把新找到的候选渲染出来（找到一只显示一只）
                         try {
                             // 只要有 candidates 就显示，不严格检查 type
@@ -2865,17 +2880,19 @@
                                         console.log(`[scanAllStocks] 已设置 currentScanId: ${scanId}`);
                                     }
                                     
-                                    // 如果返回了scan_id，尝试继续处理后续批次
+                                    // 仅当第 1 批已完成后再触发后续批次，避免与正在跑的批 1 重复
                                     if (scanId && checkResult.progress.total_batches > 1) {
                                         const totalBatches = checkResult.progress.total_batches;
                                         const currentBatch = checkResult.progress.batch || 0;
                                         
                                         console.log(`[scanAllStocks] 检测到活跃扫描: scan_id=${scanId}, 当前批次=${currentBatch}/${totalBatches}`);
                                         
-                                        // 如果还有更多批次，自动继续处理
-                                        if (currentBatch < totalBatches) {
-                                            console.log(`[scanAllStocks] 自动继续处理剩余批次: ${currentBatch + 1}/${totalBatches}`);
-                                            autoContinueScan(scanId, currentBatch, totalBatches);
+                                        if (currentBatch >= 1 && currentBatch < totalBatches) {
+                                            console.log(`[scanAllStocks] 第1批已完成，自动继续处理剩余批次: ${currentBatch + 1}/${totalBatches}`);
+                                            if (!window._autoContinueScanRunning) {
+                                                window._autoContinueScanRunning = true;
+                                                autoContinueScan(scanId, currentBatch, totalBatches);
+                                            }
                                         }
                                     }
                                     
@@ -2925,9 +2942,15 @@
                                                             window.currentScanId = scanId;
                                                             console.log(`[scanAllStocks] 已设置 currentScanId: ${scanId}`);
                                                         }
+                                                        const tb = result.progress.total_batches || 0;
+                                                        const cb = result.progress.batch || 0;
+                                                        if (tb > 1 && cb >= 1 && cb < tb && !window._autoContinueScanRunning) {
+                                                            window._autoContinueScanRunning = true;
+                                                            autoContinueScan(scanId, cb, tb);
+                                                        }
                                                         return; // 找到活跃扫描，停止检查
                                                     }
-                                                    
+                                    
                                                     // 如果状态是"准备中"，也认为是活跃的
                                                     if (status === '准备中' || status === '获取中' || status === '启动中' || status === '处理中') {
                                                         console.log('[scanAllStocks] ✅ 检测到扫描正在准备/启动中！', result.progress);
@@ -3314,8 +3337,11 @@
                         window.currentScanBatch = 1;
                         
                         // 扫描成功启动，不重置 isScanning（扫描正在进行中）
-                        // 开始自动处理下一批次
-                        autoContinueScan(scanId, 1, totalBatches);
+                        // 开始自动处理下一批次（防重入，避免与轮询重复触发）
+                        if (!window._autoContinueScanRunning) {
+                            window._autoContinueScanRunning = true;
+                            autoContinueScan(scanId, 1, totalBatches);
+                        }
                     } else {
                         // 本地环境：传统轮询模式
                         showMessage('扫描已开始，请等待完成...', 'success');
@@ -6248,8 +6274,10 @@
         async function autoContinueScan(scanId, currentBatch, totalBatches) {
             if (!scanId || currentBatch >= totalBatches) {
                 console.log('所有批次已完成');
+                if (window._autoContinueScanRunning) window._autoContinueScanRunning = false;
                 return;
             }
+            window._autoContinueScanRunning = true;
             
             // 根据用户等级获取延迟时间
             const userInfo = await getUserInfo();
@@ -6316,6 +6344,7 @@
                         autoContinueScan(scanId, currentBatch + 1, totalBatches);
                     } else if (result.is_complete) {
                         // 所有批次完成
+                        if (window._autoContinueScanRunning) window._autoContinueScanRunning = false;
                         console.log('所有批次处理完成！');
                         const foundCount = result.progress?.found || 0;
                         const totalScanned = result.progress?.total_scanned || result.progress?.scanned || 0;
@@ -6382,6 +6411,7 @@
                     throw new Error(result.message || '处理批次失败');
                 }
             } catch (error) {
+                if (window._autoContinueScanRunning) window._autoContinueScanRunning = false;
                 console.error(`处理第 ${currentBatch + 1} 批失败:`, error);
                 
                 // 检查是否是 404、400 或扫描任务丢失错误
